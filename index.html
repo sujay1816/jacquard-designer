@@ -1,0 +1,1493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jacquard Designer</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0c0a;
+    --surface: #161410;
+    --surface2: #1e1b17;
+    --border: #2e2a24;
+    --border2: #3e3830;
+    --gold: #c8a96e;
+    --gold2: #e8c98e;
+    --cream: #f0e8d8;
+    --muted: #7a6f62;
+    --text: #e8e0d0;
+    --danger: #c06060;
+    --success: #6a9e6a;
+    --zari: #c8a040;
+    --meena1: #8ab4d8;
+    --meena2: #b890c8;
+    --rani: #c87890;
+    --radius: 8px;
+    --transition: 0.2s ease;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* === HEADER === */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 20px 32px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: var(--surface);
+  }
+
+  .logo-mark {
+    width: 36px; height: 36px;
+    border: 1.5px solid var(--gold);
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 20px;
+    color: var(--gold);
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  .header-text h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--gold2);
+    letter-spacing: 0.02em;
+  }
+
+  .header-text p {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  /* === STEP INDICATORS === */
+  .steps {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-left: auto;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: 4px;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+    transition: var(--transition);
+  }
+
+  .step.active { color: var(--gold); }
+  .step.done { color: var(--success); }
+
+  .step-num {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    border: 1.5px solid currentColor;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px;
+    flex-shrink: 0;
+  }
+
+  .step.done .step-num {
+    background: var(--success);
+    border-color: var(--success);
+    color: #fff;
+  }
+
+  .step-arrow { color: var(--border2); font-size: 12px; }
+
+  /* === MAIN LAYOUT === */
+  .main {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    height: calc(100vh - 77px);
+  }
+
+  /* === LEFT PANEL === */
+  .left-panel {
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .panel-section {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .section-label {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Upload zone */
+  .upload-zone {
+    border: 1.5px dashed var(--border2);
+    border-radius: var(--radius);
+    padding: 32px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: var(--transition);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--gold);
+    background: rgba(200, 169, 110, 0.04);
+  }
+
+  .upload-zone input { display: none; }
+
+  .upload-icon {
+    font-size: 28px;
+    margin-bottom: 10px;
+    opacity: 0.6;
+  }
+
+  .upload-zone h3 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 16px;
+    color: var(--cream);
+    margin-bottom: 6px;
+  }
+
+  .upload-zone p {
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.6;
+  }
+
+  .upload-preview {
+    width: 100%;
+    border-radius: var(--radius);
+    display: none;
+    position: relative;
+  }
+
+  .upload-preview img {
+    width: 100%;
+    border-radius: var(--radius);
+    display: block;
+    max-height: 200px;
+    object-fit: cover;
+  }
+
+  .upload-preview .change-btn {
+    position: absolute;
+    top: 8px; right: 8px;
+    background: rgba(0,0,0,0.7);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* Form fields */
+  .field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .field label {
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .field input, .field select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    padding: 8px 12px;
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    width: 100%;
+    transition: var(--transition);
+  }
+
+  .field input:focus, .field select:focus {
+    outline: none;
+    border-color: var(--gold);
+  }
+
+  .field input::placeholder { color: var(--muted); }
+
+  .field-hint {
+    font-size: 10px;
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  /* Shuttle selector */
+  .shuttle-buttons {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+
+  .shuttle-btn {
+    padding: 8px 4px;
+    border: 1.5px solid var(--border);
+    border-radius: 4px;
+    background: var(--surface2);
+    color: var(--muted);
+    cursor: pointer;
+    text-align: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    transition: var(--transition);
+    line-height: 1.4;
+  }
+
+  .shuttle-btn:hover { border-color: var(--border2); color: var(--text); }
+  .shuttle-btn.active { border-color: var(--gold); color: var(--gold); background: rgba(200,169,110,0.08); }
+  .shuttle-btn .num { font-size: 18px; font-family: 'Cormorant Garamond', serif; display: block; color: inherit; }
+
+  /* Detect button */
+  .btn {
+    width: 100%;
+    padding: 12px;
+    border-radius: var(--radius);
+    border: none;
+    cursor: pointer;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .btn-primary {
+    background: var(--gold);
+    color: #1a1400;
+    font-weight: 500;
+  }
+
+  .btn-primary:hover:not(:disabled) { background: var(--gold2); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border2);
+  }
+
+  .btn-secondary:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+  .btn-secondary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .btn-success {
+    background: var(--success);
+    color: #fff;
+  }
+
+  .btn-success:hover:not(:disabled) { background: #7ab87a; }
+  .btn-success:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Spinner */
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: none;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* === RIGHT PANEL === */
+  .right-panel {
+    overflow-y: auto;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    background: var(--bg);
+  }
+
+  /* Empty state */
+  .empty-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    opacity: 0.5;
+    text-align: center;
+    padding: 60px 20px;
+  }
+
+  .empty-icon {
+    font-size: 48px;
+    opacity: 0.4;
+  }
+
+  .empty-state h2 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px;
+    color: var(--cream);
+  }
+
+  .empty-state p { color: var(--muted); line-height: 1.6; }
+
+  /* Color assignment area */
+  #color-assignment { display: none; }
+
+  .assignment-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .assignment-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 18px;
+    color: var(--cream);
+  }
+
+  .assignment-subtitle {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+    line-height: 1.5;
+  }
+
+  /* Color detection grid */
+  .colors-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+
+  .color-card {
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    cursor: grab;
+    transition: var(--transition);
+    user-select: none;
+    background: var(--surface);
+  }
+
+  .color-card:hover { border-color: var(--border2); transform: translateY(-1px); }
+  .color-card.dragging { opacity: 0.5; cursor: grabbing; }
+  .color-card.assigned { border-color: var(--gold); opacity: 0.7; }
+
+  .color-swatch {
+    height: 56px;
+    position: relative;
+  }
+
+  .color-card-info {
+    padding: 8px 10px;
+  }
+
+  .color-hex { font-size: 11px; color: var(--gold); font-weight: 500; }
+  .color-pct { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .color-badge {
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-top: 4px;
+    display: inline-block;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  /* Shuttle drop zones */
+  .shuttle-zones {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .shuttle-zone {
+    border: 1.5px dashed var(--border2);
+    border-radius: var(--radius);
+    padding: 14px;
+    min-height: 120px;
+    transition: var(--transition);
+    background: var(--surface);
+  }
+
+  .shuttle-zone.drag-over {
+    border-color: var(--gold);
+    background: rgba(200,169,110,0.05);
+  }
+
+  .shuttle-zone-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .shuttle-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .shuttle-zone-title {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--cream);
+    text-transform: capitalize;
+  }
+
+  .shuttle-zone-hint {
+    font-size: 10px;
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  .zone-colors {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-height: 36px;
+  }
+
+  .zone-color-chip {
+    width: 32px; height: 32px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    position: relative;
+    transition: var(--transition);
+    flex-shrink: 0;
+  }
+
+  .zone-color-chip:hover { transform: scale(1.1); }
+
+  .zone-color-chip .remove-chip {
+    position: absolute;
+    top: -4px; right: -4px;
+    width: 14px; height: 14px;
+    background: var(--danger);
+    border-radius: 50%;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    color: #fff;
+    cursor: pointer;
+  }
+
+  .zone-color-chip:hover .remove-chip { display: flex; }
+
+  /* Satin settings */
+  .satin-settings {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .satin-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    background: var(--surface);
+  }
+
+  .satin-card-title {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .satin-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .satin-row label { font-size: 11px; color: var(--muted); }
+
+  .flip-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .toggle {
+    width: 32px; height: 18px;
+    background: var(--border2);
+    border-radius: 9px;
+    position: relative;
+    cursor: pointer;
+    transition: var(--transition);
+    flex-shrink: 0;
+  }
+
+  .toggle.on { background: var(--gold); }
+
+  .toggle::after {
+    content: '';
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 14px; height: 14px;
+    background: #fff;
+    border-radius: 50%;
+    transition: var(--transition);
+  }
+
+  .toggle.on::after { left: 16px; }
+
+  /* Preview images */
+  .preview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+  }
+
+  .preview-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--surface);
+  }
+
+  .preview-card-header {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .preview-card-title { font-size: 12px; color: var(--cream); }
+  .preview-card-sub { font-size: 10px; color: var(--muted); }
+
+  .preview-img-wrap {
+    background: repeating-conic-gradient(#333 0% 25%, #222 0% 50%) 0 0 / 12px 12px;
+    padding: 8px;
+  }
+
+  .preview-img-wrap img {
+    width: 100%;
+    display: block;
+    border-radius: 4px;
+    image-rendering: pixelated;
+  }
+
+  .verify-ok { color: var(--success); font-size: 10px; padding: 6px 14px; }
+  .verify-fail { color: var(--danger); font-size: 10px; padding: 6px 14px; }
+
+  /* Download section */
+  .download-section {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    background: var(--surface);
+    text-align: center;
+  }
+
+  .download-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 18px;
+    color: var(--gold2);
+    margin-bottom: 6px;
+  }
+
+  .download-meta {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+
+  /* Messages */
+  .msg {
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    font-size: 12px;
+    margin-top: 8px;
+    display: none;
+  }
+
+  .msg-error { background: rgba(192,96,96,0.15); color: var(--danger); border: 1px solid rgba(192,96,96,0.3); }
+  .msg-success { background: rgba(106,158,106,0.15); color: var(--success); border: 1px solid rgba(106,158,106,0.3); }
+
+  /* Weave preview canvas */
+  .weave-preview {
+    width: 60px; height: 60px;
+    image-rendering: pixelated;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+  }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    .main { grid-template-columns: 1fr; height: auto; }
+    .left-panel { border-right: none; border-bottom: 1px solid var(--border); }
+    header { flex-wrap: wrap; }
+    .steps { margin-left: 0; }
+  }
+
+  /* Loading overlay */
+  #loading-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(14,12,10,0.85);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  #loading-overlay.show { display: flex; }
+
+  .loading-spinner {
+    width: 40px; height: 40px;
+    border: 3px solid rgba(200,169,110,0.2);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  .loading-text {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 18px;
+    color: var(--gold);
+  }
+
+  .loading-sub { font-size: 11px; color: var(--muted); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- Loading overlay -->
+<div id="loading-overlay">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">Processing Design</div>
+  <div class="loading-sub" id="loading-sub-text">Detecting colours...</div>
+</div>
+
+<!-- Header -->
+<header>
+  <div class="logo-mark">J</div>
+  <div class="header-text">
+    <h1>Jacquard Designer</h1>
+    <p>BMP Generation Tool for Jacquard Loom</p>
+  </div>
+  <div class="steps">
+    <div class="step active" id="step-1"><span class="step-num">1</span> Upload</div>
+    <span class="step-arrow">›</span>
+    <div class="step" id="step-2"><span class="step-num">2</span> Assign</div>
+    <span class="step-arrow">›</span>
+    <div class="step" id="step-3"><span class="step-num">3</span> Generate</div>
+    <span class="step-arrow">›</span>
+    <div class="step" id="step-4"><span class="step-num">4</span> Download</div>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- LEFT PANEL: Settings -->
+  <div class="left-panel">
+
+    <!-- Upload -->
+    <div class="panel-section">
+      <div class="section-label">Design Image</div>
+      <div class="upload-zone" id="upload-zone">
+        <input type="file" id="file-input" accept="image/*">
+        <div class="upload-icon">🖼</div>
+        <h3>Drop design image here</h3>
+        <p>Upload a cropped saree design photo<br>JPG, PNG, BMP supported</p>
+      </div>
+      <div class="upload-preview" id="upload-preview">
+        <img id="preview-img" src="" alt="Design preview">
+        <button class="change-btn" id="change-img-btn">Change</button>
+      </div>
+    </div>
+
+    <!-- Design Settings -->
+    <div class="panel-section">
+      <div class="section-label">Design Settings</div>
+
+      <div class="field" style="margin-bottom:12px">
+        <label>Design Name</label>
+        <input type="text" id="design-name" placeholder="e.g. Rose_Butta" maxlength="50">
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Pins (Width) *</label>
+          <input type="number" id="pins" placeholder="e.g. 480" min="10" max="9999">
+        </div>
+        <div class="field">
+          <label>Cards (Height)</label>
+          <input type="number" id="cards" placeholder="Auto" min="10" max="9999">
+          <span class="field-hint">Optional — auto if blank</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Shuttle Count -->
+    <div class="panel-section">
+      <div class="section-label">Number of Shuttles</div>
+      <div class="shuttle-buttons">
+        <button class="shuttle-btn" data-n="1" onclick="setShuttles(1)">
+          <span class="num">1</span>Zari
+        </button>
+        <button class="shuttle-btn" data-n="2" onclick="setShuttles(2)">
+          <span class="num">2</span>Rani+Zari
+        </button>
+        <button class="shuttle-btn" data-n="3" onclick="setShuttles(3)">
+          <span class="num">3</span>+Meena1
+        </button>
+        <button class="shuttle-btn" data-n="4" onclick="setShuttles(4)">
+          <span class="num">4</span>+Meena2
+        </button>
+      </div>
+    </div>
+
+    <!-- Detect Colors Button -->
+    <div class="panel-section">
+      <button class="btn btn-primary" id="detect-btn" onclick="detectColors()" disabled>
+        <div class="spinner" id="detect-spinner"></div>
+        <span id="detect-btn-text">Detect Colours</span>
+      </button>
+      <div class="msg msg-error" id="detect-error"></div>
+    </div>
+
+    <!-- Generate Button (shown after assignment) -->
+    <div class="panel-section" id="generate-section" style="display:none">
+      <button class="btn btn-success" id="generate-btn" onclick="generateBMPs()">
+        <div class="spinner" id="generate-spinner"></div>
+        <span id="generate-btn-text">Generate BMP Files</span>
+      </button>
+      <div class="msg msg-error" id="generate-error"></div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT PANEL: Color assignment + Previews -->
+  <div class="right-panel" id="right-panel">
+
+    <!-- Empty state -->
+    <div class="empty-state" id="empty-state">
+      <div class="empty-icon">🧵</div>
+      <h2>Ready to Weave</h2>
+      <p>Upload a cropped saree design image,<br>set your pins and shuttle count,<br>then click Detect Colours to begin.</p>
+    </div>
+
+    <!-- Color Assignment -->
+    <div id="color-assignment">
+
+      <div class="assignment-header">
+        <div>
+          <div class="assignment-title">Assign Colours to Shuttles</div>
+          <div class="assignment-subtitle">Drag colour swatches into shuttle slots below. Unassigned colours default to Zari.</div>
+        </div>
+      </div>
+
+      <!-- Preview images row -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+        <div>
+          <div style="font-size:10px;color:var(--muted);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px">Original (resized)</div>
+          <img id="orig-preview" style="width:100%;border-radius:8px;display:block;max-height:200px;object-fit:cover">
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--muted);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px">Colour Map</div>
+          <img id="color-map-preview" style="width:100%;border-radius:8px;display:block;max-height:200px;object-fit:cover">
+        </div>
+      </div>
+
+      <!-- Detected colours -->
+      <div style="font-size:10px;color:var(--muted);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:10px">Detected Colours — Drag to assign</div>
+      <div class="colors-grid" id="colors-grid"></div>
+
+      <!-- Shuttle zones -->
+      <div style="font-size:10px;color:var(--muted);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:10px">Shuttle Zones — Drop here</div>
+      <div class="shuttle-zones" id="shuttle-zones"></div>
+
+      <!-- Satin settings -->
+      <div id="satin-section">
+        <div style="font-size:10px;color:var(--muted);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:10px">Weave Settings per Shuttle</div>
+        <div class="satin-settings" id="satin-settings"></div>
+      </div>
+
+    </div>
+
+    <!-- Output previews -->
+    <div id="output-section" style="display:none">
+      <div style="font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--gold2);margin-bottom:12px">Generated BMP Files</div>
+      <div class="preview-grid" id="preview-grid"></div>
+      <div class="download-section" style="margin-top:16px">
+        <div class="download-title">✓ Files Ready</div>
+        <div class="download-meta" id="download-meta"></div>
+        <button class="btn btn-primary" id="download-btn" onclick="downloadZip()" style="max-width:280px;margin:0 auto">
+          ⬇ Download ZIP
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// =====================================================================
+// App State
+// =====================================================================
+const state = {
+  imageFile: null,
+  imageB64: null,
+  shuttleCount: 0,
+  detectedColors: [],
+  colorAssignments: {},   // colorIndex -> shuttleName
+  safeImageB64: null,
+  pins: 0,
+  cards: 0,
+  zipB64: null,
+  zipFilename: null,
+};
+
+const SHUTTLE_CONFIG = {
+  1: ['zari'],
+  2: ['zari'],
+  3: ['zari', 'meena1'],
+  4: ['zari', 'meena1', 'meena2'],
+};
+
+const SHUTTLE_COLORS = {
+  background: '#4a4030',
+  zari: '#c8a040',
+  meena1: '#8ab4d8',
+  meena2: '#b890c8',
+  rani: '#c87890',
+};
+
+const SATIN_OPTIONS = [4, 5, 6, 7, 8, 16];
+
+// =====================================================================
+// Upload handling
+// =====================================================================
+const uploadZone = document.getElementById('upload-zone');
+const fileInput = document.getElementById('file-input');
+
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f) handleFile(f);
+});
+
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) handleFile(fileInput.files[0]);
+});
+
+document.getElementById('change-img-btn').addEventListener('click', () => {
+  fileInput.click();
+});
+
+function handleFile(file) {
+  // Validate file type before accepting
+  const allowed = ['image/jpeg','image/png','image/bmp','image/tiff','image/webp'];
+  if (!allowed.includes(file.type) && !file.name.match(/\.(jpe?g|png|bmp|tiff?|webp)$/i)) {
+    showMsg('detect-error', 'Unsupported file type. Please upload a JPEG, PNG, BMP, TIFF, or WebP image.');
+    return;
+  }
+
+  // Reset stale state from previous image so old label_map is never reused
+  state.imageFile     = file;
+  state.safeImageB64  = null;
+  state.labelMap      = null;
+  state.detectedColors = [];
+  state.colorAssignments = {};
+  document.getElementById('color-assignment').style.display = 'none';
+  document.getElementById('output-section').style.display   = 'none';
+  document.getElementById('generate-section').style.display = 'none';
+  document.getElementById('cards').value       = '';
+  document.getElementById('cards').placeholder = 'auto';
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    state.imageB64 = e.target.result.split(',')[1];
+    document.getElementById('preview-img').src = e.target.result;
+    uploadZone.style.display = 'none';
+    document.getElementById('upload-preview').style.display = 'block';
+    checkDetectReady();
+    setStep(1);
+  };
+  reader.readAsDataURL(file);
+}
+
+// =====================================================================
+// Shuttle count
+// =====================================================================
+function setShuttles(n) {
+  state.shuttleCount = n;
+  document.querySelectorAll('.shuttle-btn').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.n) === n);
+  });
+  checkDetectReady();
+}
+
+function checkDetectReady() {
+  const pinsVal = parseInt(document.getElementById('pins').value);
+  const ready = state.imageFile && state.shuttleCount > 0 && pinsVal > 0;
+  document.getElementById('detect-btn').disabled = !ready;
+}
+
+document.getElementById('pins').addEventListener('input', checkDetectReady);
+
+// =====================================================================
+// Step indicator
+// =====================================================================
+function setStep(completed) {
+  for (let i = 1; i <= 4; i++) {
+    const el = document.getElementById(`step-${i}`);
+    el.classList.remove('active', 'done');
+    if (i < completed + 1) el.classList.add('done');
+    else if (i === completed + 1) el.classList.add('active');
+  }
+}
+
+// =====================================================================
+// Detect colors
+// =====================================================================
+async function detectColors() {
+  const pins = parseInt(document.getElementById('pins').value);
+  const cardsRaw = document.getElementById('cards').value.trim();
+  const nColors = state.shuttleCount + 1; // shuttles + background
+
+  if (!pins || pins < 10) {
+    showMsg('detect-error', 'Please enter a valid Pins value (minimum 10)');
+    return;
+  }
+
+  setLoading(true, 'Detecting colours...', 'Analysing your design image');
+
+  const formData = new FormData();
+  formData.append('image', state.imageFile);
+  formData.append('n_colors', nColors);
+  formData.append('pins', pins);
+  formData.append('cards', cardsRaw);
+
+  try {
+    const detectCtrl = new AbortController();
+    const detectTimer = setTimeout(() => detectCtrl.abort(), 60000);
+    const res = await fetch('/api/detect-colors', { method: 'POST', body: formData, signal: detectCtrl.signal });
+    clearTimeout(detectTimer);
+    const data = await res.json();
+
+    if (!data.success) throw new Error(data.error);
+
+    state.detectedColors = data.colors;
+    state.pins = data.pins;
+    state.cards = data.cards;
+    state.safeImageB64 = data.original_image;
+    state.labelMap = data.label_map;  // carry through to generate so KMeans isn't re-run
+
+    // Update cards field after auto-compute so generate uses correct value
+    state.cards = data.cards;
+    if (!cardsRaw) {
+      document.getElementById('cards').value       = data.cards;
+      document.getElementById('cards').placeholder = data.cards;
+    }
+
+    renderColorAssignment(data);
+    setStep(2);
+
+  } catch (err) {
+    const msg = err.name === 'AbortError' ? 'Detection timed out. Try a smaller image or fewer pins.' : `Error: ${err.message}`;
+    showMsg('detect-error', msg);
+  } finally {
+    setLoading(false);
+  }
+}
+
+// =====================================================================
+// Render colour assignment UI
+// =====================================================================
+function renderColorAssignment(data) {
+  document.getElementById('empty-state').style.display = 'none';
+  document.getElementById('color-assignment').style.display = 'block';
+  document.getElementById('output-section').style.display = 'none';
+  document.getElementById('generate-section').style.display = 'block';
+
+  // Preview images
+  document.getElementById('orig-preview').src = `data:image/png;base64,${data.original_image}`;
+  document.getElementById('color-map-preview').src = `data:image/png;base64,${data.preview_image}`;
+
+  // Reset assignments — auto-assign: most dominant color = background
+  state.colorAssignments = {};
+  const bgIdx = data.colors[0].index; // most dominant = background
+  state.colorAssignments[bgIdx] = 'background';
+
+  // Auto-suggest remaining colors to shuttles
+  const shuttles = SHUTTLE_CONFIG[state.shuttleCount] || ['zari'];
+  let sIdx = 0;
+  data.colors.forEach(c => {
+    if (c.index !== bgIdx && sIdx < shuttles.length) {
+      state.colorAssignments[c.index] = shuttles[sIdx++];
+    }
+  });
+
+  renderColorsGrid();
+  renderShuttleZones();
+  renderSatinSettings();
+}
+
+function renderColorsGrid() {
+  const grid = document.getElementById('colors-grid');
+  grid.innerHTML = '';
+  state.detectedColors.forEach(c => {
+    const assigned = state.colorAssignments[c.index];
+    const card = document.createElement('div');
+    card.className = 'color-card' + (assigned ? ' assigned' : '');
+    card.draggable = true;
+    card.dataset.colorIndex = c.index;
+
+    const shuttleLabel = assigned
+      ? `<span class="color-badge" style="background:${SHUTTLE_COLORS[assigned] || '#555'}22;color:${SHUTTLE_COLORS[assigned] || '#aaa'}">${assigned}</span>`
+      : '';
+
+    card.innerHTML = `
+      <div class="color-swatch" style="background:${c.hex}"></div>
+      <div class="color-card-info">
+        <div class="color-hex">${c.hex.toUpperCase()}</div>
+        <div class="color-pct">${c.percentage}% of image</div>
+        ${shuttleLabel}
+      </div>
+    `;
+
+    card.addEventListener('dragstart', e => {
+      e.dataTransfer.setData('colorIndex', c.index);
+      card.classList.add('dragging');
+    });
+    card.addEventListener('dragend', () => card.classList.remove('dragging'));
+
+    grid.appendChild(card);
+  });
+}
+
+function renderShuttleZones() {
+  const container = document.getElementById('shuttle-zones');
+  container.innerHTML = '';
+
+  // Always show background zone
+  const allZones = ['background', ...( SHUTTLE_CONFIG[state.shuttleCount] || ['zari'])];
+  if (state.shuttleCount >= 2) allZones.push('rani');
+
+  const zones = ['background', ...(SHUTTLE_CONFIG[state.shuttleCount] || ['zari'])];
+
+  zones.forEach(shuttleName => {
+    const zone = document.createElement('div');
+    zone.className = 'shuttle-zone';
+    zone.dataset.shuttle = shuttleName;
+
+    const color = SHUTTLE_COLORS[shuttleName] || '#888';
+    const hint = shuttleName === 'background'
+      ? 'Fabric base — not exported'
+      : shuttleName === 'rani'
+      ? 'Auto-generated — plain weave'
+      : 'Drag colour(s) here';
+
+    zone.innerHTML = `
+      <div class="shuttle-zone-header">
+        <div class="shuttle-dot" style="background:${color}"></div>
+        <div>
+          <div class="shuttle-zone-title">${shuttleName.toUpperCase()}</div>
+          <div class="shuttle-zone-hint">${hint}</div>
+        </div>
+      </div>
+      <div class="zone-colors" id="zone-${shuttleName}"></div>
+    `;
+
+    // Drag and drop
+    zone.addEventListener('dragover', e => {
+      e.preventDefault();
+      zone.classList.add('drag-over');
+    });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault();
+      zone.classList.remove('drag-over');
+      const colorIdx = parseInt(e.dataTransfer.getData('colorIndex'));
+      assignColor(colorIdx, shuttleName);
+    });
+
+    container.appendChild(zone);
+  });
+
+  // Also add rani info zone if shuttles >= 2
+  if (state.shuttleCount >= 2) {
+    const raniZone = document.createElement('div');
+    raniZone.className = 'shuttle-zone';
+    raniZone.style.opacity = '0.6';
+    raniZone.innerHTML = `
+      <div class="shuttle-zone-header">
+        <div class="shuttle-dot" style="background:${SHUTTLE_COLORS.rani}"></div>
+        <div>
+          <div class="shuttle-zone-title">RANI (AUTO)</div>
+          <div class="shuttle-zone-hint">Plain weave — auto-generated.<br>Suppressed where other shuttles are UP.</div>
+        </div>
+      </div>
+    `;
+    container.appendChild(raniZone);
+  }
+
+  refreshZoneChips();
+}
+
+function assignColor(colorIdx, shuttleName) {
+  state.colorAssignments[colorIdx] = shuttleName;
+  renderColorsGrid();
+  refreshZoneChips();
+}
+
+function removeColorFromZone(colorIdx) {
+  delete state.colorAssignments[colorIdx];
+  renderColorsGrid();
+  refreshZoneChips();
+}
+
+function refreshZoneChips() {
+  const zones = ['background', ...(SHUTTLE_CONFIG[state.shuttleCount] || ['zari'])];
+  zones.forEach(shuttleName => {
+    const container = document.getElementById(`zone-${shuttleName}`);
+    if (!container) return;
+    container.innerHTML = '';
+
+    Object.entries(state.colorAssignments).forEach(([idx, sName]) => {
+      if (sName !== shuttleName) return;
+      const c = state.detectedColors.find(x => x.index === parseInt(idx));
+      if (!c) return;
+
+      const chip = document.createElement('div');
+      chip.className = 'zone-color-chip';
+      chip.style.background = c.hex;
+      chip.title = c.hex;
+      chip.innerHTML = `<div class="remove-chip" onclick="removeColorFromZone(${c.index})">×</div>`;
+      container.appendChild(chip);
+    });
+
+    if (container.children.length === 0) {
+      const hint = document.createElement('div');
+      hint.style.cssText = 'font-size:10px;color:var(--muted);padding:4px;font-style:italic;width:100%';
+      hint.textContent = shuttleName === 'background' ? 'No color assigned' : 'Drop colours here';
+      container.appendChild(hint);
+    }
+  });
+}
+
+// =====================================================================
+// Satin settings
+// =====================================================================
+function renderSatinSettings() {
+  const container = document.getElementById('satin-settings');
+  const saSection = document.getElementById('satin-section');
+  container.innerHTML = '';
+
+  if (state.shuttleCount === 1) {
+    saSection.style.display = 'none';
+    return;
+  }
+
+  saSection.style.display = 'block';
+  const shuttles = SHUTTLE_CONFIG[state.shuttleCount] || ['zari'];
+
+  shuttles.forEach(sName => {
+    const card = document.createElement('div');
+    card.className = 'satin-card';
+    const color = SHUTTLE_COLORS[sName] || '#888';
+
+    card.innerHTML = `
+      <div class="satin-card-title">
+        <div class="shuttle-dot" style="background:${color}"></div>
+        ${sName.toUpperCase()} Weave
+      </div>
+      <div class="satin-row">
+        <label>Satin Type</label>
+        <select class="field" id="satin-n-${sName}" style="padding:6px 8px;font-size:12px">
+          ${SATIN_OPTIONS.map(n => `<option value="${n}" ${n===8?'selected':''}>${n}-end Satin</option>`).join('')}
+        </select>
+      </div>
+      <div class="flip-toggle">
+        <div class="toggle" id="flip-${sName}" onclick="toggleFlip('${sName}')"></div>
+        <span>Flip diagonal direction</span>
+      </div>
+      <canvas class="weave-preview" id="weave-canvas-${sName}" width="60" height="60" style="margin-top:10px"></canvas>
+    `;
+
+    card.querySelector(`#satin-n-${sName}`).addEventListener('change', () => drawWeavePreview(sName));
+    container.appendChild(card);
+  });
+
+  // Draw initial weave previews
+  shuttles.forEach(sName => drawWeavePreview(sName));
+}
+
+function toggleFlip(sName) {
+  const el = document.getElementById(`flip-${sName}`);
+  el.classList.toggle('on');
+  drawWeavePreview(sName);
+}
+
+function drawWeavePreview(sName) {
+  const canvas = document.getElementById(`weave-canvas-${sName}`);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const n = parseInt(document.getElementById(`satin-n-${sName}`).value);
+  const flip = document.getElementById(`flip-${sName}`).classList.contains('on');
+  const size = 60;
+  const scale = Math.floor(size / n);
+  const draw_size = n * scale;
+
+  ctx.clearRect(0, 0, size, size);
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      const whiteCol = flip ? r % n : (-r + n * 100) % n;
+      const isWhite = (c % n) === whiteCol;
+      ctx.fillStyle = isWhite ? '#fff' : '#111';
+      ctx.fillRect(c * scale, r * scale, scale, scale);
+    }
+  }
+  // grid lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i <= n; i++) {
+    ctx.beginPath(); ctx.moveTo(i*scale,0); ctx.lineTo(i*scale,draw_size); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,i*scale); ctx.lineTo(draw_size,i*scale); ctx.stroke();
+  }
+}
+
+// =====================================================================
+// Generate BMPs
+// =====================================================================
+async function generateBMPs() {
+  const designName = document.getElementById('design-name').value.trim() || 'design';
+  const pins = parseInt(document.getElementById('pins').value);
+  const cardsRaw = document.getElementById('cards').value.trim();
+  const cards = cardsRaw ? parseInt(cardsRaw) : state.cards;
+
+  if (!pins || pins < 10) { showMsg('generate-error', 'Please enter a valid Pins value (minimum 10)'); return; }
+  if (!cards || cards < 10) { showMsg('generate-error', 'Cards value is missing — please re-run Detect Colours'); return; }
+  if (!state.safeImageB64) { showMsg('generate-error', 'Please detect colours first'); return; }
+  if (!state.labelMap)     { showMsg('generate-error', 'Label map missing — please re-run Detect Colours'); return; }
+
+  // Build satin settings
+  const saSettings = {};
+  const shuttles = SHUTTLE_CONFIG[state.shuttleCount] || ['zari'];
+  shuttles.forEach(sName => {
+    const nEl = document.getElementById(`satin-n-${sName}`);
+    const flipEl = document.getElementById(`flip-${sName}`);
+    saSettings[sName] = {
+      n: nEl ? parseInt(nEl.value) : 8,
+      flip: flipEl ? flipEl.classList.contains('on') : false,
+    };
+  });
+
+  // Final color assignments — unassigned colors default to zari
+  const finalAssignments = { ...state.colorAssignments };
+  state.detectedColors.forEach(c => {
+    if (!(c.index in finalAssignments)) {
+      finalAssignments[c.index] = 'zari'; // default unassigned → zari
+    }
+  });
+
+  setLoading(true, 'Generating BMP Files', 'Applying weave patterns...');
+
+  try {
+    const genCtrl  = new AbortController();
+    const genTimer = setTimeout(() => genCtrl.abort(), 120000);
+    const res = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: genCtrl.signal,
+      body: JSON.stringify({
+        image_b64: state.safeImageB64,
+        label_map: state.labelMap,
+        pins,
+        cards,
+        shuttle_count: state.shuttleCount,
+        design_name: designName,
+        color_assignments: finalAssignments,
+        satin_settings: saSettings,
+      }),
+    });
+
+    clearTimeout(genTimer);
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error + '\n' + (data.trace || ''));
+
+    state.zipB64 = data.zip_b64;
+    state.zipFilename = data.zip_filename;
+
+    renderOutputPreviews(data);
+    setStep(3);
+
+  } catch (err) {
+    const gmsg = err.name === 'AbortError' ? 'Generation timed out. This design may be too large.' : `Error: ${err.message.split('\n')[0]}`;
+    showMsg('generate-error', gmsg);
+    console.error(err.message);
+  } finally {
+    setLoading(false);
+  }
+}
+
+function renderOutputPreviews(data) {
+  document.getElementById('output-section').style.display = 'block';
+  const grid = document.getElementById('preview-grid');
+  grid.innerHTML = '';
+
+  const SHUTTLE_LABEL = {
+    rani: { label: 'RANI', sub: 'Plain weave base', color: SHUTTLE_COLORS.rani },
+    zari: { label: 'ZARI', sub: 'Gold thread', color: SHUTTLE_COLORS.zari },
+    meena1: { label: 'MEENA 1', sub: 'Silver thread', color: SHUTTLE_COLORS.meena1 },
+    meena2: { label: 'MEENA 2', sub: 'Second meena', color: SHUTTLE_COLORS.meena2 },
+  };
+
+  data.files.forEach(fname => {
+    const shuttleName = Object.keys(SHUTTLE_LABEL).find(k => fname.includes(k)) || 'file';
+    const info = SHUTTLE_LABEL[shuttleName] || { label: fname, sub: '', color: '#888' };
+    const v = data.verification[fname];
+    const preview = data.previews[fname];
+
+    const card = document.createElement('div');
+    card.className = 'preview-card';
+    card.innerHTML = `
+      <div class="preview-card-header">
+        <div class="shuttle-dot" style="background:${info.color}"></div>
+        <div>
+          <div class="preview-card-title">${info.label}</div>
+          <div class="preview-card-sub">${fname}</div>
+        </div>
+      </div>
+      <div class="preview-img-wrap">
+        <img src="data:image/png;base64,${preview}" alt="${fname}">
+      </div>
+      <div class="${v.is_clean ? 'verify-ok' : 'verify-fail'}">
+        ${v.is_clean
+          ? `✓ Clean — ${v.pure_black.toLocaleString()} black / ${v.pure_white.toLocaleString()} white — 0 grey pixels`
+          : `⚠ ${v.other_pixels} non-B/W pixels found`}
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+
+  const totalFiles = data.files.length;
+  document.getElementById('download-meta').textContent =
+    `${totalFiles} BMP file${totalFiles > 1 ? 's' : ''} • ${state.pins} × ${state.cards} px • Pure 1-bit output`;
+}
+
+// =====================================================================
+// Download ZIP
+// =====================================================================
+function downloadZip() {
+  if (!state.zipB64) return;
+  // Use Uint8Array.from for fast base64 decoding — avoids charCodeAt loop
+  const blob = new Blob(
+    [Uint8Array.from(atob(state.zipB64), c => c.charCodeAt(0))],
+    { type: 'application/zip' }
+  );
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = state.zipFilename;
+  a.click();
+  URL.revokeObjectURL(url);
+  setStep(4);
+}
+
+// =====================================================================
+// Utilities
+// =====================================================================
+function showMsg(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 6000);
+}
+
+function setLoading(show, title = '', sub = '') {
+  const overlay = document.getElementById('loading-overlay');
+  overlay.classList.toggle('show', show);
+  if (show) {
+    overlay.querySelector('.loading-text').textContent = title;
+    document.getElementById('loading-sub-text').textContent = sub;
+  }
+}
+</script>
+</body>
+</html>
