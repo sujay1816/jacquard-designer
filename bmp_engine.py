@@ -365,50 +365,12 @@ def generate_bmps(
             shuttle_arrays[sname] = arr
             results[f'{design_name}_{sname}.bmp'] = write_1bit_bmp(arr)
 
-        # ── Rani: phase-corrected plain weave with periodic resync ─────────
-        #
-        # The phase-per-column approach avoids mis-picks (consecutive UPs) but
-        # introduces phase drift: columns suppressed frequently end up out of
-        # sync with their neighbours, causing uneven density bands in the rani
-        # layer after each design element.
-        #
-        # Fix: after each row where suppression ends (transition from
-        # suppressed → free), resync those columns back to (r+c)%2 standard
-        # phase. This keeps the background plain weave looking uniform while
-        # still guaranteeing no mis-picks within design bands.
-
-        # Combined suppression mask: True where any other shuttle is UP
-        other_up = np.zeros((cards, pins), dtype=bool)
-        for arr in shuttle_arrays.values():
-            other_up |= (arr == 0)
-
-        # Detect suppression boundaries row by row (vectorised)
-        # suppression_start[r,c] = True when col c goes from free → suppressed
-        # suppression_end[r,c]   = True when col c goes from suppressed → free
-        padded_sup = np.zeros((cards + 2, pins), dtype=bool)
-        padded_sup[1:cards+1, :] = other_up
-        sup_start = (~padded_sup[:-1]) & padded_sup[1:]    # (cards+1, pins)
-        sup_end   = padded_sup[:-1]    & (~padded_sup[1:]) # (cards+1, pins)
-
-        # Phase per column (0=fire, 1=hold). Init to col%2 = standard plain weave
-        phase    = (np.arange(pins, dtype=np.int32) % 2)
-        rani_arr = np.ones((cards, pins), dtype=np.uint8)
-
-        for r in range(cards):
-            # Resync columns that just became free back to standard (r+c)%2 phase
-            # This eliminates density drift without introducing mis-picks
-            # (the resync happens BEFORE firing, so the first free row after
-            # a suppression band always matches the global plain weave phase)
-            just_freed = sup_end[r, :]   # cols that were suppressed, now free
-            if just_freed.any():
-                cols_freed = np.where(just_freed)[0]
-                phase[cols_freed] = (r + cols_freed) % 2
-
-            free  = ~other_up[r, :]
-            fires = free & (phase == 0)
-            rani_arr[r, fires] = 0
-            phase[free] = 1 - phase[free]
-
+        # ── Rani: independent global plain weave ────────────────────────────
+        # Rani fires as a pure (row+col)%2 plain weave across the entire canvas.
+        # All shuttles are independent — overlaps between zari/meena and rani
+        # are allowed. This matches the reference loom output where rani
+        # provides the base weave structure independently of other shuttles.
+        rani_arr = generate_plain_weave(pins, cards)
         results[f'{design_name}_rani.bmp'] = write_1bit_bmp(rani_arr)
 
     return results
