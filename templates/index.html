@@ -1029,7 +1029,8 @@ function setStep(completed) {
 async function detectColors() {
   const pins = parseInt(document.getElementById('pins').value);
   const cardsRaw = document.getElementById('cards').value.trim();
-  const nColors = state.shuttleCount + 1; // shuttles + background
+  // Rani is auto-generated — no cluster needed. Only non-rani shuttles + background.
+  const nColors = state.shuttleCount === 1 ? 2 : state.shuttleCount; // bg + non-rani shuttles
 
   if (!pins || pins < 10) {
     showMsg('detect-error', 'Please enter a valid Pins value (minimum 10)');

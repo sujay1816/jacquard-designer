@@ -77,17 +77,13 @@ def smart_fill(mask: np.ndarray, satin: np.ndarray, n: int) -> np.ndarray:
     """
     Apply satin fill to thick design regions and solid fill to thin ones.
 
-    For each vertical run of True pixels in each column:
+    Decision is made per vertical run per column (correct loom logic):
       - Run height >= n  →  satin  (one white hole per n threads)
       - Run height <  n  →  solid black  (every thread UP, no holes)
 
-    This is the correct loom model: the loom reads cards top-to-bottom,
-    column by column. Thin runs (lines, chevron leaves) stay solid and crisp.
-    Thick fills (Butta bodies) get the proper satin texture.
-
-    Uses numpy forward/backward fill across all columns simultaneously —
-    the Python loop is over card rows (≤ 1745 iterations of vectorised ops),
-    not over individual pixels.
+    Full-width horizontal components (running lines spanning > 80% of canvas
+    width) are always filled solid regardless of run height — they are thin
+    features that should never receive satin holes.
 
     Parameters:
         mask  : 2D bool  (cards x pins) — True where this shuttle fires
@@ -102,6 +98,19 @@ def smart_fill(mask: np.ndarray, satin: np.ndarray, n: int) -> np.ndarray:
 
     if not mask.any():
         return arr
+
+    # ── Build force-solid mask for full-width running lines ─────────────────
+    # Any connected component spanning > 80% of canvas width is a running line
+    # and must be filled solid regardless of vertical run height
+    labeled_tmp, nf_tmp = ndimage.label(mask)
+    slices_tmp          = ndimage.find_objects(labeled_tmp)
+    force_solid         = np.zeros((cards, pins), dtype=bool)
+    for i, sl in enumerate(slices_tmp):
+        if sl is None:
+            continue
+        comp_w = sl[1].stop - sl[1].start
+        if comp_w >= pins * 0.8:
+            force_solid[sl][labeled_tmp[sl] == i + 1] = True
 
     rows     = np.arange(cards, dtype=np.int32)
     row_grid = rows[:, np.newaxis] * np.ones((1, pins), dtype=np.int32)
@@ -132,8 +141,10 @@ def smart_fill(mask: np.ndarray, satin: np.ndarray, n: int) -> np.ndarray:
     # ── Compute per-pixel run height and apply fill ──────────────────────────
     run_height = end_row - start_row + 1      # (cards x pins)
 
-    satin_px = mask & (run_height >= n)       # thick → satin
-    solid_px = mask & (run_height <  n)       # thin  → solid
+    # Satin: thick run AND not a full-width line
+    satin_px = mask & (run_height >= n) & ~force_solid
+    # Solid: thin run OR full-width line
+    solid_px = mask & ((run_height < n) | force_solid)
 
     arr[satin_px] = satin[satin_px]
     arr[solid_px] = 0
