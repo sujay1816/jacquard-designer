@@ -213,25 +213,20 @@ def detect_colors(image: Image.Image, n_colors: int, edge_recovery: bool = True)
         is_dark_bg    = bg_brightness < 30
 
         if is_dark_bg:
-            # Dark background: grid lines and motifs are thin and sharp.
-            # Instead of spatial dilation (which thickens thin lines), use a
-            # brightness-based recovery: any background-labelled pixel whose
-            # brightness exceeds 5× the background brightness is likely a
-            # JPEG-compressed design edge and gets reassigned to the nearest
-            # design cluster.
-            arr_img     = np.array(image.convert('RGB'))
-            brightness  = arr_img.mean(axis=2)          # (H, W)
-            # Threshold: 3.5× bg brightness captures JPEG-compressed dark-grey
-            # grid-line pixels (brightness ~28-40) that fall just above background.
-            # bg*5 was too conservative, missing ~5% of thin horizontal grid lines.
-            bg_thresh   = max(bg_brightness * 3.5, 20.0)
+            # Dark background: BILINEAR (used for KMeans) bleeds Butta interior
+            # gap pixels to brightness 40-49, causing them to be wrongly included.
+            # LANCZOS preserves sharper edges: Butta interior gaps stay dark
+            # (brightness 0-24) while genuine grid-line edges stay bright (>28).
             bg_label    = 0
+            arr_lanczos = np.array(
+                image.convert('RGB').resize(image.size, Image.LANCZOS))
+            brightness  = arr_lanczos.mean(axis=2)
+            bg_thresh   = max(bg_brightness * 3.5, 20.0)
             bright_mask = (brightness > bg_thresh) & (sorted_labels == bg_label)
             if bright_mask.any() and n_colors >= 2:
-                sorted_labels[bright_mask] = 1   # assign to first design cluster
+                sorted_labels[bright_mask] = 1
                 for i in range(n_colors):
                     sorted_counts[i] = int((sorted_labels == i).sum())
-
         else:
             struct   = np.ones((3, 3), dtype=bool)
             bg_label = 0
