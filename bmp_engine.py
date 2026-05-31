@@ -73,78 +73,83 @@ def remove_noise(mask: np.ndarray, min_size: int = 2) -> np.ndarray:
 # ---------------------------------------------------------------------------
 # Smart fill — vectorised column-based run detection
 # ---------------------------------------------------------------------------
+# Minimum vertical run height to apply satin — kept well above typical
+# JPEG compression artefacts (which create merged blobs up to h≈34).
+# Designs with all runs below this stay completely solid; only genuine
+# large fills (woven body areas taller than ~4× the satin repeat) get satin.
+_SATIN_MIN_HEIGHT = 35
+
+
 def smart_fill(mask: np.ndarray, satin: np.ndarray, n: int) -> np.ndarray:
     """
     Apply satin fill to thick design regions and solid fill to thin ones.
 
-    Decision is made per vertical run per column (correct loom logic):
-      - Run height >= n  →  satin  (one white hole per n threads)
-      - Run height <  n  →  solid black  (every thread UP, no holes)
+    Decision is made per vertical run per column:
+      - Run height >= _SATIN_MIN_HEIGHT  →  satin
+      - Run height <  _SATIN_MIN_HEIGHT  →  solid black
 
-    Full-width horizontal components (running lines spanning > 80% of canvas
-    width) are always filled solid regardless of run height — they are thin
-    features that should never receive satin holes.
+    Using a fixed minimum height (35px, well above JPEG artefact blobs of
+    ~34px) means thin chevron leaves, running lines, and JPEG-merged stripes
+    all stay solid and crisp. Only genuinely large body fills get satin.
+
+    Full-width components (running lines, >80% canvas width) are always
+    solid regardless of run height.
 
     Parameters:
-        mask  : 2D bool  (cards x pins) — True where this shuttle fires
-        satin : 2D uint8 (cards x pins) — pre-generated satin pattern
-        n     : satin end count used as thickness threshold
+        mask  : 2D bool  (cards x pins)
+        satin : 2D uint8 (cards x pins)
+        n     : satin end count (controls the diagonal pattern, not threshold)
 
     Returns:
-        arr   : 2D uint8 (cards x pins) — 0 = UP/black, 1 = DOWN/white
+        arr   : 2D uint8 (cards x pins) — 0=UP/black, 1=DOWN/white
     """
     cards, pins = mask.shape
-    arr = np.ones((cards, pins), dtype=np.uint8)   # default: all DOWN
+    arr = np.ones((cards, pins), dtype=np.uint8)
 
     if not mask.any():
         return arr
 
-    # ── Build force-solid mask for full-width running lines ─────────────────
-    # Any connected component spanning > 80% of canvas width is a running line
-    # and must be filled solid regardless of vertical run height
-    labeled_tmp, nf_tmp = ndimage.label(mask)
-    slices_tmp          = ndimage.find_objects(labeled_tmp)
-    force_solid         = np.zeros((cards, pins), dtype=bool)
+    # ── Force-solid mask for full-width running lines ────────────────────────
+    labeled_tmp, _ = ndimage.label(mask)
+    slices_tmp     = ndimage.find_objects(labeled_tmp)
+    force_solid    = np.zeros((cards, pins), dtype=bool)
     for i, sl in enumerate(slices_tmp):
         if sl is None:
             continue
-        comp_w = sl[1].stop - sl[1].start
-        if comp_w >= pins * 0.8:
+        if (sl[1].stop - sl[1].start) >= pins * 0.8:
             force_solid[sl][labeled_tmp[sl] == i + 1] = True
 
     rows     = np.arange(cards, dtype=np.int32)
     row_grid = rows[:, np.newaxis] * np.ones((1, pins), dtype=np.int32)
 
-    # ── Mark run starts (False→True) and ends (True→False) ──────────────────
-    run_start          = np.zeros((cards, pins), dtype=bool)
-    run_start[0, :]    = mask[0, :]
-    run_start[1:, :]   = mask[1:, :] & ~mask[:-1, :]
+    # ── Mark run starts / ends ───────────────────────────────────────────────
+    run_start         = np.zeros((cards, pins), dtype=bool)
+    run_start[0, :]   = mask[0, :]
+    run_start[1:, :]  = mask[1:, :] & ~mask[:-1, :]
 
-    run_end            = np.zeros((cards, pins), dtype=bool)
-    run_end[-1, :]     = mask[-1, :]
-    run_end[:-1, :]    = mask[:-1, :] & ~mask[1:, :]
+    run_end           = np.zeros((cards, pins), dtype=bool)
+    run_end[-1, :]    = mask[-1, :]
+    run_end[:-1, :]   = mask[:-1, :] & ~mask[1:, :]
 
-    # ── Forward fill: assign start-row to every pixel in its run ────────────
-    start_row                 = np.zeros((cards, pins), dtype=np.int32)
-    start_row[run_start]      = row_grid[run_start]
+    # ── Forward fill start-row ───────────────────────────────────────────────
+    start_row               = np.zeros((cards, pins), dtype=np.int32)
+    start_row[run_start]    = row_grid[run_start]
     for r in range(1, cards):
-        inherit               = mask[r, :] & ~run_start[r, :]
-        start_row[r, inherit] = start_row[r - 1, inherit]
+        inh               = mask[r, :] & ~run_start[r, :]
+        start_row[r, inh] = start_row[r - 1, inh]
 
-    # ── Backward fill: assign end-row to every pixel in its run ─────────────
-    end_row                   = np.zeros((cards, pins), dtype=np.int32)
-    end_row[run_end]          = row_grid[run_end]
+    # ── Backward fill end-row ────────────────────────────────────────────────
+    end_row               = np.zeros((cards, pins), dtype=np.int32)
+    end_row[run_end]      = row_grid[run_end]
     for r in range(cards - 2, -1, -1):
-        inherit               = mask[r, :] & ~run_end[r, :]
-        end_row[r, inherit]   = end_row[r + 1, inherit]
+        inh             = mask[r, :] & ~run_end[r, :]
+        end_row[r, inh] = end_row[r + 1, inh]
 
-    # ── Compute per-pixel run height and apply fill ──────────────────────────
-    run_height = end_row - start_row + 1      # (cards x pins)
+    # ── Apply fill ───────────────────────────────────────────────────────────
+    run_height = end_row - start_row + 1
 
-    # Satin: thick run AND not a full-width line
-    satin_px = mask & (run_height >= n) & ~force_solid
-    # Solid: thin run OR full-width line
-    solid_px = mask & ((run_height < n) | force_solid)
+    satin_px = mask & (run_height >= _SATIN_MIN_HEIGHT) & ~force_solid
+    solid_px = mask & ((run_height < _SATIN_MIN_HEIGHT) | force_solid)
 
     arr[satin_px] = satin[satin_px]
     arr[solid_px] = 0
