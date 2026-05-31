@@ -199,25 +199,50 @@ def detect_colors(image: Image.Image, n_colors: int, edge_recovery: bool = True)
     # JPEG compression creates anti-aliased boundary pixels that blend between
     # design and background colours. KMeans assigns these to background because
     # they cluster near the background centroid. Dilation by 1px expands each
-    # design region to reclaim these edge pixels, recovering ~30% more design
-    # coverage on JPEG sources without affecting PNG or clean-edge images.
+    # design region to reclaim these edge pixels.
+    #
+    # IMPORTANT: Only apply dilation for LIGHT backgrounds (brightness >= 30).
+    # For dark backgrounds (black/near-black), JPEG compression creates the
+    # opposite problem: grey design pixels near black background get
+    # over-dilated, turning thin grid lines into thick solid blocks.
+    # Dark background designs are already high-contrast and do not need
+    # edge recovery.
     if edge_recovery and n_colors >= 2:
-        struct = np.ones((3, 3), dtype=bool)   # 8-connected neighbourhood
-        # Label 0 = background (most dominant). Dilate all other labels into bg.
-        bg_label = 0
-        for label_idx in range(1, n_colors):
-            design_mask  = sorted_labels == label_idx
-            if not design_mask.any():
-                continue
-            dilated      = ndimage.binary_dilation(design_mask, structure=struct)
-            # Only claim pixels that are currently background (avoid overwriting
-            # other design labels)
-            new_pixels   = dilated & (sorted_labels == bg_label)
-            sorted_labels[new_pixels] = label_idx
+        bg_color      = np.array(sorted_colors[0], dtype=float)
+        bg_brightness = float(bg_color.mean())
+        is_dark_bg    = bg_brightness < 30
 
-        # Recompute counts after dilation
-        for i in range(n_colors):
-            sorted_counts[i] = int((sorted_labels == i).sum())
+        if is_dark_bg:
+            # Dark background: grid lines and motifs are thin and sharp.
+            # Instead of spatial dilation (which thickens thin lines), use a
+            # brightness-based recovery: any background-labelled pixel whose
+            # brightness exceeds 5× the background brightness is likely a
+            # JPEG-compressed design edge and gets reassigned to the nearest
+            # design cluster.
+            arr_img     = np.array(image.convert('RGB'))
+            brightness  = arr_img.mean(axis=2)          # (H, W)
+            bg_thresh   = max(bg_brightness * 5.0, 20.0)
+            bg_label    = 0
+            bright_mask = (brightness > bg_thresh) & (sorted_labels == bg_label)
+            if bright_mask.any() and n_colors >= 2:
+                sorted_labels[bright_mask] = 1   # assign to first design cluster
+                for i in range(n_colors):
+                    sorted_counts[i] = int((sorted_labels == i).sum())
+
+        else:
+            struct   = np.ones((3, 3), dtype=bool)
+            bg_label = 0
+            for label_idx in range(1, n_colors):
+                design_mask  = sorted_labels == label_idx
+                if not design_mask.any():
+                    continue
+                dilated      = ndimage.binary_dilation(design_mask, structure=struct)
+                new_pixels   = dilated & (sorted_labels == bg_label)
+                sorted_labels[new_pixels] = label_idx
+
+            # Recompute counts after dilation
+            for i in range(n_colors):
+                sorted_counts[i] = int((sorted_labels == i).sum())
 
     return sorted_colors, sorted_counts, sorted_labels
 
