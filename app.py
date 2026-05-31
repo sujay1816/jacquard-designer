@@ -95,7 +95,7 @@ def api_detect_colors():
             cards = max(10, int(pins * orig_h / orig_w))
 
         # ── Detect colours ───────────────────────────────────────────────────
-        resized = img.resize((pins, cards), Image.BILINEAR)
+        resized = img.resize((pins, cards), Image.LANCZOS)
         colors, counts, label_map = detect_colors(resized, n_colors)
 
         total_pixels = pins * cards
