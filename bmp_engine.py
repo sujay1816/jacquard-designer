@@ -340,7 +340,10 @@ def generate_bmps(
     """
 
     # 1. Resize
-    resized = image.resize((pins, cards), Image.NEAREST)
+    # BILINEAR resize preserves thin design features (grid lines, fine chevrons)
+    # better than NEAREST which fragments 1-2px lines into disconnected pixels,
+    # causing up to 10% of thin design elements to be missed entirely.
+    resized = image.resize((pins, cards), Image.BILINEAR)
 
     # 2. Label map
     if label_map is None:
