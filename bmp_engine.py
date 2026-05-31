@@ -221,7 +221,10 @@ def detect_colors(image: Image.Image, n_colors: int, edge_recovery: bool = True)
             # design cluster.
             arr_img     = np.array(image.convert('RGB'))
             brightness  = arr_img.mean(axis=2)          # (H, W)
-            bg_thresh   = max(bg_brightness * 5.0, 20.0)
+            # Threshold: 3.5× bg brightness captures JPEG-compressed dark-grey
+            # grid-line pixels (brightness ~28-40) that fall just above background.
+            # bg*5 was too conservative, missing ~5% of thin horizontal grid lines.
+            bg_thresh   = max(bg_brightness * 3.5, 20.0)
             bg_label    = 0
             bright_mask = (brightness > bg_thresh) & (sorted_labels == bg_label)
             if bright_mask.any() and n_colors >= 2:
