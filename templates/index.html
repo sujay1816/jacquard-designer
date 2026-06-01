@@ -1483,6 +1483,15 @@ function renderSatinSettings() {
         <div class="toggle" id="flip-${sName}" onclick="toggleFlip('${sName}')"></div>
         <span>Flip diagonal direction</span>
       </div>
+      <div class="satin-row" style="margin-top:8px">
+        <label title="Minimum run height before satin is applied. Increase for more solid fills, decrease for more satin texture.">Fill threshold</label>
+        <div style="display:flex;align-items:center;gap:8px;flex:1">
+          <input type="range" id="satin-mh-${sName}" min="8" max="200" step="1" value="35"
+            style="flex:1;accent-color:#f0a500"
+            oninput="document.getElementById('satin-mh-val-${sName}').textContent=this.value+'px'">
+          <span id="satin-mh-val-${sName}" style="font-size:10px;color:#aaa;width:36px;text-align:right">35px</span>
+        </div>
+      </div>
       <canvas class="weave-preview" id="weave-canvas-${sName}" width="60" height="60" style="margin-top:10px"></canvas>
     `;
 
@@ -1548,9 +1557,11 @@ async function generateBMPs() {
   shuttles.forEach(sName => {
     const nEl = document.getElementById(`satin-n-${sName}`);
     const flipEl = document.getElementById(`flip-${sName}`);
+    const mhEl = document.getElementById(`satin-mh-${sName}`);
     saSettings[sName] = {
       n: nEl ? parseInt(nEl.value) : 8,
       flip: flipEl ? flipEl.classList.contains('on') : false,
+      min_height: mhEl ? parseInt(mhEl.value) : 35,
     };
   });
 

@@ -218,7 +218,10 @@ def api_generate():
                 return _json_error(f'Satin n for "{k}" must be a whole number.')
             if n not in valid_n:
                 return _json_error(f'Satin n for "{k}" must be one of {sorted(valid_n)}.')
-            satin_settings[str(k)] = {'n': n, 'flip': bool(v.get('flip', False))}
+            min_h = int(v.get('min_height', 35))
+            if min_h < 1:   min_h = 1
+            if min_h > 999: min_h = 999
+            satin_settings[str(k)] = {'n': n, 'flip': bool(v.get('flip', False)), 'min_height': min_h}
 
         # ── Decode label_map ──────────────────────────────────────────────────
         label_map = None

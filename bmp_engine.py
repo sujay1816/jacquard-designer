@@ -73,14 +73,17 @@ def remove_noise(mask: np.ndarray, min_size: int = 2) -> np.ndarray:
 # ---------------------------------------------------------------------------
 # Smart fill — vectorised column-based run detection
 # ---------------------------------------------------------------------------
-# Minimum vertical run height to apply satin — kept well above typical
-# JPEG compression artefacts (which create merged blobs up to h≈34).
-# Designs with all runs below this stay completely solid; only genuine
-# large fills (woven body areas taller than ~4× the satin repeat) get satin.
+# Default minimum vertical run height to apply satin fill.
+# Runs below this height are filled solid regardless of the satin n-value.
+# Set well above typical JPEG compression artefacts (~34px blobs) so that
+# thin chevron leaves, grid lines, and motif outlines stay crisp and solid.
+# Large genuine fills (spiral bodies, Butta interiors, h >= 35) get satin.
+# Overridable via the satin_min_height parameter in smart_fill().
 _SATIN_MIN_HEIGHT = 35
 
 
-def smart_fill(mask: np.ndarray, satin: np.ndarray, n: int) -> np.ndarray:
+def smart_fill(mask: np.ndarray, satin: np.ndarray, n: int,
+               satin_min_height: int = _SATIN_MIN_HEIGHT) -> np.ndarray:
     """
     Apply satin fill to thick design regions and solid fill to thin ones.
 
@@ -96,9 +99,12 @@ def smart_fill(mask: np.ndarray, satin: np.ndarray, n: int) -> np.ndarray:
     solid regardless of run height.
 
     Parameters:
-        mask  : 2D bool  (cards x pins)
-        satin : 2D uint8 (cards x pins)
-        n     : satin end count (controls the diagonal pattern, not threshold)
+        mask             : 2D bool  (cards x pins)
+        satin            : 2D uint8 (cards x pins)
+        n                : satin end count (controls diagonal pattern, not threshold)
+        satin_min_height : minimum run height to apply satin (default _SATIN_MIN_HEIGHT=35).
+                           Increase to force more solid fill (e.g. 300 = all solid).
+                           Decrease to apply satin to thinner features.
 
     Returns:
         arr   : 2D uint8 (cards x pins) — 0=UP/black, 1=DOWN/white
@@ -148,8 +154,8 @@ def smart_fill(mask: np.ndarray, satin: np.ndarray, n: int) -> np.ndarray:
     # ── Apply fill ───────────────────────────────────────────────────────────
     run_height = end_row - start_row + 1
 
-    satin_px = mask & (run_height >= _SATIN_MIN_HEIGHT) & ~force_solid
-    solid_px = mask & ((run_height < _SATIN_MIN_HEIGHT) | force_solid)
+    satin_px = mask & (run_height >= satin_min_height) & ~force_solid
+    solid_px = mask & ((run_height < satin_min_height) | force_solid)
 
     arr[satin_px] = satin[satin_px]
     arr[solid_px] = 0
@@ -314,13 +320,22 @@ def _is_genuine_colour(candidate_rgb: tuple,
                         reference_colours: list,
                         hue_threshold: float = 0.05) -> bool:
     """
-    Return True if candidate_rgb is a genuinely distinct colour from all
-    reference colours. A colour is considered an artefact (not genuine) if:
-      - Its HSV hue is within hue_threshold of any reference colour, AND
-      - The reference colour has meaningful saturation (s > 0.15).
-    Achromatic colours (grey/black/white, s < 0.15) are always considered
-    genuine since their hue is undefined — a grey on a coloured background
-    is a valid thread colour.
+    Return True if candidate_rgb is a genuinely distinct thread colour
+    compared to all already-confirmed colours.
+
+    Two checks are applied:
+
+    1. HUE check (chromatic designs): if the candidate has meaningful
+       saturation (s >= 0.15) and its hue is within hue_threshold (18°)
+       of any chromatic reference, it is a JPEG artefact.
+
+    2. VALUE check (achromatic / greyscale designs): if ALL reference
+       colours are achromatic (s < 0.15) AND the candidate value lies
+       strictly between the reference values, it is a JPEG gradient
+       artefact (e.g. mid-grey between black background and white design).
+       A tolerance of 15% of the full value range is applied so that
+       genuinely distinct grey threads (e.g. light grey accent on dark)
+       are not wrongly rejected.
 
     Parameters:
         candidate_rgb     : (R, G, B) tuple 0-255
@@ -328,28 +343,42 @@ def _is_genuine_colour(candidate_rgb: tuple,
         hue_threshold     : hue difference threshold (0-1, default 0.05 = 18°)
     """
     import colorsys
-    r, g, b   = [x / 255.0 for x in candidate_rgb]
+    r, g, b       = [x / 255.0 for x in candidate_rgb]
     h_c, s_c, v_c = colorsys.rgb_to_hsv(r, g, b)
 
-    # Achromatic candidate: always genuine (grey/black/white thread is always valid)
-    if s_c < 0.15:
+    if not reference_colours:
         return True
 
-    for ref in reference_colours:
-        r2, g2, b2 = [x / 255.0 for x in ref]
-        h_r, s_r, _ = colorsys.rgb_to_hsv(r2, g2, b2)
+    ref_hsv = [colorsys.rgb_to_hsv(*(x / 255.0 for x in rc))
+               for rc in reference_colours]
 
-        # Skip achromatic references for hue comparison
-        if s_r < 0.15:
-            continue
+    # ── Check 1: hue-based (chromatic candidate) ────────────────────────────
+    if s_c >= 0.15:
+        for h_r, s_r, _ in ref_hsv:
+            if s_r < 0.15:
+                continue                       # skip achromatic reference
+            hue_diff = min(abs(h_c - h_r), 1.0 - abs(h_c - h_r))
+            if hue_diff < hue_threshold:
+                return False                   # same hue → artefact
+        return True
 
-        hue_diff = abs(h_c - h_r)
-        hue_diff = min(hue_diff, 1.0 - hue_diff)   # wrap around 360°
+    # ── Check 2: value-based (achromatic candidate & all refs achromatic) ───
+    # Only apply if the entire palette is achromatic (greyscale design).
+    chromatic_refs = [hsv for hsv in ref_hsv if hsv[1] >= 0.15]
+    if chromatic_refs:
+        return True    # mixed palette — achromatic candidate is genuine
 
-        if hue_diff < hue_threshold:
-            return False   # same hue as an existing colour → artefact
+    ref_values = [hsv[2] for hsv in ref_hsv]
+    v_min, v_max = min(ref_values), max(ref_values)
+    v_range      = v_max - v_min
 
-    return True
+    if v_range < 0.1:
+        return True    # refs too close together to define a gradient range
+
+    tolerance = 0.15 * v_range   # 15% of range = buffer zone at each end
+    is_between = (v_min + tolerance) < v_c < (v_max - tolerance)
+
+    return not is_between         # between = JPEG gradient → artefact
 
 
 # ---------------------------------------------------------------------------
@@ -598,7 +627,7 @@ def generate_bmps(
         zari_mask = masks.get('zari', np.zeros((cards, pins), dtype=bool))
         s         = satin_settings.get('zari', {'n': 8, 'flip': False})
         satin     = generate_satin(s['n'], pins, cards, flip=s['flip'])
-        arr       = smart_fill(zari_mask, satin, s['n'])
+        arr       = smart_fill(zari_mask, satin, s['n'], satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
         results[f'{design_name}_zari.bmp'] = write_1bit_bmp(arr)
 
     else:
@@ -614,7 +643,7 @@ def generate_bmps(
             mask  = masks.get(sname, np.zeros((cards, pins), dtype=bool))
             s     = satin_settings.get(sname, {'n': 8, 'flip': False})
             satin = generate_satin(s['n'], pins, cards, flip=s['flip'])
-            arr   = smart_fill(mask, satin, s['n'])
+            arr   = smart_fill(mask, satin, s['n'], satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
             shuttle_arrays[sname] = arr
             results[f'{design_name}_{sname}.bmp'] = write_1bit_bmp(arr)
 
