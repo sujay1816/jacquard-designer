@@ -1217,8 +1217,14 @@ function setStep(completed) {
 async function detectColors() {
   const pins = parseInt(document.getElementById('pins').value);
   const cardsRaw = document.getElementById('cards').value.trim();
-  // Rani is auto-generated — no cluster needed. Only non-rani shuttles + background.
-  const nColors = state.shuttleCount === 1 ? 2 : state.shuttleCount; // bg + non-rani shuttles
+  // nColors = shuttles + 1 for 2/3/4-shuttle so there is always one extra colour
+  // cluster beyond the named shuttles. That extra cluster is captured into rani
+  // as an outline / accent layer on top of the plain weave base.
+  // 1-shuttle: nColors=2 (bg + zari only, no rani output — unchanged).
+  // 2-shuttle: nColors=3 (bg + fill + outline → outline goes into rani).
+  // 3-shuttle: nColors=4 (bg + zari + meena + extra → extra into rani).
+  // 4-shuttle: nColors=5 (bg + zari + meena1 + meena2 + extra → rani).
+  const nColors = state.shuttleCount === 1 ? 2 : state.shuttleCount + 1;
 
   if (!pins || pins < 10) {
     showMsg('detect-error', 'Please enter a valid Pins value (minimum 10)');
@@ -1309,9 +1315,16 @@ function renderColorsGrid() {
     card.draggable = true;
     card.dataset.colorIndex = c.index;
 
+    // Last colour (highest index) flows to rani as outline when shuttle >= 2
+    const isRaniOutline = !assigned
+                        && state.shuttleCount >= 2
+                        && c.index === state.detectedColors.length - 1;
+
     const shuttleLabel = assigned
       ? `<span class="color-badge" style="background:${SHUTTLE_COLORS[assigned] || '#555'}22;color:${SHUTTLE_COLORS[assigned] || '#aaa'}">${assigned}</span>`
-      : '';
+      : isRaniOutline
+        ? `<span class="color-badge" style="background:#c4501022;color:#c45010" title="This colour will be combined with the plain weave base in rani.bmp as the outline layer">→ RANI (outline)</span>`
+        : '';
 
     const artifactWarning = (c.is_genuine === false)
       ? `<div class="color-artifact-warn" title="This colour appears to be a JPEG compression artefact rather than a genuine thread colour. Assigning it to a shuttle may reduce accuracy.">⚠ JPEG artefact</div>`
@@ -1565,11 +1578,21 @@ async function generateBMPs() {
     };
   });
 
-  // Final color assignments — unassigned colors default to zari
+  // Final color assignments.
+  // Colour 0 (background) always stays as background.
+  // The LAST detected colour (highest index) is intentionally left unassigned
+  // so the backend flows it into rani (outline + plain weave layer).
+  // All other unassigned colours default to zari.
   const finalAssignments = { ...state.colorAssignments };
+  const lastColorIndex = state.detectedColors.length - 1;
   state.detectedColors.forEach(c => {
     if (!(c.index in finalAssignments)) {
-      finalAssignments[c.index] = 'zari'; // default unassigned → zari
+      if (c.index === lastColorIndex && state.shuttleCount >= 2) {
+        // Last colour flows into rani as outline — do NOT assign it to a shuttle
+        // (leave it unassigned so generate_bmps puts it in rani)
+      } else {
+        finalAssignments[c.index] = 'zari'; // default unassigned → zari
+      }
     }
   });
 

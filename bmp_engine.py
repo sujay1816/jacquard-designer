@@ -647,12 +647,58 @@ def generate_bmps(
             shuttle_arrays[sname] = arr
             results[f'{design_name}_{sname}.bmp'] = write_1bit_bmp(arr)
 
-        # ── Rani: independent global plain weave ────────────────────────────
-        # Rani fires as a pure (row+col)%2 plain weave across the entire canvas.
-        # All shuttles are independent — overlaps between zari/meena and rani
-        # are allowed. This matches the reference loom output where rani
-        # provides the base weave structure independently of other shuttles.
-        rani_arr = generate_plain_weave(pins, cards)
+        # ── Rani: plain weave base + any remaining design colour ────────────
+        # Rani always includes the full (row+col)%2 plain weave base.
+        # In addition, any design colour NOT assigned to zari or meena
+        # (i.e. the extra colour detected beyond the named shuttles) is
+        # OR-combined into rani as an outline / accent layer.
+        #
+        # nColors passed from the detect step = shuttle_count + 1 for
+        # 2/3/4-shuttle modes, so there is always one extra colour cluster
+        # beyond the named shuttles. If that extra colour is genuine (not a
+        # JPEG gradient artefact), it fires through rani on top of the
+        # plain weave — giving the loom both the base structure and the
+        # outline/secondary detail in a single shuttle.
+        #
+        # 2-shuttle example: nColors=3 → bg + teal (zari) + navy (rani extra)
+        #   rani fires: plain weave OR navy outline pixels
+        # 3-shuttle example: nColors=4 → bg + zari + meena + extra → rani
+        # 4-shuttle example: nColors=5 → bg + zari + meena1 + meena2 + extra → rani
+
+        plain_weave = generate_plain_weave(pins, cards)
+
+        # Find label indices not assigned to any named shuttle or background
+        assigned_indices = set()
+        for cidx, sname in color_assignments.items():
+            assigned_indices.add(int(cidx))
+
+        # Collect extra design pixels: any label not assigned, excluding bg (label 0)
+        extra_mask = np.zeros((cards, pins), dtype=bool)
+        for lbl in range(1, label_map.max() + 1):
+            if lbl not in assigned_indices:
+                extra_mask |= (label_map == lbl)
+
+        if extra_mask.any():
+            # Remove noise from extra mask
+            extra_mask = remove_noise(extra_mask, min_size=noise_min_size)
+
+        if extra_mask.any():
+            # Blend: rani fires where plain weave OR extra design colour
+            # Use solid fill for the extra colour (it's typically an outline
+            # / thin feature — solid is always correct for thin elements).
+            extra_solid = np.ones((cards, pins), dtype=np.uint8)
+            extra_solid[extra_mask] = 0   # 0 = UP (thread fires)
+
+            # Combine: fire where EITHER plain weave fires OR extra design fires
+            rani_arr = np.where(
+                (plain_weave == 0) | (extra_solid == 0),
+                np.uint8(0),    # UP / fire
+                np.uint8(1)     # DOWN / hold
+            ).astype(np.uint8)
+        else:
+            # No extra colour — pure plain weave as before
+            rani_arr = plain_weave
+
         results[f'{design_name}_rani.bmp'] = write_1bit_bmp(rani_arr)
 
     return results
