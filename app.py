@@ -131,11 +131,18 @@ def api_detect_colors():
         # pixel assignments the user saw in the preview — no second KMeans run.
         label_img = Image.fromarray(label_map.astype(np.uint8), mode='L')
 
+        # Full-resolution source for supersample (fine detail mode)
+        # Store original before resizing so supersample can detect at 4× target
+        buf_full = io.BytesIO()
+        img.save(buf_full, format='JPEG', quality=95)
+        full_image_b64 = base64.b64encode(buf_full.getvalue()).decode()
+
         return jsonify({
             'success':        True,
             'colors':         color_data,
             'preview_image':  _to_b64(preview_img),
             'original_image': _to_b64(resized),
+            'full_image':     full_image_b64,
             'label_map':      _to_b64(label_img),
             'pins':           pins,
             'cards':          cards,
@@ -195,6 +202,17 @@ def api_generate():
         except Exception:
             return _json_error('Could not decode image_b64.')
 
+        # Decode full-resolution source image for supersample (fine detail mode).
+        # Falls back to the resized image if not provided (older frontend).
+        full_img = img   # default: same as resized
+        if data.get('full_image'):
+            try:
+                full_img = Image.open(
+                    io.BytesIO(base64.b64decode(data['full_image']))
+                ).convert('RGB')
+            except Exception:
+                full_img = img   # silent fallback
+
         # ── Sanitise design name ─────────────────────────────────────────────
         design_name = str(data.get('design_name', 'design')).strip() or 'design'
         design_name = ''.join(c for c in design_name if c.isalnum() or c in '_- ')
@@ -239,7 +257,7 @@ def api_generate():
         supersample = bool(data.get('supersample', False))
 
         bmp_files = generate_bmps(
-            image=img,
+            image=full_img if supersample else img,
             pins=pins,
             cards=cards,
             shuttle_count=shuttle_count,

@@ -1144,6 +1144,7 @@ async function assessImageQuality(file) {
 const state = {
   imageFile: null,
   imageB64: null,
+  fullImageB64: null,   // full-res source for fine detail mode (supersample)
   shuttleCount: 0,
   detectedColors: [],
   colorAssignments: {},   // colorIndex -> shuttleName
@@ -1300,7 +1301,8 @@ async function detectColors() {
     state.detectedColors = data.colors;
     state.pins = data.pins;
     state.cards = data.cards;
-    state.safeImageB64 = data.original_image;
+    state.safeImageB64  = data.original_image;
+    state.fullImageB64  = data.full_image || null;  // full-res for supersample
     state.labelMap = data.label_map;  // carry through to generate so KMeans isn't re-run
 
     // Update cards field after auto-compute so generate uses correct value
@@ -1680,6 +1682,7 @@ async function generateBMPs() {
         satin_settings: saSettings,
       emboss:       embossChecked,
       supersample:  document.getElementById('supersampleMode')?.checked || false,
+      full_image:   state.fullImageB64 || undefined,
       }),
     });
 
