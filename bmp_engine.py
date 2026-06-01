@@ -224,7 +224,7 @@ def enhance_image(image: Image.Image) -> Image.Image:
     # Detect background brightness (5th percentile of luminance)
     lum             = arr.mean(axis=2)
     bg_brightness   = float(np.percentile(lum, 5))
-    is_dark_bg      = bg_brightness < 30
+    is_dark_bg      = bg_brightness < 30   # absolute dark (black/near-black)
 
     # ── Step 1: Mild Gaussian denoise ────────────────────────────────────────
     # sigma=0.5 in pixel space: barely touches design edges but smooths
@@ -290,7 +290,7 @@ def assess_image_quality(image: Image.Image) -> dict:
 
     # ── Noise level in background ────────────────────────────────────────────
     bg_brightness = float(np.percentile(grey, 5))
-    is_dark_bg    = bg_brightness < 30
+    is_dark_bg    = bg_brightness < 30   # absolute dark check for quality assessment
     if is_dark_bg:
         bg_mask = grey < 15
     else:
@@ -452,7 +452,14 @@ def detect_colors(image: Image.Image, n_colors: int, edge_recovery: bool = True)
     if edge_recovery and n_colors >= 2:
         bg_color      = np.array(sorted_colors[0], dtype=float)
         bg_brightness = float(bg_color.mean())
-        is_dark_bg    = bg_brightness < 30
+        # Relative dark-bg detection:
+        # (a) absolute: near-black bg (< 30), OR
+        # (b) relative: moderately dark bg (< 80) that is clearly darker than
+        #     the design — handles dark green, dark navy, dark teal backgrounds.
+        #     Excludes saturated mid-tone bgs like hot pink (brightness ~130).
+        _des_brightness = float(np.array(sorted_colors[1], dtype=float).mean())             if len(sorted_colors) > 1 else 255.0
+        is_dark_bg    = bool(bg_brightness < 30 or
+                             (bg_brightness < 80 and bg_brightness < _des_brightness))
 
         if is_dark_bg:
             # Dark background strategy: LANCZOS resize + threshold=max(bg*2, 20).

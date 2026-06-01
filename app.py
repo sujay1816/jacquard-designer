@@ -3,7 +3,7 @@ Jacquard Designer App — Flask Backend
 """
 
 from flask import Flask, request, jsonify, render_template
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageOps, UnidentifiedImageError
 import numpy as np
 import io, os, zipfile, base64
 from bmp_engine import detect_colors, generate_bmps, verify_bmp, enhance_image, assess_image_quality, extract_outline
@@ -83,7 +83,8 @@ def api_detect_colors():
 
         # ── Open image ───────────────────────────────────────────────────────
         try:
-            img = Image.open(file.stream).convert('RGB')
+            img = Image.open(file.stream)
+            img = ImageOps.exif_transpose(img).convert('RGB')
         except UnidentifiedImageError:
             return _json_error(
                 'Could not read the uploaded file as an image. '
@@ -318,7 +319,8 @@ def assess_quality():
         if not file or ext not in ALLOWED_EXTENSIONS:
             return jsonify({'success': False, 'error': 'Invalid image file'})
 
-        img = Image.open(file.stream).convert('RGB')
+        img = Image.open(file.stream)
+        img = ImageOps.exif_transpose(img).convert('RGB')
         quality = assess_image_quality(img)
         return jsonify({'success': True, **quality})
 
