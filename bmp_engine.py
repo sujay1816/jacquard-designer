@@ -160,6 +160,24 @@ def smart_fill(mask: np.ndarray, satin: np.ndarray, n: int,
     arr[satin_px] = satin[satin_px]
     arr[solid_px] = 0
 
+    # ── Remove isolated UP pixels (noise cleanup) ─────────────────────────
+    # A single UP pixel (0) with all 4 direct neighbours DOWN (1) is an
+    # isolated noise dot — almost certainly a JPEG artefact, not a real
+    # loom thread. Flip it to DOWN without affecting any connected design.
+    design           = arr == 0
+    has_up_neighbour = (
+        np.roll(design,  1, axis=0) |
+        np.roll(design, -1, axis=0) |
+        np.roll(design,  1, axis=1) |
+        np.roll(design, -1, axis=1)
+    )
+    isolated_up          = design & ~has_up_neighbour
+    isolated_up[0, :]    = False   # leave border pixels untouched
+    isolated_up[-1, :]   = False
+    isolated_up[:,  0]   = False
+    isolated_up[:, -1]   = False
+    arr[isolated_up]     = 1       # flip isolated UP → DOWN
+
     return arr
 
 
@@ -463,14 +481,56 @@ def detect_colors(image: Image.Image, n_colors: int, edge_recovery: bool = True)
                 for i in range(n_colors):
                     sorted_counts[i] = int((sorted_labels == i).sum())
         else:
-            struct   = np.ones((3, 3), dtype=bool)
-            bg_label = 0
+            # ── Smart brightness-gated dilation (light background) ───────────
+            # Standard 1-px dilation adds ALL background pixels adjacent to
+            # design, including the blurry JPEG compression halo around each
+            # shape. These halo pixels are very bright (close to background
+            # colour) and cause thousands of false UP pixels in the final BMP.
+            #
+            # Fix: only accept a dilation pixel if its brightness is below the
+            # 'halo threshold' — a point 15% of the way from background toward
+            # design. Genuine design edge pixels (JPEG-blurred but real) fall
+            # below this threshold; pure halo pixels (nearly background) are
+            # rejected.
+            #
+            # Example: bg=247 (white), design=106 (blue)
+            #   threshold = 247 - 0.15*(247-106) = 247 - 21 = 226
+            #   genuine edges: brightness 176-228  → accepted
+            #   JPEG halo    : brightness 229-255  → rejected
+            #
+            # Only applied when background is lighter than design (typical:
+            # white/light bg, dark design). Otherwise falls back to standard
+            # dilation.
+            struct      = np.ones((3, 3), dtype=bool)
+            bg_label    = 0
+            bg_col      = np.array(sorted_colors[0], dtype=float)
+            bg_b        = float(bg_col.mean())
+
+            # Compute per-pixel brightness from the resized image
+            arr_img_rgb = np.array(image.convert('RGB'), dtype=float)
+            pixel_bright = arr_img_rgb.mean(axis=2)   # (H, W)
+
             for label_idx in range(1, n_colors):
                 design_mask  = sorted_labels == label_idx
                 if not design_mask.any():
                     continue
-                dilated      = ndimage.binary_dilation(design_mask, structure=struct)
-                new_pixels   = dilated & (sorted_labels == bg_label)
+
+                des_col = np.array(sorted_colors[label_idx], dtype=float)
+                des_b   = float(des_col.mean())
+
+                if bg_b > des_b:
+                    # Light background, dark design — apply brightness gate
+                    halo_thresh = bg_b - 0.15 * (bg_b - des_b)
+                    dilated     = ndimage.binary_dilation(design_mask, structure=struct)
+                    new_pixels  = (dilated
+                                   & (sorted_labels == bg_label)
+                                   & (pixel_bright < halo_thresh))
+                else:
+                    # Dark design lighter than background (e.g. pink on pink):
+                    # brightness gate unreliable → use standard dilation
+                    dilated    = ndimage.binary_dilation(design_mask, structure=struct)
+                    new_pixels = dilated & (sorted_labels == bg_label)
+
                 sorted_labels[new_pixels] = label_idx
 
             # Recompute counts after dilation
@@ -685,7 +745,7 @@ def generate_bmps(
     satin_settings: dict,           # {shuttle_name: {'n': int, 'flip': bool}}
     design_name: str,
     label_map: np.ndarray = None,   # pre-computed from detect step
-    noise_min_size: int = 2,        # remove stray components < this many pixels
+    noise_min_size: int = 5,        # remove stray components < this many pixels
     emboss: bool = False,           # 1-shuttle only: split outline into rani
     supersample: bool = False       # oversample 4x then downsample for fine detail
 ) -> dict:
