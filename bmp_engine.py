@@ -233,6 +233,80 @@ def enhance_image(image: Image.Image) -> Image.Image:
     return enhanced
 
 
+
+# ---------------------------------------------------------------------------
+# Image quality diagnostics
+# ---------------------------------------------------------------------------
+def assess_image_quality(image: Image.Image) -> dict:
+    """
+    Assess the quality of a source image and return actionable diagnostics.
+
+    Returns a dict with:
+        blur_score      : float  — higher = sharper (Laplacian variance)
+        jpeg_artifacts  : float  — 0-100, higher = more JPEG blocking
+        noise_level     : float  — 0-100, higher = more noise
+        dynamic_range   : float  — 0-100, % of full 0-255 range used
+        is_dark_bg      : bool   — True if background is dark
+        bg_brightness   : float  — background brightness (0-255)
+        suggestions     : list   — list of suggested enhancement strings
+    """
+    arr   = np.array(image.convert('RGB'))
+    grey  = arr.mean(axis=2)
+
+    # ── Blur / focus score ───────────────────────────────────────────────────
+    laplacian  = ndimage.laplace(grey.astype(float))
+    blur_score = float(laplacian.var())          # higher = sharper
+
+    # ── JPEG block artifact score ────────────────────────────────────────────
+    # Measure discontinuities at 8-pixel boundaries vs non-boundaries
+    h, w       = grey.shape
+    block_h    = float(np.abs(grey[:, 8::8] - grey[:, 7:-1:8]).mean()) if w > 16 else 0
+    block_v    = float(np.abs(grey[8::8, :] - grey[7:-1:8, :]).mean()) if h > 16 else 0
+    jpeg_score = min(100.0, (block_h + block_v) / 2.0 * 3.0)
+
+    # ── Noise level in background ────────────────────────────────────────────
+    bg_brightness = float(np.percentile(grey, 5))
+    is_dark_bg    = bg_brightness < 30
+    if is_dark_bg:
+        bg_mask = grey < 15
+    else:
+        bg_mask = grey > float(np.percentile(grey, 90))
+
+    if bg_mask.sum() > 100:
+        smooth_bg   = ndimage.uniform_filter(grey.astype(float), size=5)
+        noise_field = np.abs(grey.astype(float) - smooth_bg)
+        noise_level = float(min(100.0, noise_field[bg_mask].mean() * 5.0))
+    else:
+        noise_level = 0.0
+
+    # ── Dynamic range ────────────────────────────────────────────────────────
+    p2, p98       = float(np.percentile(grey, 2)), float(np.percentile(grey, 98))
+    dynamic_range = float(min(100.0, (p98 - p2) / 255.0 * 100.0))
+
+    # ── Suggestions ─────────────────────────────────────────────────────────
+    suggestions = []
+    if blur_score < 500:
+        suggestions.append('Image is blurry — use a sharper photo or scan at higher DPI')
+    if jpeg_score > 15:
+        suggestions.append('JPEG compression artifacts detected — try enabling Enhance')
+    if noise_level > 20:
+        suggestions.append('High noise level — try enabling Enhance')
+    if dynamic_range < 40:
+        suggestions.append('Low contrast image — try enabling Enhance')
+    if not suggestions:
+        suggestions.append('Image quality is good — no enhancement needed')
+
+    return {
+        'blur_score'    : round(blur_score, 1),
+        'jpeg_artifacts': round(jpeg_score, 1),
+        'noise_level'   : round(noise_level, 1),
+        'dynamic_range' : round(dynamic_range, 1),
+        'is_dark_bg'    : bool(is_dark_bg),
+        'bg_brightness' : round(bg_brightness, 1),
+        'suggestions'   : suggestions,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Color detection
 # ---------------------------------------------------------------------------

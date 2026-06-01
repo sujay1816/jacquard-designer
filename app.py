@@ -6,7 +6,7 @@ from flask import Flask, request, jsonify, render_template
 from PIL import Image, UnidentifiedImageError
 import numpy as np
 import io, os, zipfile, base64
-from bmp_engine import detect_colors, generate_bmps, verify_bmp, enhance_image
+from bmp_engine import detect_colors, generate_bmps, verify_bmp, enhance_image, assess_image_quality
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024   # 50 MB upload cap
@@ -276,6 +276,26 @@ def api_generate():
     except Exception as e:
         import traceback
         return _json_error(f'Generation failed: {e}'), 500
+
+
+@app.route('/api/assess-quality', methods=['POST'])
+def assess_quality():
+    """Assess uploaded image quality and return diagnostics + suggestions."""
+    try:
+        if 'image' not in request.files:
+            return jsonify({'success': False, 'error': 'No image provided'})
+
+        file = request.files['image']
+        ext = os.path.splitext(file.filename or '')[1].lower()
+        if not file or ext not in ALLOWED_EXTENSIONS:
+            return jsonify({'success': False, 'error': 'Invalid image file'})
+
+        img = Image.open(file.stream).convert('RGB')
+        quality = assess_image_quality(img)
+        return jsonify({'success': True, **quality})
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
 
 
 if __name__ == '__main__':

@@ -765,6 +765,66 @@
         color: #888;
         line-height: 1.4;
       }
+
+      /* ── Quality diagnostics panel ───────────────────────────────────────── */
+      .quality-panel {
+        margin: 8px 0;
+        padding: 10px 12px;
+        background: rgba(255,255,255,0.04);
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.08);
+        display: none;
+      }
+      .quality-panel.visible { display: block; }
+      .quality-title {
+        font-size: 11px;
+        font-weight: 600;
+        color: #aaa;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 8px;
+      }
+      .quality-meters {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+        margin-bottom: 8px;
+      }
+      .quality-meter {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+      .quality-meter-label {
+        font-size: 10px;
+        color: #888;
+        display: flex;
+        justify-content: space-between;
+      }
+      .quality-bar-bg {
+        height: 5px;
+        background: rgba(255,255,255,0.1);
+        border-radius: 3px;
+        overflow: hidden;
+      }
+      .quality-bar-fill {
+        height: 100%;
+        border-radius: 3px;
+        transition: width 0.4s ease;
+      }
+      .quality-bar-fill.good  { background: #4caf50; }
+      .quality-bar-fill.ok    { background: #ff9800; }
+      .quality-bar-fill.bad   { background: #f44336; }
+      .quality-suggestions {
+        font-size: 11px;
+        color: #bbb;
+        padding: 6px 8px;
+        background: rgba(255,255,255,0.03);
+        border-radius: 5px;
+        border-left: 2px solid #f0a500;
+        line-height: 1.5;
+      }
+      .quality-suggestions.good { border-left-color: #4caf50; }
     </style>
 </head>
 <body>
@@ -807,6 +867,29 @@
         <div class="upload-icon">🖼</div>
         <h3>Drop design image here</h3>
         <p>Upload a cropped saree design photo<br>JPG, PNG, BMP supported</p>
+      </div>
+
+      <div id="qualityPanel" class="quality-panel">
+        <div class="quality-title">📊 Image Quality</div>
+        <div class="quality-meters">
+          <div class="quality-meter">
+            <div class="quality-meter-label"><span>Sharpness</span><span id="qBlur">—</span></div>
+            <div class="quality-bar-bg"><div id="qBlurBar" class="quality-bar-fill good" style="width:0%"></div></div>
+          </div>
+          <div class="quality-meter">
+            <div class="quality-meter-label"><span>JPEG artifacts</span><span id="qJpeg">—</span></div>
+            <div class="quality-bar-bg"><div id="qJpegBar" class="quality-bar-fill good" style="width:0%"></div></div>
+          </div>
+          <div class="quality-meter">
+            <div class="quality-meter-label"><span>Noise level</span><span id="qNoise">—</span></div>
+            <div class="quality-bar-bg"><div id="qNoiseBar" class="quality-bar-fill good" style="width:0%"></div></div>
+          </div>
+          <div class="quality-meter">
+            <div class="quality-meter-label"><span>Contrast</span><span id="qContrast">—</span></div>
+            <div class="quality-bar-bg"><div id="qContrastBar" class="quality-bar-fill good" style="width:0%"></div></div>
+          </div>
+        </div>
+        <div id="qualitySuggestions" class="quality-suggestions"></div>
       </div>
       <div class="upload-preview" id="upload-preview">
         <img id="preview-img" src="" alt="Design preview">
@@ -953,6 +1036,54 @@
 // =====================================================================
 // App State
 // =====================================================================
+// =====================================================================
+// Image quality assessment
+// =====================================================================
+async function assessImageQuality(file) {
+  try {
+    const formData = new FormData();
+    formData.append('image', file);
+    const res = await fetch('/api/assess-quality', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (!data.success) return;
+
+    document.getElementById('qualityPanel').classList.add('visible');
+
+    const setBar = (id, pct, cls) => {
+      const el = document.getElementById(id);
+      el.style.width = Math.min(100, Math.max(2, pct)) + '%';
+      el.className = 'quality-bar-fill ' + cls;
+    };
+
+    const sharpPct = Math.min(100, data.blur_score / 50);
+    const sharpClass = data.blur_score > 2000 ? 'good' : data.blur_score > 500 ? 'ok' : 'bad';
+    document.getElementById('qBlur').textContent = data.blur_score > 2000 ? 'Sharp' : data.blur_score > 500 ? 'OK' : 'Blurry';
+    setBar('qBlurBar', sharpPct, sharpClass);
+
+    const jpegClass = data.jpeg_artifacts < 10 ? 'good' : data.jpeg_artifacts < 25 ? 'ok' : 'bad';
+    document.getElementById('qJpeg').textContent = data.jpeg_artifacts < 10 ? 'Clean' : data.jpeg_artifacts < 25 ? 'Moderate' : 'Heavy';
+    setBar('qJpegBar', data.jpeg_artifacts, jpegClass);
+
+    const noiseClass = data.noise_level < 10 ? 'good' : data.noise_level < 30 ? 'ok' : 'bad';
+    document.getElementById('qNoise').textContent = data.noise_level < 10 ? 'Low' : data.noise_level < 30 ? 'Medium' : 'High';
+    setBar('qNoiseBar', data.noise_level, noiseClass);
+
+    const contrastClass = data.dynamic_range > 60 ? 'good' : data.dynamic_range > 30 ? 'ok' : 'bad';
+    document.getElementById('qContrast').textContent = data.dynamic_range > 60 ? 'Good' : data.dynamic_range > 30 ? 'Low' : 'Poor';
+    setBar('qContrastBar', data.dynamic_range, contrastClass);
+
+    const sugEl = document.getElementById('qualitySuggestions');
+    sugEl.textContent = data.suggestions.join(' • ');
+    const allGood = data.suggestions.length === 1 && data.suggestions[0].includes('good');
+    sugEl.className = 'quality-suggestions' + (allGood ? ' good' : '');
+
+    // Auto-tick enhance if quality issues are detected
+    if (data.jpeg_artifacts > 15 || data.noise_level > 20 || data.dynamic_range < 40) {
+      document.getElementById('enhanceImage').checked = true;
+    }
+  } catch(e) { console.warn('Quality assessment error:', e); }
+}
+
 const state = {
   imageFile: null,
   imageB64: null,
@@ -1017,6 +1148,7 @@ function handleFile(file) {
 
   // Reset stale state from previous image so old label_map is never reused
   state.imageFile     = file;
+  assessImageQuality(file);  // auto-assess quality on upload
   state.safeImageB64  = null;
   state.labelMap      = null;
   state.detectedColors = [];
