@@ -865,12 +865,37 @@ def generate_bmps(
         if shuttle_count >= 4:
             shuttle_names.append('meena2')
 
+        # Determine background type once for all shuttles
+        _arr_rgb_m   = np.array(resized)
+        _is_light_bg_m = (_arr_rgb_m.mean(axis=2).mean() > 100 and
+                          float(np.percentile(_arr_rgb_m.mean(axis=2), 95)) > 180)
+
         shuttle_arrays = {}
         for sname in shuttle_names:
             mask  = masks.get(sname, np.zeros((cards, pins), dtype=bool))
             s     = satin_settings.get(sname, {'n': 8, 'flip': False})
             satin = generate_satin(s['n'], pins, cards, flip=s['flip'])
-            arr   = smart_fill(mask, satin, s['n'], satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
+
+            if supersample and _is_light_bg_m:
+                # Build a temporary color_assignments that maps only this
+                # shuttle's colour index, so _supersample_to_bmp detects
+                # and fills at 4× resolution for this shuttle's mask only.
+                _n_colors = max(label_map.max() + 1, 2) if label_map is not None else 2
+                _ss_satin = {sname: s}
+                # Find which colour index maps to this shuttle
+                _ss_assign = {k: v for k, v in color_assignments.items() if v == sname}
+                _ss_assign['0'] = 'background'   # always keep background
+                _ss_arr = _supersample_to_bmp(
+                    image, pins, cards, _n_colors,
+                    _ss_satin, _ss_assign,
+                    label_map, noise_min_size)
+                arr = _ss_arr if _ss_arr is not None else smart_fill(
+                    mask, satin, s['n'],
+                    satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
+            else:
+                arr = smart_fill(mask, satin, s['n'],
+                                 satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
+
             shuttle_arrays[sname] = arr
             results[f'{design_name}_{sname}.bmp'] = write_1bit_bmp(arr)
 
@@ -894,16 +919,42 @@ def generate_bmps(
 
         plain_weave = generate_plain_weave(pins, cards)
 
-        # Find label indices not assigned to any named shuttle or background
-        assigned_indices = set()
-        for cidx, sname in color_assignments.items():
-            assigned_indices.add(int(cidx))
+        # ── Guaranteed full-design coverage for rani ─────────────────────────
+        # The user requirement: rani must capture ALL design pixels not assigned
+        # to a named shuttle (zari, meena1, meena2), so no design element is ever
+        # lost regardless of how many colours the source contains.
+        #
+        # OLD approach: rani extra = union of label_map indices not in assignments.
+        # Problem: with nColors=3 on a 5-colour design, minority colours land in
+        # the background cluster (label 0) and never appear in the extra_mask.
+        #
+        # NEW approach (two-pass):
+        # 1. Run a fast nColors=2 detection on the RESIZED image to get the full
+        #    design mask — everything that is not background.
+        # 2. Subtract all named-shuttle masks from it.
+        # 3. Whatever remains = rani extra. This guarantees 100% coverage.
+        #
+        # Fallback: if the 2-colour detect fails, use the old label-index method.
 
-        # Collect extra design pixels: any label not assigned, excluding bg (label 0)
-        extra_mask = np.zeros((cards, pins), dtype=bool)
-        for lbl in range(1, label_map.max() + 1):
-            if lbl not in assigned_indices:
-                extra_mask |= (label_map == lbl)
+        # Build union of all named-shuttle masks (zari + meena1 + meena2)
+        named_mask = np.zeros((cards, pins), dtype=bool)
+        for sname in shuttle_names:
+            named_mask |= masks.get(sname, np.zeros((cards, pins), dtype=bool))
+
+        # Two-pass: detect full design mask at target resolution
+        try:
+            _, _, lm_full, _ = detect_colors(resized, 2, edge_recovery=True)
+            full_design_mask  = lm_full == 1
+            full_design_mask  = remove_noise(full_design_mask, min_size=noise_min_size)
+            extra_mask        = full_design_mask & ~named_mask
+        except Exception:
+            # Fallback: old label-index method
+            assigned_indices = set(int(k) for k in color_assignments)
+            extra_mask = np.zeros((cards, pins), dtype=bool)
+            for lbl in range(1, label_map.max() + 1):
+                if lbl not in assigned_indices:
+                    extra_mask |= (label_map == lbl)
+            extra_mask = remove_noise(extra_mask, min_size=noise_min_size)
 
         if extra_mask.any():
             # Remove noise from extra mask
