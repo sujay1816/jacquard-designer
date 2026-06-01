@@ -588,6 +588,94 @@ def extract_outline(mask: np.ndarray, thickness: int = 1) -> tuple:
     return outline, fill
 
 
+# ---------------------------------------------------------------------------
+# Super-sample downscale for fine-detail designs at low pin counts
+# ---------------------------------------------------------------------------
+def _supersample_to_bmp(image: Image.Image,
+                         pins: int,
+                         cards: int,
+                         n_colors: int,
+                         satin_settings: dict,
+                         color_assignments: dict,
+                         label_map: np.ndarray,
+                         noise_min_size: int,
+                         scale: int = 4,
+                         pool_threshold: float = 0.5) -> np.ndarray:
+    """
+    Generate a high-resolution BMP then downsample to the target pin count.
+
+    Problem this solves:
+        At low pin counts (e.g. 240) the gaps between fine design features
+        (petal gaps, thin lattice lines) may be only 1-3 pixels wide.
+        The 1-pixel edge-recovery dilation bridges and closes those gaps,
+        making the design appear as solid filled blobs.
+
+    Solution:
+        1. Generate the BMP at  scale × target resolution (e.g. 960 for 240 pins).
+           At 4× scale the same gaps are 4-12 pixels wide — dilation can no longer
+           close them.
+        2. Downsample the high-resolution binary BMP back to the target size using
+           mean-pooling with a 0.5 threshold: a target pixel fires (UP) if ≥ 50 %
+           of the scale×scale high-resolution pixels covering it are UP.
+
+    Only applied for light-background designs where the interior-gap problem
+    occurs. Dark-background designs (is_dark_bg=True) are already handled
+    correctly by the LANCZOS + brightness-threshold pipeline and do not need
+    supersampling.
+
+    Parameters:
+        image            : original source PIL image
+        pins / cards     : target BMP dimensions
+        n_colors         : number of colour clusters (from detect step)
+        satin_settings   : per-shuttle satin config dict
+        color_assignments: {color_index: shuttle_name}
+        label_map        : pre-computed label map at target resolution
+        noise_min_size   : min component size for noise removal
+        scale            : oversample factor (default 4)
+        pool_threshold   : fraction of high-res UP pixels to make target pixel UP
+
+    Returns:
+        2D uint8 array (cards × pins), 0=UP, 1=DOWN — the zari channel only.
+        Caller must generate rani/meena separately if needed.
+    """
+    try:
+        from skimage.measure import block_reduce
+    except ImportError:
+        # skimage not available — fall back to standard pipeline
+        return None
+
+    hi_pins  = pins  * scale
+    hi_cards = cards * scale
+
+    # Detect colours at high resolution
+    resized_hi = image.resize((hi_pins, hi_cards), Image.LANCZOS)
+    _, _, lm_hi, _ = detect_colors(resized_hi, n_colors, edge_recovery=True)
+
+    # Build zari mask at high resolution
+    zari_mask_hi = np.zeros((hi_cards, hi_pins), dtype=bool)
+    for cidx, sname in color_assignments.items():
+        if sname not in ('background',):
+            zari_mask_hi |= (lm_hi == int(cidx))
+    zari_mask_hi = remove_noise(zari_mask_hi, min_size=noise_min_size)
+
+    # Smart fill at high resolution
+    s        = satin_settings.get('zari', {'n': 8, 'flip': False})
+    satin_hi = generate_satin(s['n'], hi_pins, hi_cards, flip=s['flip'])
+    arr_hi   = smart_fill(zari_mask_hi, satin_hi, s['n'],
+                          satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
+
+    # Downsample: mean-pool then threshold
+    design_hi = (arr_hi == 0).astype(np.float32)
+    pooled    = block_reduce(design_hi,
+                             block_size=(scale, scale),
+                             func=np.mean)[:cards, :pins]
+    result    = np.where(pooled >= pool_threshold,
+                         np.uint8(0),   # UP
+                         np.uint8(1)    # DOWN
+                         ).astype(np.uint8)
+    return result
+
+
 def generate_bmps(
     image: Image.Image,
     pins: int,
@@ -598,7 +686,8 @@ def generate_bmps(
     design_name: str,
     label_map: np.ndarray = None,   # pre-computed from detect step
     noise_min_size: int = 2,        # remove stray components < this many pixels
-    emboss: bool = False            # 1-shuttle only: split outline into rani
+    emboss: bool = False,           # 1-shuttle only: split outline into rani
+    supersample: bool = False       # oversample 4x then downsample for fine detail
 ) -> dict:
     """
     Generate all BMP files for a jacquard design.
@@ -660,10 +749,28 @@ def generate_bmps(
         s         = satin_settings.get('zari', {'n': 8, 'flip': False})
         satin     = generate_satin(s['n'], pins, cards, flip=s['flip'])
 
+        # Determine background type for supersample decision
+        _arr_rgb  = np.array(resized)
+        _bg_bright = float(np.array(_arr_rgb, dtype=float).mean(axis=2).flatten()
+                           [np.argsort(np.array(_arr_rgb).mean(axis=2).flatten())[-1]])
+        _is_light_bg = np.array(_arr_rgb).mean(axis=2).mean() > 100 and                        float(np.percentile(np.array(_arr_rgb).mean(axis=2), 95)) > 180
+
         if not emboss:
             # ── Emboss OFF (default): zari = all design, no rani ────────────
-            arr = smart_fill(zari_mask, satin, s['n'],
-                             satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
+            # Use supersampling for light-bg designs when requested,
+            # to preserve fine interior gaps at low pin counts.
+            if supersample and _is_light_bg:
+                _n_colors = max(label_map.max() + 1, 2) if label_map is not None else 2
+                _ss_arr = _supersample_to_bmp(
+                    image, pins, cards, _n_colors,
+                    satin_settings, color_assignments,
+                    label_map, noise_min_size)
+                arr = _ss_arr if _ss_arr is not None else smart_fill(
+                    zari_mask, satin, s['n'],
+                    satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
+            else:
+                arr = smart_fill(zari_mask, satin, s['n'],
+                                 satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
             results[f'{design_name}_zari.bmp'] = write_1bit_bmp(arr)
 
         else:

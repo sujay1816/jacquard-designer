@@ -235,7 +235,8 @@ def api_generate():
 
         # ── Generate ──────────────────────────────────────────────────────────
         # Emboss: 1-shuttle only — split outline into rani
-        emboss = bool(data.get('emboss', False)) and shuttle_count == 1
+        emboss      = bool(data.get('emboss', False)) and shuttle_count == 1
+        supersample = bool(data.get('supersample', False))
 
         bmp_files = generate_bmps(
             image=img,
@@ -247,6 +248,7 @@ def api_generate():
             design_name=design_name,
             label_map=label_map,
             emboss=emboss,
+            supersample=supersample,
         )
 
         # ── Verify ────────────────────────────────────────────────────────────

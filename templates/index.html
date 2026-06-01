@@ -861,6 +861,7 @@
       .emboss-text { display: flex; flex-direction: column; gap: 3px; }
       .emboss-text strong { font-size: 12px; color: #f0c080; }
       .emboss-desc { font-size: 11px; color: #888; line-height: 1.4; }
+      /* supersample shares emboss styling */
     </style>
 </head>
 <body>
@@ -911,6 +912,16 @@
           <span class="emboss-text">
             <strong>✦ Emboss mode</strong>
             <span class="emboss-desc">1-shuttle only — outline goes to rani.bmp (outline + plain weave), fill goes to zari.bmp. Turn off for standard single-thread output.</span>
+          </span>
+        </label>
+      </div>
+
+      <div class="emboss-row visible" id="supersampleRow">
+        <label class="emboss-label">
+          <input type="checkbox" id="supersampleMode">
+          <span class="emboss-text">
+            <strong>🔬 Fine detail mode</strong>
+            <span class="emboss-desc">Detects at 4× resolution then downsamples — preserves thin gaps between petals, lattice lines, and fine interior details at low pin counts.</span>
           </span>
         </label>
       </div>
@@ -1667,7 +1678,8 @@ async function generateBMPs() {
         design_name: designName,
         color_assignments: finalAssignments,
         satin_settings: saSettings,
-      emboss: embossChecked,
+      emboss:       embossChecked,
+      supersample:  document.getElementById('supersampleMode')?.checked || false,
       }),
     });
 
