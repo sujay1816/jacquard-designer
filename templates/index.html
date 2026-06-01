@@ -825,6 +825,15 @@
         line-height: 1.5;
       }
       .quality-suggestions.good { border-left-color: #4caf50; }
+
+      .color-artifact-warn {
+        font-size: 9px;
+        color: #ff9800;
+        margin-top: 3px;
+        display: flex;
+        align-items: center;
+        gap: 3px;
+      }
     </style>
 </head>
 <body>
@@ -1304,11 +1313,16 @@ function renderColorsGrid() {
       ? `<span class="color-badge" style="background:${SHUTTLE_COLORS[assigned] || '#555'}22;color:${SHUTTLE_COLORS[assigned] || '#aaa'}">${assigned}</span>`
       : '';
 
+    const artifactWarning = (c.is_genuine === false)
+      ? `<div class="color-artifact-warn" title="This colour appears to be a JPEG compression artefact rather than a genuine thread colour. Assigning it to a shuttle may reduce accuracy.">⚠ JPEG artefact</div>`
+      : '';
+
     card.innerHTML = `
       <div class="color-swatch" style="background:${c.hex}"></div>
       <div class="color-card-info">
         <div class="color-hex">${c.hex.toUpperCase()}</div>
         <div class="color-pct">${c.percentage}% of image</div>
+        ${artifactWarning}
         ${shuttleLabel}
       </div>
     `;

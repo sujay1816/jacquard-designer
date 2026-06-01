@@ -308,6 +308,51 @@ def assess_image_quality(image: Image.Image) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Colour genuineness check
+# ---------------------------------------------------------------------------
+def _is_genuine_colour(candidate_rgb: tuple,
+                        reference_colours: list,
+                        hue_threshold: float = 0.05) -> bool:
+    """
+    Return True if candidate_rgb is a genuinely distinct colour from all
+    reference colours. A colour is considered an artefact (not genuine) if:
+      - Its HSV hue is within hue_threshold of any reference colour, AND
+      - The reference colour has meaningful saturation (s > 0.15).
+    Achromatic colours (grey/black/white, s < 0.15) are always considered
+    genuine since their hue is undefined — a grey on a coloured background
+    is a valid thread colour.
+
+    Parameters:
+        candidate_rgb     : (R, G, B) tuple 0-255
+        reference_colours : list of (R, G, B) tuples already confirmed genuine
+        hue_threshold     : hue difference threshold (0-1, default 0.05 = 18°)
+    """
+    import colorsys
+    r, g, b   = [x / 255.0 for x in candidate_rgb]
+    h_c, s_c, v_c = colorsys.rgb_to_hsv(r, g, b)
+
+    # Achromatic candidate: always genuine (grey/black/white thread is always valid)
+    if s_c < 0.15:
+        return True
+
+    for ref in reference_colours:
+        r2, g2, b2 = [x / 255.0 for x in ref]
+        h_r, s_r, _ = colorsys.rgb_to_hsv(r2, g2, b2)
+
+        # Skip achromatic references for hue comparison
+        if s_r < 0.15:
+            continue
+
+        hue_diff = abs(h_c - h_r)
+        hue_diff = min(hue_diff, 1.0 - hue_diff)   # wrap around 360°
+
+        if hue_diff < hue_threshold:
+            return False   # same hue as an existing colour → artefact
+
+    return True
+
+
+# ---------------------------------------------------------------------------
 # Color detection
 # ---------------------------------------------------------------------------
 def detect_colors(image: Image.Image, n_colors: int, edge_recovery: bool = True) -> tuple:
@@ -403,7 +448,22 @@ def detect_colors(image: Image.Image, n_colors: int, edge_recovery: bool = True)
             for i in range(n_colors):
                 sorted_counts[i] = int((sorted_labels == i).sum())
 
-    return sorted_colors, sorted_counts, sorted_labels
+    # ── Colour genuineness flags ─────────────────────────────────────────────
+    # Mark each colour as genuine (distinct thread colour) or artefact
+    # (JPEG compression gradient of an existing colour).
+    # Rules:
+    #   colour[0] = background  → always genuine
+    #   colour[1] = primary design (zari) → always genuine (most distinct from bg)
+    #   colour[2+] = meena candidates → check hue distinctness
+    genuine_flags = [True, True] if n_colors >= 2 else [True]
+    confirmed     = list(sorted_colors[:min(2, n_colors)])
+    for i in range(2, n_colors):
+        flag = _is_genuine_colour(sorted_colors[i], confirmed)
+        genuine_flags.append(flag)
+        if flag:
+            confirmed.append(sorted_colors[i])
+
+    return sorted_colors, sorted_counts, sorted_labels, genuine_flags
 
 
 # ---------------------------------------------------------------------------

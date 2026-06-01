@@ -100,7 +100,7 @@ def api_detect_colors():
 
         # ── Detect colours ───────────────────────────────────────────────────
         resized = img.resize((pins, cards), Image.LANCZOS)
-        colors, counts, label_map = detect_colors(resized, n_colors)
+        colors, counts, label_map, genuine_flags = detect_colors(resized, n_colors)
 
         total_pixels = pins * cards
         color_data = [
@@ -110,6 +110,7 @@ def api_detect_colors():
                 'hex':        '#{:02x}{:02x}{:02x}'.format(*[int(x) for x in color]),
                 'percentage': round(100 * count / total_pixels, 1),
                 'count':      count,
+                'is_genuine': bool(genuine_flags[i]) if i < len(genuine_flags) else True,
             }
             for i, (color, count) in enumerate(zip(colors, counts))
         ]
