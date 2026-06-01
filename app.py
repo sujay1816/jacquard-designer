@@ -6,7 +6,7 @@ from flask import Flask, request, jsonify, render_template
 from PIL import Image, UnidentifiedImageError
 import numpy as np
 import io, os, zipfile, base64
-from bmp_engine import detect_colors, generate_bmps, verify_bmp, enhance_image, assess_image_quality
+from bmp_engine import detect_colors, generate_bmps, verify_bmp, enhance_image, assess_image_quality, extract_outline
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024   # 50 MB upload cap
@@ -234,6 +234,9 @@ def api_generate():
                 label_map = None   # fall back to re-running KMeans
 
         # ── Generate ──────────────────────────────────────────────────────────
+        # Emboss: 1-shuttle only — split outline into rani
+        emboss = bool(data.get('emboss', False)) and shuttle_count == 1
+
         bmp_files = generate_bmps(
             image=img,
             pins=pins,
@@ -243,6 +246,7 @@ def api_generate():
             satin_settings=satin_settings,
             design_name=design_name,
             label_map=label_map,
+            emboss=emboss,
         )
 
         # ── Verify ────────────────────────────────────────────────────────────

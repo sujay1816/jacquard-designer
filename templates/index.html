@@ -834,6 +834,33 @@
         align-items: center;
         gap: 3px;
       }
+
+      /* ── Emboss toggle ───────────────────────────────────────────────────── */
+      .emboss-row {
+        margin: 8px 0 4px 0;
+        padding: 10px 12px;
+        background: rgba(255,255,255,0.04);
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.08);
+        display: none;
+      }
+      .emboss-row.visible { display: block; }
+      .emboss-label {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        cursor: pointer;
+      }
+      .emboss-label input[type=checkbox] {
+        width: 16px; height: 16px;
+        margin-top: 3px;
+        accent-color: #e05a00;
+        flex-shrink: 0;
+        cursor: pointer;
+      }
+      .emboss-text { display: flex; flex-direction: column; gap: 3px; }
+      .emboss-text strong { font-size: 12px; color: #f0c080; }
+      .emboss-desc { font-size: 11px; color: #888; line-height: 1.4; }
     </style>
 </head>
 <body>
@@ -876,6 +903,16 @@
         <div class="upload-icon">🖼</div>
         <h3>Drop design image here</h3>
         <p>Upload a cropped saree design photo<br>JPG, PNG, BMP supported</p>
+      </div>
+
+      <div id="embossRow" class="emboss-row">
+        <label class="emboss-label">
+          <input type="checkbox" id="embossMode">
+          <span class="emboss-text">
+            <strong>✦ Emboss mode</strong>
+            <span class="emboss-desc">1-shuttle only — outline goes to rani.bmp (outline + plain weave), fill goes to zari.bmp. Turn off for standard single-thread output.</span>
+          </span>
+        </label>
       </div>
 
       <div id="qualityPanel" class="quality-panel">
@@ -1468,6 +1505,17 @@ function renderSatinSettings() {
   const saSection = document.getElementById('satin-section');
   container.innerHTML = '';
 
+  // Show emboss toggle only for 1-shuttle
+  const embossRow = document.getElementById('embossRow');
+  if (embossRow) {
+    if (state.shuttleCount === 1) {
+      embossRow.classList.add('visible');
+    } else {
+      embossRow.classList.remove('visible');
+      document.getElementById('embossMode').checked = false;
+    }
+  }
+
   if (state.shuttleCount === 1) {
     saSection.style.display = 'none';
     return;
@@ -1578,6 +1626,11 @@ async function generateBMPs() {
     };
   });
 
+  // Emboss flag — only active for 1-shuttle
+  const embossChecked = state.shuttleCount === 1
+    && document.getElementById('embossMode')
+    && document.getElementById('embossMode').checked;
+
   // Final color assignments.
   // Colour 0 (background) always stays as background.
   // The LAST detected colour (highest index) is intentionally left unassigned
@@ -1614,6 +1667,7 @@ async function generateBMPs() {
         design_name: designName,
         color_assignments: finalAssignments,
         satin_settings: saSettings,
+      emboss: embossChecked,
       }),
     });
 

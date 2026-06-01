@@ -557,6 +557,37 @@ def write_1bit_bmp(arr: np.ndarray) -> bytes:
 # ---------------------------------------------------------------------------
 # Main BMP generation
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Emboss outline extractor
+# ---------------------------------------------------------------------------
+def extract_outline(mask: np.ndarray, thickness: int = 1) -> tuple:
+    """
+    Split a boolean design mask into outline and fill layers using
+    morphological erosion.
+
+    The outline is the boundary ring of every design region — the pixels
+    that sit at the edge between design and background. The fill is
+    everything inside, after eroding away the boundary.
+
+    Used by the Emboss feature in 1-shuttle mode:
+        zari.bmp  = fill  (thick interior areas)
+        rani.bmp  = outline + plain weave combined
+
+    Parameters:
+        mask      : 2D bool (cards x pins) — full design mask
+        thickness : outline ring thickness in pixels (default 1)
+
+    Returns:
+        (outline_mask, fill_mask) — both 2D bool, same shape as mask
+        outline_mask | fill_mask == mask  (they partition the design)
+    """
+    struct  = np.ones((thickness * 2 + 1, thickness * 2 + 1), dtype=bool)
+    eroded  = ndimage.binary_erosion(mask, structure=struct)
+    outline = mask & ~eroded
+    fill    = eroded
+    return outline, fill
+
+
 def generate_bmps(
     image: Image.Image,
     pins: int,
@@ -566,7 +597,8 @@ def generate_bmps(
     satin_settings: dict,           # {shuttle_name: {'n': int, 'flip': bool}}
     design_name: str,
     label_map: np.ndarray = None,   # pre-computed from detect step
-    noise_min_size: int = 2         # remove stray components < this many pixels
+    noise_min_size: int = 2,        # remove stray components < this many pixels
+    emboss: bool = False            # 1-shuttle only: split outline into rani
 ) -> dict:
     """
     Generate all BMP files for a jacquard design.
@@ -627,8 +659,36 @@ def generate_bmps(
         zari_mask = masks.get('zari', np.zeros((cards, pins), dtype=bool))
         s         = satin_settings.get('zari', {'n': 8, 'flip': False})
         satin     = generate_satin(s['n'], pins, cards, flip=s['flip'])
-        arr       = smart_fill(zari_mask, satin, s['n'], satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
-        results[f'{design_name}_zari.bmp'] = write_1bit_bmp(arr)
+
+        if not emboss:
+            # ── Emboss OFF (default): zari = all design, no rani ────────────
+            arr = smart_fill(zari_mask, satin, s['n'],
+                             satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
+            results[f'{design_name}_zari.bmp'] = write_1bit_bmp(arr)
+
+        else:
+            # ── Emboss ON: split design into fill (zari) + outline (rani) ───
+            # Extract the boundary ring of every design shape via erosion.
+            # Fill  → zari.bmp  (thick interior, satin or solid)
+            # Outline → rani.bmp (boundary ring + plain weave base)
+            outline_mask, fill_mask = extract_outline(zari_mask, thickness=1)
+
+            # zari = fill interior only
+            zari_arr = smart_fill(fill_mask, satin, s['n'],
+                                  satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
+            results[f'{design_name}_zari.bmp'] = write_1bit_bmp(zari_arr)
+
+            # rani = outline pixels (solid, always thin) + plain weave base
+            plain_weave  = generate_plain_weave(pins, cards)
+            outline_solid = np.ones((cards, pins), dtype=np.uint8)
+            outline_solid[outline_mask] = 0   # solid fill for outline ring
+            # OR-combine: fire where either plain weave OR outline fires
+            rani_arr = np.where(
+                (plain_weave == 0) | (outline_solid == 0),
+                np.uint8(0),
+                np.uint8(1)
+            ).astype(np.uint8)
+            results[f'{design_name}_rani.bmp'] = write_1bit_bmp(rani_arr)
 
     else:
         # ── 2-4 SHUTTLES ────────────────────────────────────────────────────
