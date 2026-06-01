@@ -728,7 +728,44 @@
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: var(--bg); }
   ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
-</style>
+
+      /* ── Enhance toggle ──────────────────────────────────────────────── */
+      .enhance-row {
+        margin: 10px 0 4px 0;
+        padding: 10px 12px;
+        background: rgba(255,255,255,0.04);
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.08);
+      }
+      .enhance-label {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        cursor: pointer;
+      }
+      .enhance-label input[type=checkbox] {
+        width: 16px;
+        height: 16px;
+        margin-top: 3px;
+        accent-color: #f0a500;
+        flex-shrink: 0;
+        cursor: pointer;
+      }
+      .enhance-text {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+      .enhance-text strong {
+        font-size: 12px;
+        color: #e8d5a3;
+      }
+      .enhance-desc {
+        font-size: 11px;
+        color: #888;
+        line-height: 1.4;
+      }
+    </style>
 </head>
 <body>
 
@@ -796,6 +833,16 @@
           <input type="number" id="cards" placeholder="Auto" min="10" max="9999">
           <span class="field-hint">Optional — auto if blank</span>
         </div>
+      </div>
+
+      <div class="enhance-row">
+        <label class="enhance-label">
+          <input type="checkbox" id="enhanceImage">
+          <span class="enhance-text">
+            <strong>✨ Enhance image quality</strong>
+            <span class="enhance-desc">Denoise + sharpen before detection — improves accuracy for JPEG / low-quality sources</span>
+          </span>
+        </label>
       </div>
     </div>
 
@@ -1041,6 +1088,7 @@ async function detectColors() {
 
   const formData = new FormData();
   formData.append('image', state.imageFile);
+  formData.append('enhance', document.getElementById('enhanceImage').checked ? 'true' : 'false');
   formData.append('n_colors', nColors);
   formData.append('pins', pins);
   formData.append('cards', cardsRaw);

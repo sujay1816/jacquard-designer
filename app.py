@@ -6,7 +6,7 @@ from flask import Flask, request, jsonify, render_template
 from PIL import Image, UnidentifiedImageError
 import numpy as np
 import io, os, zipfile, base64
-from bmp_engine import detect_colors, generate_bmps, verify_bmp
+from bmp_engine import detect_colors, generate_bmps, verify_bmp, enhance_image
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024   # 50 MB upload cap
@@ -93,6 +93,10 @@ def api_detect_colors():
         orig_w, orig_h = img.size
         if cards is None:
             cards = max(10, int(pins * orig_h / orig_w))
+
+        # ── Optional image enhancement ───────────────────────────────────────
+        if request.form.get('enhance', 'false').lower() == 'true':
+            img = enhance_image(img)
 
         # ── Detect colours ───────────────────────────────────────────────────
         resized = img.resize((pins, cards), Image.LANCZOS)
