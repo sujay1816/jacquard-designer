@@ -29,7 +29,30 @@ def too_large(_e):
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    from flask import make_response
+    resp = make_response(render_template('index.html'))
+    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    resp.headers['Pragma']        = 'no-cache'
+    resp.headers['Expires']       = '0'
+    return resp
+
+
+@app.route('/trace')
+def trace_page_redirect():
+    from flask import make_response
+    resp = make_response(render_template('trace.html'))
+    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    resp.headers['Pragma']        = 'no-cache'
+    return resp
+
+
+@app.route('/edit')
+def edit_page_redirect():
+    from flask import make_response
+    resp = make_response(render_template('edit.html'))
+    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    resp.headers['Pragma']        = 'no-cache'
+    return resp
 
 
 @app.route('/api/fill-patterns', methods=['GET'])
@@ -351,9 +374,7 @@ def assess_quality():
         return jsonify({'success': False, 'error': str(e)})
 
 
-@app.route('/trace')
-def trace_page():
-    return render_template('trace.html')
+# trace route merged above
 
 
 @app.route('/api/trace-guide', methods=['POST'])
@@ -501,9 +522,7 @@ def api_trace_guide():
         return jsonify({'success': False, 'error': str(e), 'trace': traceback.format_exc()})
 
 
-@app.route('/edit')
-def edit_page():
-    return render_template('edit.html')
+# edit route merged above
 
 
 @app.route('/api/bmp-process', methods=['POST'])
