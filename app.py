@@ -345,5 +345,155 @@ def assess_quality():
         return jsonify({'success': False, 'error': str(e)})
 
 
+@app.route('/trace')
+def trace_page():
+    return render_template('trace.html')
+
+
+@app.route('/api/trace-guide', methods=['POST'])
+def api_trace_guide():
+    """
+    Pre-process a complex fabric image into tracing reference images.
+    Returns:
+      - faded:       grid faded, design visible (best for manual tracing)
+      - highlighted: colour-coded layer map
+      - cleaned:     auto-cleaned black-on-white (ready to upload to main app)
+    """
+    try:
+        if 'image' not in request.files:
+            return _json_error('No image provided')
+
+        file = request.files['image']
+        if not file:
+            return _json_error('Empty file')
+
+        raw = file.read()
+        if len(raw) > 50 * 1024 * 1024:
+            return _json_error('File too large (max 50 MB)')
+
+        img = Image.open(io.BytesIO(raw))
+        img = ImageOps.exif_transpose(img).convert('RGB')
+
+        # Work at a sensible processing resolution
+        MAX_PROC = 1200
+        if max(img.width, img.height) > MAX_PROC:
+            scale = MAX_PROC / max(img.width, img.height)
+            img = img.resize((int(img.width * scale), int(img.height * scale)), Image.LANCZOS)
+
+        W, H = img.size
+        arr  = np.array(img)
+        r_ch = arr[:,:,0].astype(float)
+        g_ch = arr[:,:,1].astype(float)
+        b_ch = arr[:,:,2].astype(float)
+
+        # HSV for saturation / value / hue analysis
+        from PIL import ImageEnhance
+        hsv_arr = np.array(img.convert('HSV'))
+        hue_f   = hsv_arr[:,:,0].astype(float)
+        sat_f   = hsv_arr[:,:,1].astype(float)
+        val_f   = hsv_arr[:,:,2].astype(float)
+
+        # ── Detect dominant background colour ─────────────────────────────
+        from sklearn.cluster import KMeans
+        flat = arr.reshape(-1, 3).astype(np.float32)
+        km   = KMeans(n_clusters=2, random_state=42, n_init=10)
+        lbs  = km.fit_predict(flat)
+        cnts = np.bincount(lbs, minlength=2)
+        bg_col = km.cluster_centers_[np.argmax(cnts)]
+
+        # Background mask (pixels close to bg colour)
+        diff = np.sqrt(((arr.astype(float) - bg_col) ** 2).sum(axis=2))
+        is_bg = diff < 60
+
+        # ── OUTPUT 1: Grid-faded (best for tracing) ───────────────────────
+        from scipy.ndimage import median_filter
+        faded = arr.copy().astype(float)
+        # Detect dominant grid hue (same hue family as bg) and fade it
+        bg_hue = float(bg_col[0])  # crude proxy; use red-channel dominance
+        r_dom   = r_ch - np.maximum(g_ch, b_ch)
+        is_grid = (r_dom > 30) & (val_f > 100)   # reddish/tinted pixels = grid/bg
+        # Fade grid toward white
+        faded[is_grid] = faded[is_grid] * 0.25 + 255 * 0.75
+        faded = np.clip(faded, 0, 255).astype(np.uint8)
+        # Boost contrast on non-grid areas
+        faded_pil = Image.fromarray(faded)
+        faded_pil = ImageEnhance.Contrast(faded_pil).enhance(2.0)
+        faded_pil = ImageEnhance.Sharpness(faded_pil).enhance(2.5)
+        faded_out = np.array(faded_pil)
+
+        # ── OUTPUT 2: Colour-coded layer highlight ────────────────────────
+        highlight = np.full((H, W, 3), 200, dtype=np.uint8)
+        # Layers: white body, lavender/wing, gold/detail, everything else = grey
+        is_white  = (sat_f < 45)  & (val_f > 200)
+        is_cream  = (sat_f < 65)  & (val_f > 165) & ~is_white
+        is_lav    = (hue_f >= 165) & (hue_f <= 225) & (sat_f >= 30) & (val_f > 140)
+        is_gold   = (hue_f >= 18)  & (hue_f <= 42)  & (sat_f > 70)  & (val_f > 130)
+        is_bg_vis = is_bg
+        highlight[is_bg_vis]  = [60,  60,  60]
+        highlight[is_white]   = [240, 240, 240]
+        highlight[is_cream]   = [210, 200, 180]
+        highlight[is_lav]     = [130,  90, 200]
+        highlight[is_gold]    = [220, 150,  20]
+
+        # ── OUTPUT 3: Auto-cleaned (ready to upload to main app) ──────────
+        from scipy.ndimage import binary_opening, binary_closing, binary_fill_holes, label
+
+        # Blur to kill periodic grid
+        grid_period = max(3, int(9 * W / 1200))
+        blur_r      = max(3, grid_period + 2)
+        blurred     = np.stack([median_filter(arr[:,:,c], size=blur_r)
+                                for c in range(3)], axis=2)
+        hsv_b       = np.array(Image.fromarray(blurred).convert('HSV'))
+        sat_b       = hsv_b[:,:,1].astype(float)
+        val_b       = hsv_b[:,:,2].astype(float)
+
+        # Detect design in blurred image
+        m = (sat_b < 90) & (val_b > 152)
+        m = binary_opening(m, structure=np.ones((3, 3)))
+
+        # Keep large connected regions only
+        min_region = max(100, int(1500 * (W / 1200) ** 2))
+        lbl, n_lbl = label(m)
+        sizes = np.bincount(lbl.ravel())[1:]
+        clean = np.zeros((H, W), dtype=bool)
+        for i, s in enumerate(sizes):
+            if s >= min_region:
+                clean |= (lbl == i + 1)
+
+        close_px = max(5, int(15 * W / 1200))
+        clean    = binary_closing(clean, structure=np.ones((close_px, close_px)))
+        clean    = binary_fill_holes(clean)
+
+        cleaned_out = np.full((H, W, 3), 255, dtype=np.uint8)
+        cleaned_out[clean] = [0, 0, 0]
+
+        # ── Encode all three outputs as base64 PNG ────────────────────────
+        def _to_b64(arr_img):
+            buf = io.BytesIO()
+            Image.fromarray(arr_img.astype(np.uint8)).save(buf, format='PNG')
+            return base64.b64encode(buf.getvalue()).decode()
+
+        n_design_regions = int((sizes >= min_region).sum()) if len(sizes) else 0
+        design_pct = round(100 * clean.sum() / (H * W), 1)
+
+        return jsonify({
+            'success':   True,
+            'width':     W,
+            'height':    H,
+            'faded':     _to_b64(faded_out),
+            'highlighted': _to_b64(highlight),
+            'cleaned':   _to_b64(cleaned_out),
+            'stats': {
+                'design_regions': n_design_regions,
+                'design_pct':     design_pct,
+                'bg_colour':      f'#{int(bg_col[0]):02x}{int(bg_col[1]):02x}{int(bg_col[2]):02x}',
+            }
+        })
+
+    except Exception as e:
+        import traceback
+        return jsonify({'success': False, 'error': str(e), 'trace': traceback.format_exc()})
+
+
 if __name__ == '__main__':
     app.run(debug=False, port=5000, use_reloader=False, threaded=True)

@@ -934,6 +934,17 @@
     <span class="step-arrow">›</span>
     <div class="step" id="step-4"><span class="step-num">4</span> Download</div>
   </div>
+  <nav style="margin-left:auto;display:flex;gap:8px">
+    <a href="/" style="padding:7px 14px;border:1px solid var(--border2);background:var(--surface2);
+       color:var(--gold2);border-radius:var(--radius);font-size:11px;text-decoration:none;
+       font-family:'DM Mono',monospace">⬡ BMP Generator</a>
+    <a href="/trace" style="padding:7px 14px;border:1px solid var(--border);background:transparent;
+       color:var(--muted);border-radius:var(--radius);font-size:11px;text-decoration:none;
+       font-family:'DM Mono',monospace;transition:all 0.18s"
+       onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'"
+       onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">
+      ✦ Tracing Guide</a>
+  </nav>
 </header>
 
 <div class="main">
@@ -2027,6 +2038,25 @@ function setLoading(show, title = '', sub = '') {
     document.getElementById('loading-sub-text').textContent = sub;
   }
 }
+
+  // ── Handle image from Tracing Guide ────────────────────────────────────
+  (function() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('from_trace') === '1') {
+      const b64 = sessionStorage.getItem('trace_cleaned_b64');
+      if (b64) {
+        sessionStorage.removeItem('trace_cleaned_b64');
+        // Convert base64 to File and load it
+        fetch('data:image/png;base64,' + b64)
+          .then(r => r.blob())
+          .then(blob => {
+            const file = new File([blob], 'auto_cleaned.png', { type: 'image/png' });
+            // Wait for DOM then trigger handleFile
+            requestAnimationFrame(() => handleFile(file));
+          });
+      }
+    }
+  })();
 </script>
 </body>
 </html>
