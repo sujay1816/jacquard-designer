@@ -1170,7 +1170,136 @@ const SHUTTLE_COLORS = {
   rani: '#c87890',
 };
 
-const SATIN_OPTIONS = [4, 5, 6, 7, 8, 16];
+const SATIN_OPTIONS = [4, 5, 6, 7, 8, 16];  // kept for legacy compatibility
+
+// All available fill patterns (fetched from /api/fill-patterns on load)
+let FILL_PATTERNS = [
+  {id:'satin',        label:'Satin'},
+  {id:'satin_inv',    label:'Satin Inverted'},
+  {id:'plain_weave',  label:'Plain Weave'},
+  {id:'twill22',      label:'Twill 2/2'},
+  {id:'twill31',      label:'Twill 3/1'},
+  {id:'dots',         label:'Dots Grid'},
+  {id:'diagonal',     label:'Diagonal Lines'},
+  {id:'crosshatch',   label:'Cross-hatch'},
+  {id:'honeycomb',    label:'Honeycomb'},
+  {id:'diamond',      label:'Diamond'},
+  {id:'herringbone',  label:'Herringbone'},
+  {id:'basket',       label:'Basket Weave'},
+  {id:'crepe',        label:'Crepe'},
+  {id:'rib',          label:'Rib Weave'},
+];
+
+// Fetch live pattern list from backend on startup
+fetch('/api/fill-patterns').then(r=>r.json()).then(d=>{
+  if(d.patterns && d.patterns.length) FILL_PATTERNS = d.patterns;
+}).catch(()=>{});
+
+/**
+ * Draw a live 72×48 preview swatch for shuttle sName onto its canvas.
+ * Uses the current pattern + N values from the DOM.
+ */
+function updateWeavePreview(sName) {
+  const canvas = document.getElementById('weave-canvas-' + sName);
+  if (!canvas) return;
+  const ctx    = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const patEl  = document.getElementById('satin-pat-' + sName);
+  const nEl    = document.getElementById('satin-n-' + sName);
+  const pat    = patEl ? patEl.value : 'satin';
+  const n      = nEl  ? parseInt(nEl.value) : 8;
+
+  // Generate pattern in JS (mirrors Python logic exactly)
+  const arr = generatePatternJS(pat, n, W, H);
+
+  const imgData = ctx.createImageData(W, H);
+  let upCount = 0;
+  for (let r = 0; r < H; r++) {
+    for (let c = 0; c < W; c++) {
+      const up  = arr[r * W + c] === 0;   // 0=UP/black, 1=DOWN/white
+      const val = up ? 40 : 210;
+      const idx = (r * W + c) * 4;
+      imgData.data[idx]   = val;
+      imgData.data[idx+1] = val;
+      imgData.data[idx+2] = val;
+      imgData.data[idx+3] = 255;
+      if (up) upCount++;
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+
+  const upPctEl = document.getElementById('weave-upPct-' + sName);
+  if (upPctEl) upPctEl.textContent = Math.round(100*upCount/(W*H)) + '% UP';
+}
+
+/** JS mirror of all 14 Python pattern generators. */
+function generatePatternJS(pat, n, W, H) {
+  const arr = new Uint8Array(W * H);  // default 0 = UP
+
+  const idx = (r,c) => r*W+c;
+
+  if (pat === 'satin') {
+    for (let r=0; r<H; r++) {
+      const wc = ((-r) % n + n) % n;
+      for (let c=0; c<W; c++) arr[idx(r,c)] = (c%n === wc) ? 1 : 0;
+    }
+  } else if (pat === 'satin_inv') {
+    for (let r=0; r<H; r++) {
+      const wc = ((-r) % n + n) % n;
+      for (let c=0; c<W; c++) arr[idx(r,c)] = (c%n === wc) ? 0 : 1;
+    }
+  } else if (pat === 'plain_weave') {
+    for (let r=0; r<H; r++) for (let c=0; c<W; c++) arr[idx(r,c)] = (r+c)%2;
+  } else if (pat === 'twill22') {
+    for (let r=0; r<H; r++) for (let c=0; c<W; c++) arr[idx(r,c)] = ((r+c)%4<2)?0:1;
+  } else if (pat === 'twill31') {
+    for (let r=0; r<H; r++) for (let c=0; c<W; c++) arr[idx(r,c)] = ((r+c)%4!==3)?0:1;
+  } else if (pat === 'dots') {
+    arr.fill(1);
+    const p = Math.max(4,n);
+    for (let r=0; r<H; r+=p) for (let c=0; c<W; c+=p) if(r<H&&c<W) arr[idx(r,c)]=0;
+  } else if (pat === 'diagonal') {
+    const p = Math.max(2, Math.floor(n/2));
+    for (let r=0; r<H; r++) for (let c=0; c<W; c++) arr[idx(r,c)] = ((r+c)%p===0)?0:1;
+  } else if (pat === 'crosshatch') {
+    const p = Math.max(2, Math.floor(n/2));
+    for (let r=0; r<H; r++) for (let c=0; c<W; c++) arr[idx(r,c)] = (r%p===0||c%p===0)?0:1;
+  } else if (pat === 'honeycomb') {
+    arr.fill(1);
+    const hw=Math.max(4,Math.floor(n/2)), hh=Math.max(3,Math.floor(n/3));
+    for (let r=0; r<H; r++) for (let c=0; c<W; c++) {
+      const off = (Math.floor(r/hh)%2)*(Math.floor(hw/2));
+      const lc  = (c+off)%hw;
+      if (lc===0 || r%hh===0) arr[idx(r,c)]=0;
+    }
+  } else if (pat === 'diamond') {
+    arr.fill(1);
+    const p=Math.max(4,n), cx=Math.floor(p/2);
+    for (let r=0; r<H; r++) for (let c=0; c<W; c++) {
+      if (Math.abs(r%p-cx)+Math.abs(c%p-cx)===cx-1) arr[idx(r,c)]=0;
+    }
+  } else if (pat === 'herringbone') {
+    arr.fill(1);
+    const p=Math.max(4,n);
+    for (let r=0; r<H; r++) for (let c=0; c<W; c++) {
+      const phase=(Math.floor(c/p))%2;
+      const pos=phase===0?r%p:(p-1-r%p);
+      if (pos===0) arr[idx(r,c)]=0;
+    }
+  } else if (pat === 'basket') {
+    const bs=Math.max(2,Math.floor(n/4));
+    for (let r=0; r<H; r++) for (let c=0; c<W; c++)
+      arr[idx(r,c)] = ((Math.floor(r/bs)+Math.floor(c/bs))%2===0)?0:1;
+  } else if (pat === 'crepe') {
+    const tile=[0,1,1,0,1,0,0,1,1,0,0,1,0,1,1,0,1,0,1,0,0,1,0,1,0,1,0,1,1,0,1,0,
+                0,1,0,1,0,1,1,0,1,0,1,0,1,0,0,1,1,1,0,0,1,0,1,0,0,0,1,1,0,1,0,1];
+    for (let r=0; r<H; r++) for (let c=0; c<W; c++) arr[idx(r,c)]=tile[(r%8)*8+c%8];
+  } else if (pat === 'rib') {
+    const p=Math.max(2,Math.floor(n/4));
+    for (let r=0; r<H; r++) for (let c=0; c<W; c++) arr[idx(r,c)] = (r%p!==0)?0:1;
+  }
+  return arr;
+}
 
 // =====================================================================
 // Upload handling
@@ -1534,22 +1663,44 @@ function renderSatinSettings() {
     saSection.style.display = 'block';
     container.innerHTML = `
       <div style="font-size:11px;color:var(--muted);margin-bottom:8px">
-        Controls how fine features are woven. Lower = more satin texture (sharper fine detail).
-        Higher = more solid fill (denser, blockier).
+        Controls how this shuttle's threads are woven.
       </div>
       <div class="satin-card" style="padding:10px 12px;">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
           <span style="font-size:11px;font-weight:600;color:#d4af60;letter-spacing:0.05em">ZARI</span>
         </div>
-        <label title="Minimum run height before satin is applied. Lower = sharper fine detail. Higher = more solid fill.">Fill threshold</label>
+        <div class="satin-row">
+          <label>Fill Pattern</label>
+          <select class="field" id="satin-pat-zari"
+            style="padding:5px 8px;font-size:11px;width:100%"
+            onchange="updateWeavePreview('zari')">
+            ${FILL_PATTERNS.map(p => `<option value="${p.id}" ${p.id==='satin'?'selected':''}>${p.label}</option>`).join('')}
+          </select>
+        </div>
+        <div class="satin-row" style="margin-top:6px">
+          <label>Density (N)</label>
+          <div style="display:flex;align-items:center;gap:8px;flex:1">
+            <input type="range" id="satin-n-zari" min="4" max="16" step="1" value="8"
+              style="flex:1;accent-color:#f0a500"
+              oninput="document.getElementById('satin-n-val-zari').textContent=this.value; updateWeavePreview('zari')">
+            <span id="satin-n-val-zari" style="font-size:10px;color:#aaa;width:20px;text-align:right">8</span>
+          </div>
+        </div>
+        <label style="margin-top:8px;display:block" title="Lower = more texture, Higher = more solid fill.">Fill threshold</label>
         <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
           <input type="range" id="satin-mh-zari" min="1" max="200" step="1" value="35"
-            style="flex:1"
+            style="flex:1;accent-color:#f0a500"
             oninput="document.getElementById('satin-mh-val-zari').textContent=this.value+'px'">
           <span id="satin-mh-val-zari" style="font-size:10px;color:#aaa;width:36px;text-align:right">35px</span>
         </div>
+        <div style="margin-top:10px;display:flex;align-items:center;gap:10px">
+          <canvas id="weave-canvas-zari" width="72" height="48"
+            style="border:1px solid rgba(255,255,255,0.1);border-radius:4px;image-rendering:pixelated"></canvas>
+          <span id="weave-upPct-zari" style="font-size:10px;color:#888"></span>
+        </div>
       </div>
     `;
+    requestAnimationFrame(() => updateWeavePreview('zari'));
     return;
   }
 
@@ -1566,30 +1717,51 @@ function renderSatinSettings() {
         <div class="shuttle-dot" style="background:${color}"></div>
         ${sName.toUpperCase()} Weave
       </div>
+
+      <!-- Fill pattern dropdown -->
       <div class="satin-row">
-        <label>Satin Type</label>
-        <select class="field" id="satin-n-${sName}" style="padding:6px 8px;font-size:12px">
-          ${SATIN_OPTIONS.map(n => `<option value="${n}" ${n===8?'selected':''}>${n}-end Satin</option>`).join('')}
+        <label>Fill Pattern</label>
+        <select class="field" id="satin-pat-${sName}"
+          style="padding:5px 8px;font-size:11px;width:100%"
+          onchange="updateWeavePreview('${sName}')">
+          ${FILL_PATTERNS.map(p => `<option value="${p.id}" ${p.id==='satin'?'selected':''}>${p.label}</option>`).join('')}
         </select>
       </div>
-      <div class="flip-toggle">
-        <div class="toggle" id="flip-${sName}" onclick="toggleFlip('${sName}')"></div>
-        <span>Flip diagonal direction</span>
-      </div>
-      <div class="satin-row" style="margin-top:8px">
-        <label title="Minimum run height before satin is applied. Increase for more solid fills, decrease for more satin texture.">Fill threshold</label>
+
+      <!-- N density slider -->
+      <div class="satin-row" style="margin-top:6px">
+        <label>Density (N)</label>
         <div style="display:flex;align-items:center;gap:8px;flex:1">
-          <input type="range" id="satin-mh-${sName}" min="8" max="200" step="1" value="35"
+          <input type="range" id="satin-n-${sName}" min="4" max="16" step="1" value="8"
+            style="flex:1;accent-color:#f0a500"
+            oninput="document.getElementById('satin-n-val-${sName}').textContent=this.value; updateWeavePreview('${sName}')">
+          <span id="satin-n-val-${sName}" style="font-size:10px;color:#aaa;width:20px;text-align:right">8</span>
+        </div>
+      </div>
+
+      <!-- Fill threshold slider -->
+      <div class="satin-row" style="margin-top:6px">
+        <label title="Minimum run height before fill is applied. Lower = more texture.">Fill threshold</label>
+        <div style="display:flex;align-items:center;gap:8px;flex:1">
+          <input type="range" id="satin-mh-${sName}" min="1" max="200" step="1" value="35"
             style="flex:1;accent-color:#f0a500"
             oninput="document.getElementById('satin-mh-val-${sName}').textContent=this.value+'px'">
           <span id="satin-mh-val-${sName}" style="font-size:10px;color:#aaa;width:36px;text-align:right">35px</span>
         </div>
       </div>
-      <canvas class="weave-preview" id="weave-canvas-${sName}" width="60" height="60" style="margin-top:10px"></canvas>
+
+      <!-- Live preview swatch -->
+      <div style="margin-top:10px;display:flex;align-items:center;gap:10px">
+        <canvas id="weave-canvas-${sName}" width="72" height="48"
+          style="border:1px solid rgba(255,255,255,0.1);border-radius:4px;image-rendering:pixelated"></canvas>
+        <span id="weave-upPct-${sName}" style="font-size:10px;color:#888"></span>
+      </div>
     `;
 
     card.querySelector(`#satin-n-${sName}`).addEventListener('change', () => drawWeavePreview(sName));
     container.appendChild(card);
+    // Render live preview after card is in DOM
+    requestAnimationFrame(() => updateWeavePreview(sName));
   });
 
   // Draw initial weave previews
@@ -1651,10 +1823,12 @@ async function generateBMPs() {
     const nEl = document.getElementById(`satin-n-${sName}`);
     const flipEl = document.getElementById(`flip-${sName}`);
     const mhEl = document.getElementById(`satin-mh-${sName}`);
+    const patEl2 = document.getElementById(`satin-pat-${sName}`);
     saSettings[sName] = {
-      n: nEl ? parseInt(nEl.value) : 8,
-      flip: flipEl ? flipEl.classList.contains('on') : false,
-      min_height: mhEl ? parseInt(mhEl.value) : 35,
+      n:          nEl    ? parseInt(nEl.value)   : 8,
+      flip:       flipEl ? flipEl.classList.contains('on') : false,
+      min_height: mhEl   ? parseInt(mhEl.value)  : 35,
+      pattern:    patEl2 ? patEl2.value           : 'satin',
     };
   });
 

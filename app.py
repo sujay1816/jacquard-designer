@@ -6,7 +6,9 @@ from flask import Flask, request, jsonify, render_template
 from PIL import Image, ImageOps, UnidentifiedImageError
 import numpy as np
 import io, os, zipfile, base64
-from bmp_engine import detect_colors, generate_bmps, verify_bmp, enhance_image, assess_image_quality, extract_outline
+from bmp_engine import (detect_colors, generate_bmps, verify_bmp, enhance_image,
+                        assess_image_quality, extract_outline,
+                        generate_fill_pattern, FILL_PATTERNS)
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024   # 50 MB upload cap
@@ -28,6 +30,14 @@ def too_large(_e):
 @app.route('/')
 def index():
     return render_template('index.html')
+
+
+@app.route('/api/fill-patterns', methods=['GET'])
+def api_fill_patterns():
+    """Return list of available fill patterns for the UI dropdown."""
+    return jsonify({'patterns': [
+        {'id': k, 'label': v} for k, v in FILL_PATTERNS.items()
+    ]})
 
 
 @app.route('/api/detect-colors', methods=['POST'])
@@ -240,7 +250,13 @@ def api_generate():
             min_h = int(v.get('min_height', 35))
             if min_h < 1:   min_h = 1
             if min_h > 999: min_h = 999
-            satin_settings[str(k)] = {'n': n, 'flip': bool(v.get('flip', False)), 'min_height': min_h}
+            pattern = str(v.get('pattern', 'satin')).lower().strip()
+            if pattern not in FILL_PATTERNS:
+                pattern = 'satin'
+            satin_settings[str(k)] = {
+                'n': n, 'flip': bool(v.get('flip', False)),
+                'min_height': min_h, 'pattern': pattern
+            }
 
         # ── Decode label_map ──────────────────────────────────────────────────
         label_map = None

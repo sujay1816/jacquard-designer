@@ -33,6 +33,175 @@ def generate_satin(n: int, width: int, height: int, flip: bool = False) -> np.nd
 # ---------------------------------------------------------------------------
 # Plain weave generator — fully vectorised
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Fill pattern library — 14 standard jacquard / textile weave structures
+# ---------------------------------------------------------------------------
+# All generators return uint8 arrays where 0 = UP (thread fires) and
+# 1 = DOWN (thread hidden), matching the rest of the BMP pipeline.
+# The 'n' parameter controls the period/density of the pattern — same
+# semantic as the existing satin N slider.
+# ---------------------------------------------------------------------------
+
+FILL_PATTERNS = {
+    'satin'       : 'Satin',
+    'satin_inv'   : 'Satin Inverted',
+    'plain_weave' : 'Plain Weave',
+    'twill22'     : 'Twill 2/2',
+    'twill31'     : 'Twill 3/1',
+    'dots'        : 'Dots Grid',
+    'diagonal'    : 'Diagonal Lines',
+    'crosshatch'  : 'Cross-hatch',
+    'honeycomb'   : 'Honeycomb',
+    'diamond'     : 'Diamond',
+    'herringbone' : 'Herringbone',
+    'basket'      : 'Basket Weave',
+    'crepe'       : 'Crepe',
+    'rib'         : 'Rib Weave',
+}
+
+
+def _pat_satin(n: int, W: int, H: int, flip: bool = False) -> np.ndarray:
+    rows = np.arange(H, dtype=np.int32)
+    cols = np.arange(W, dtype=np.int32)
+    wc   = (rows % n) if flip else ((-rows) % n)
+    return (wc[:, None] == cols[None, :] % n).astype(np.uint8)
+
+
+def _pat_plain_weave(n: int, W: int, H: int) -> np.ndarray:
+    r, c = np.mgrid[:H, :W]
+    return ((r + c) % 2).astype(np.uint8)
+
+
+def _pat_twill22(n: int, W: int, H: int) -> np.ndarray:
+    r, c = np.mgrid[:H, :W]
+    return np.where((r + c) % 4 < 2, np.uint8(0), np.uint8(1))
+
+
+def _pat_twill31(n: int, W: int, H: int) -> np.ndarray:
+    r, c = np.mgrid[:H, :W]
+    return np.where((r + c) % 4 != 3, np.uint8(0), np.uint8(1))
+
+
+def _pat_dots(n: int, W: int, H: int) -> np.ndarray:
+    period = max(4, n)
+    arr    = np.ones((H, W), dtype=np.uint8)
+    r, c   = np.mgrid[:H, :W]
+    arr[(r % period == 0) & (c % period == 0)] = 0
+    return arr
+
+
+def _pat_diagonal(n: int, W: int, H: int) -> np.ndarray:
+    period = max(2, n // 2)
+    r, c   = np.mgrid[:H, :W]
+    return np.where((r + c) % period == 0, np.uint8(0), np.uint8(1))
+
+
+def _pat_crosshatch(n: int, W: int, H: int) -> np.ndarray:
+    period = max(2, n // 2)
+    r, c   = np.mgrid[:H, :W]
+    return np.where((r % period == 0) | (c % period == 0),
+                    np.uint8(0), np.uint8(1))
+
+
+def _pat_honeycomb(n: int, W: int, H: int) -> np.ndarray:
+    hw  = max(4, n // 2)
+    hh  = max(3, n // 3)
+    arr = np.ones((H, W), dtype=np.uint8)
+    r, c = np.mgrid[:H, :W]
+    row_off = (r // hh) % 2 * (hw // 2)
+    local_c = (c + row_off) % hw
+    arr[(local_c == 0) | (r % hh == 0)] = 0
+    return arr
+
+
+def _pat_diamond(n: int, W: int, H: int) -> np.ndarray:
+    period = max(4, n)
+    r, c   = np.mgrid[:H, :W]
+    cx = cy = period // 2
+    dist    = np.abs(r % period - cy) + np.abs(c % period - cx)
+    return np.where(dist == cx - 1, np.uint8(0), np.uint8(1))
+
+
+def _pat_herringbone(n: int, W: int, H: int) -> np.ndarray:
+    period = max(4, n)
+    r, c   = np.mgrid[:H, :W]
+    phase  = (c // period) % 2
+    pos    = np.where(phase == 0, r % period, (period - 1 - r) % period)
+    return np.where(pos == 0, np.uint8(0), np.uint8(1))
+
+
+def _pat_basket(n: int, W: int, H: int) -> np.ndarray:
+    bs  = max(2, n // 4)
+    r, c = np.mgrid[:H, :W]
+    return np.where((r // bs + c // bs) % 2 == 0, np.uint8(0), np.uint8(1))
+
+
+def _pat_crepe(n: int, W: int, H: int) -> np.ndarray:
+    """8×8 crepe tile — n controls macro-tile repetition (visual density)."""
+    tile = np.array([
+        [0, 1, 1, 0, 1, 0, 0, 1],
+        [1, 0, 0, 1, 0, 1, 1, 0],
+        [1, 0, 1, 0, 0, 1, 0, 1],
+        [0, 1, 0, 1, 1, 0, 1, 0],
+        [0, 1, 0, 1, 0, 1, 1, 0],
+        [1, 0, 1, 0, 1, 0, 0, 1],
+        [1, 1, 0, 0, 1, 0, 1, 0],
+        [0, 0, 1, 1, 0, 1, 0, 1],
+    ], dtype=np.uint8)
+    r, c = np.mgrid[:H, :W]
+    return tile[r % 8, c % 8]
+
+
+def _pat_rib(n: int, W: int, H: int) -> np.ndarray:
+    """Horizontal rib — dense weft rows with n controlling density."""
+    period = max(2, n // 4)
+    r, _   = np.mgrid[:H, :W]
+    return np.where(r % period != 0, np.uint8(0), np.uint8(1))
+
+
+def generate_fill_pattern(
+    pattern : str,
+    n       : int,
+    width   : int,
+    height  : int,
+    flip    : bool = False,
+) -> np.ndarray:
+    """
+    Return a fill pattern array (height × width, uint8: 0=UP 1=DOWN).
+
+    Parameters
+    ----------
+    pattern : str
+        One of the keys in FILL_PATTERNS.  Defaults to 'satin' if unknown.
+    n       : int   — period / density (same semantic as the satin N slider).
+    width   : int   — canvas width in pins.
+    height  : int   — canvas height in cards.
+    flip    : bool  — mirror direction (used by satin; ignored by others).
+    """
+    p = pattern.lower().strip()
+    if p in ('satin_inv',):
+        return np.where(_pat_satin(n, width, height, flip) == 0,
+                        np.uint8(1), np.uint8(0))
+    dispatch = {
+        'satin'      : lambda: _pat_satin(n, width, height, flip),
+        'plain_weave': lambda: _pat_plain_weave(n, width, height),
+        'twill22'    : lambda: _pat_twill22(n, width, height),
+        'twill31'    : lambda: _pat_twill31(n, width, height),
+        'dots'       : lambda: _pat_dots(n, width, height),
+        'diagonal'   : lambda: _pat_diagonal(n, width, height),
+        'crosshatch' : lambda: _pat_crosshatch(n, width, height),
+        'honeycomb'  : lambda: _pat_honeycomb(n, width, height),
+        'diamond'    : lambda: _pat_diamond(n, width, height),
+        'herringbone': lambda: _pat_herringbone(n, width, height),
+        'basket'     : lambda: _pat_basket(n, width, height),
+        'crepe'      : lambda: _pat_crepe(n, width, height),
+        'rib'        : lambda: _pat_rib(n, width, height),
+    }
+    fn = dispatch.get(p, dispatch['satin'])
+    return fn()
+
+
+
 def generate_plain_weave(width: int, height: int) -> np.ndarray:
     """
     Generate a plain 1/1 weave pattern (height x width).
@@ -744,7 +913,7 @@ def _supersample_to_bmp(image: Image.Image,
                                func=np.mean)[:cards, :pins] >= pool_threshold
 
     s      = satin_settings.get('zari', {'n': 8, 'flip': False})
-    satin  = generate_satin(s['n'], pins, cards, flip=s['flip'])
+    satin  = generate_fill_pattern(s.get('pattern', 'satin'), s['n'], pins, cards, flip=s.get('flip', False))
     result = smart_fill(mask_pooled, satin, s['n'],
                         satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
     return result
@@ -821,7 +990,7 @@ def generate_bmps(
         # ── 1 SHUTTLE ───────────────────────────────────────────────────────
         zari_mask = masks.get('zari', np.zeros((cards, pins), dtype=bool))
         s         = satin_settings.get('zari', {'n': 8, 'flip': False})
-        satin     = generate_satin(s['n'], pins, cards, flip=s['flip'])
+        satin     = generate_fill_pattern(s.get('pattern', 'satin'), s['n'], pins, cards, flip=s.get('flip', False))
 
         # Determine background type for supersample decision
         _arr_rgb  = np.array(resized)
@@ -888,7 +1057,7 @@ def generate_bmps(
         for sname in shuttle_names:
             mask  = masks.get(sname, np.zeros((cards, pins), dtype=bool))
             s     = satin_settings.get(sname, {'n': 8, 'flip': False})
-            satin = generate_satin(s['n'], pins, cards, flip=s['flip'])
+            satin = generate_fill_pattern(s.get('pattern', 'satin'), s['n'], pins, cards, flip=s.get('flip', False))
 
             if supersample and _is_light_bg_m:
                 # Build a temporary color_assignments that maps only this
