@@ -495,5 +495,137 @@ def api_trace_guide():
         return jsonify({'success': False, 'error': str(e), 'trace': traceback.format_exc()})
 
 
+@app.route('/edit')
+def edit_page():
+    return render_template('edit.html')
+
+
+@app.route('/api/bmp-process', methods=['POST'])
+def api_bmp_process():
+    """
+    Apply a server-side morphological operation to a 1-bit BMP.
+    Operations: dilate, erode, clean_noise, invert, remove_isolated
+    Accepts: image (file) + op (string) + params (JSON)
+    Returns: processed image as PNG base64 + stats
+    """
+    try:
+        if 'image' not in request.files:
+            return _json_error('No image provided')
+
+        file   = request.files['image']
+        op     = request.form.get('op', 'clean_noise')
+        import json as _json
+        params = _json.loads(request.form.get('params', '{}'))
+
+        raw = file.read()
+        buf = io.BytesIO(raw); buf.seek(0)
+        img = Image.open(buf).convert('L')
+        arr = np.array(img)
+
+        # Binarise: anything < 128 = UP (0), >= 128 = DOWN (255)
+        mask = arr < 128   # True = design pixel (UP/black)
+        H, W = mask.shape
+
+        from scipy.ndimage import (binary_dilation, binary_erosion,
+                                   binary_opening, binary_closing, label)
+
+        result_mask = mask.copy()
+
+        if op == 'dilate':
+            r = max(1, int(params.get('radius', 1)))
+            struct = np.ones((r*2+1, r*2+1), dtype=bool)
+            result_mask = binary_dilation(mask, structure=struct)
+
+        elif op == 'erode':
+            r = max(1, int(params.get('radius', 1)))
+            struct = np.ones((r*2+1, r*2+1), dtype=bool)
+            result_mask = binary_erosion(mask, structure=struct)
+
+        elif op == 'clean_noise':
+            min_size = max(1, int(params.get('min_size', 5)))
+            lbl, n = label(mask)
+            sizes  = np.bincount(lbl.ravel())[1:]
+            result_mask = np.zeros_like(mask)
+            for i, s in enumerate(sizes):
+                if s >= min_size:
+                    result_mask |= (lbl == i + 1)
+
+        elif op == 'invert':
+            result_mask = ~mask
+
+        elif op == 'remove_isolated':
+            # Remove single UP pixels (all 4 neighbours are DOWN)
+            result_mask = mask.copy()
+            has_up_nb = (
+                np.roll(mask, 1, axis=0) | np.roll(mask, -1, axis=0) |
+                np.roll(mask, 1, axis=1) | np.roll(mask, -1, axis=1)
+            )
+            result_mask[mask & ~has_up_nb] = False
+
+        elif op == 'close_gaps':
+            r = max(1, int(params.get('radius', 2)))
+            struct = np.ones((r*2+1, r*2+1), dtype=bool)
+            result_mask = binary_closing(mask, structure=struct)
+
+        elif op == 'open':
+            r = max(1, int(params.get('radius', 1)))
+            struct = np.ones((r*2+1, r*2+1), dtype=bool)
+            result_mask = binary_opening(mask, structure=struct)
+
+        elif op == 'flip_h':
+            result_mask = np.fliplr(mask)
+
+        elif op == 'flip_v':
+            result_mask = np.flipud(mask)
+
+        elif op == 'rotate_90':
+            result_mask = np.rot90(mask, k=1)
+
+        elif op == 'rotate_180':
+            result_mask = np.rot90(mask, k=2)
+
+        elif op == 'rotate_270':
+            result_mask = np.rot90(mask, k=3)
+
+        else:
+            return _json_error(f'Unknown operation: {op}')
+
+        # Build output BMP (1-bit: black=UP, white=DOWN)
+        out = np.where(result_mask, np.uint8(0), np.uint8(255))
+        out_img = Image.fromarray(out, mode='L')
+
+        # Stats directly (no need to call verify_bmp)
+        non_binary = int(((out != 0) & (out != 255)).sum())
+        up_px   = int((out == 0).sum())
+        down_px = int((out == 255).sum())
+
+        # Encode as PNG
+        buf = io.BytesIO()
+        out_img.save(buf, format='PNG')
+        b64 = base64.b64encode(buf.getvalue()).decode()
+
+        # Also encode as BMP for download
+        bmp_buf = io.BytesIO()
+        out_img.save(bmp_buf, format='BMP')
+        bmp_b64 = base64.b64encode(bmp_buf.getvalue()).decode()
+
+        return jsonify({
+            'success':    True,
+            'image_b64':  b64,
+            'bmp_b64':    bmp_b64,
+            'width':      int(out.shape[1]),
+            'height':     int(out.shape[0]),
+            'up_pixels':  up_px,
+            'down_pixels':down_px,
+            'up_pct':     round(100 * up_px / max(up_px + down_px, 1), 2),
+            'non_binary': non_binary,
+            'is_clean':   non_binary == 0,
+        })
+
+    except Exception as e:
+        import traceback
+        return jsonify({'success': False, 'error': str(e), 'trace': traceback.format_exc()})
+
+
 if __name__ == '__main__':
     app.run(debug=False, port=5000, use_reloader=False, threaded=True)

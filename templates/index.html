@@ -938,6 +938,12 @@
     <a href="/" style="padding:7px 14px;border:1px solid var(--border2);background:var(--surface2);
        color:var(--gold2);border-radius:var(--radius);font-size:11px;text-decoration:none;
        font-family:'DM Mono',monospace">⬡ BMP Generator</a>
+    <a href="/edit" style="padding:7px 14px;border:1px solid var(--border);background:transparent;
+       color:var(--muted);border-radius:var(--radius);font-size:11px;text-decoration:none;
+       font-family:'DM Mono',monospace;transition:all 0.18s"
+       onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'"
+       onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">
+      ✏ BMP Editor</a>
     <a href="/trace" style="padding:7px 14px;border:1px solid var(--border);background:transparent;
        color:var(--muted);border-radius:var(--radius);font-size:11px;text-decoration:none;
        font-family:'DM Mono',monospace;transition:all 0.18s"
@@ -1993,6 +1999,16 @@ function renderOutputPreviews(data) {
           ? `✓ Clean — ${v.pure_black.toLocaleString()} black / ${v.pure_white.toLocaleString()} white — 0 grey pixels`
           : `⚠ ${v.other_pixels} non-B/W pixels found`}
       </div>
+      <div style="padding:8px 12px;border-top:1px solid var(--border)">
+        <button onclick="openInEditor('${fname}', '${preview}')"
+          style="width:100%;padding:6px;background:transparent;border:1px solid var(--border2);
+                 color:var(--muted);border-radius:var(--radius);font-size:10px;cursor:pointer;
+                 font-family:'DM Mono',monospace;letter-spacing:0.05em;transition:all 0.18s"
+          onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'"
+          onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--muted)'">
+          ✏ Edit in BMP Editor
+        </button>
+      </div>
     `;
     grid.appendChild(card);
   });
@@ -2000,6 +2016,22 @@ function renderOutputPreviews(data) {
   const totalFiles = data.files.length;
   document.getElementById('download-meta').textContent =
     `${totalFiles} BMP file${totalFiles > 1 ? 's' : ''} • ${state.pins} × ${state.cards} px • Pure 1-bit output`;
+}
+
+// =====================================================================
+// Open BMP in Editor
+// =====================================================================
+function openInEditor(fname, previewB64) {
+  // Store the current zip and filename in sessionStorage for editor to pick up
+  try {
+    sessionStorage.setItem('editor_zip_b64',   state.zipB64 || '');
+    sessionStorage.setItem('editor_filename',  fname);
+    sessionStorage.setItem('editor_preview',   previewB64);
+    sessionStorage.setItem('editor_design',    fname.replace('.bmp','').replace(/_/g,' '));
+    window.open('/edit?from_generator=1&file=' + encodeURIComponent(fname), '_blank');
+  } catch(e) {
+    window.open('/edit', '_blank');
+  }
 }
 
 // =====================================================================
