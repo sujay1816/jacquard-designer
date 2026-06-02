@@ -991,6 +991,8 @@ def generate_bmps(
         zari_mask = masks.get('zari', np.zeros((cards, pins), dtype=bool))
         s         = satin_settings.get('zari', {'n': 8, 'flip': False})
         satin     = generate_fill_pattern(s.get('pattern', 'satin'), s['n'], pins, cards, flip=s.get('flip', False))
+        if s.get('weave_off', False):
+            s = dict(s); s['min_height'] = 9999  # solid fill — no weave pattern
 
         # Determine background type for supersample decision
         _arr_rgb  = np.array(resized)
@@ -1058,6 +1060,8 @@ def generate_bmps(
             mask  = masks.get(sname, np.zeros((cards, pins), dtype=bool))
             s     = satin_settings.get(sname, {'n': 8, 'flip': False})
             satin = generate_fill_pattern(s.get('pattern', 'satin'), s['n'], pins, cards, flip=s.get('flip', False))
+            if s.get('weave_off', False):
+                s = dict(s); s['min_height'] = 9999  # solid fill
 
             if supersample and _is_light_bg_m:
                 # Build a temporary color_assignments that maps only this

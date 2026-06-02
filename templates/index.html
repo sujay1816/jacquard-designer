@@ -862,6 +862,25 @@
       .emboss-text strong { font-size: 12px; color: #f0c080; }
       .emboss-desc { font-size: 11px; color: #888; line-height: 1.4; }
       /* supersample shares emboss styling */
+
+      /* ── Weave ON/OFF pill toggle ────────────────────────────────────────── */
+      .weave-pill-row {
+        display: flex; align-items: center; justify-content: space-between;
+        margin-bottom: 8px;
+      }
+      .weave-pill-label { font-size: 11px; color: var(--muted); }
+      .weave-pill {
+        display: flex; align-items: center; gap: 0;
+        border: 1px solid rgba(255,255,255,0.15); border-radius: 20px;
+        overflow: hidden; cursor: pointer; user-select: none;
+      }
+      .weave-pill-btn {
+        padding: 3px 10px; font-size: 10px; font-weight: 600;
+        letter-spacing: 0.05em; transition: background 0.15s, color 0.15s;
+        background: transparent; color: #666;
+      }
+      .weave-pill.on  .weave-pill-btn.on-btn  { background: #3a7a3a; color: #9eff9e; }
+      .weave-pill.off .weave-pill-btn.off-btn { background: #7a3a3a; color: #ffb0b0; }
     </style>
 </head>
 <body>
@@ -1206,11 +1225,15 @@ function updateWeavePreview(sName) {
   const W = canvas.width, H = canvas.height;
   const patEl  = document.getElementById('satin-pat-' + sName);
   const nEl    = document.getElementById('satin-n-' + sName);
+  const pillEl = document.getElementById('weave-pill-' + sName);
   const pat    = patEl ? patEl.value : 'satin';
   const n      = nEl  ? parseInt(nEl.value) : 8;
+  const weaveOff = pillEl ? pillEl.classList.contains('off') : false;
 
-  // Generate pattern in JS (mirrors Python logic exactly)
-  const arr = generatePatternJS(pat, n, W, H);
+  // When weave is OFF show a fully solid swatch
+  const arr = weaveOff
+    ? new Uint8Array(W * H).fill(0)   // all UP = solid fill
+    : generatePatternJS(pat, n, W, H);
 
   const imgData = ctx.createImageData(W, H);
   let upCount = 0;
@@ -1229,7 +1252,9 @@ function updateWeavePreview(sName) {
   ctx.putImageData(imgData, 0, 0);
 
   const upPctEl = document.getElementById('weave-upPct-' + sName);
-  if (upPctEl) upPctEl.textContent = Math.round(100*upCount/(W*H)) + '% UP';
+  if (upPctEl) upPctEl.textContent = weaveOff
+    ? 'Solid fill'
+    : Math.round(100*upCount/(W*H)) + '% UP';
 }
 
 /** JS mirror of all 14 Python pattern generators. */
@@ -1669,8 +1694,17 @@ function renderSatinSettings() {
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
           <span style="font-size:11px;font-weight:600;color:#d4af60;letter-spacing:0.05em">ZARI</span>
         </div>
+        <!-- Weave ON/OFF pill -->
+        <div class="weave-pill-row">
+          <span class="weave-pill-label">Fill Pattern</span>
+          <div class="weave-pill on" id="weave-pill-zari"
+            onclick="toggleWeavePill('zari')">
+            <span class="weave-pill-btn on-btn">ON</span>
+            <span class="weave-pill-btn off-btn">OFF</span>
+          </div>
+        </div>
         <div class="satin-row">
-          <label>Fill Pattern</label>
+          <label style="visibility:hidden;height:0;margin:0">Fill Pattern</label>
           <select class="field" id="satin-pat-zari"
             style="padding:5px 8px;font-size:11px;width:100%"
             onchange="updateWeavePreview('zari')">
@@ -1718,9 +1752,19 @@ function renderSatinSettings() {
         ${sName.toUpperCase()} Weave
       </div>
 
+      <!-- Weave ON/OFF pill toggle -->
+      <div class="weave-pill-row">
+        <span class="weave-pill-label">Fill Pattern</span>
+        <div class="weave-pill on" id="weave-pill-${sName}"
+          onclick="toggleWeavePill('${sName}')">
+          <span class="weave-pill-btn on-btn">ON</span>
+          <span class="weave-pill-btn off-btn">OFF</span>
+        </div>
+      </div>
+
       <!-- Fill pattern dropdown -->
       <div class="satin-row">
-        <label>Fill Pattern</label>
+        <label style="visibility:hidden;height:0;margin:0">Fill Pattern</label>
         <select class="field" id="satin-pat-${sName}"
           style="padding:5px 8px;font-size:11px;width:100%"
           onchange="updateWeavePreview('${sName}')">
@@ -1766,6 +1810,15 @@ function renderSatinSettings() {
 
   // Draw initial weave previews
   shuttles.forEach(sName => drawWeavePreview(sName));
+}
+
+function toggleWeavePill(sName) {
+  const pill = document.getElementById(`weave-pill-${sName}`);
+  if (!pill) return;
+  const isOn = pill.classList.contains('on');
+  pill.classList.toggle('on',  !isOn);
+  pill.classList.toggle('off',  isOn);
+  updateWeavePreview(sName);
 }
 
 function toggleFlip(sName) {
@@ -1823,12 +1876,14 @@ async function generateBMPs() {
     const nEl = document.getElementById(`satin-n-${sName}`);
     const flipEl = document.getElementById(`flip-${sName}`);
     const mhEl = document.getElementById(`satin-mh-${sName}`);
-    const patEl2 = document.getElementById(`satin-pat-${sName}`);
+    const patEl2  = document.getElementById(`satin-pat-${sName}`);
+    const pillEl  = document.getElementById(`weave-pill-${sName}`);
     saSettings[sName] = {
       n:          nEl    ? parseInt(nEl.value)   : 8,
       flip:       flipEl ? flipEl.classList.contains('on') : false,
       min_height: mhEl   ? parseInt(mhEl.value)  : 35,
       pattern:    patEl2 ? patEl2.value           : 'satin',
+      weave_off:  pillEl ? pillEl.classList.contains('off') : false,
     };
   });
 

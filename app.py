@@ -255,7 +255,8 @@ def api_generate():
                 pattern = 'satin'
             satin_settings[str(k)] = {
                 'n': n, 'flip': bool(v.get('flip', False)),
-                'min_height': min_h, 'pattern': pattern
+                'min_height': min_h, 'pattern': pattern,
+                'weave_off': bool(v.get('weave_off', False)),
             }
 
         # ── Decode label_map ──────────────────────────────────────────────────
