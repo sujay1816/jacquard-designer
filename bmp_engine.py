@@ -623,7 +623,7 @@ def detect_colors(image: Image.Image, n_colors: int, edge_recovery: bool = True)
     img_rgb = image.convert('RGB')
     arr     = np.array(img_rgb).reshape(-1, 3).astype(np.float32)
 
-    km      = KMeans(n_clusters=n_colors, random_state=42, n_init=10)
+    km      = KMeans(n_clusters=n_colors, random_state=42, n_init=3, max_iter=100)
     labels  = km.fit_predict(arr)
     centers = km.cluster_centers_.astype(np.uint8)
 

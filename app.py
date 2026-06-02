@@ -144,8 +144,14 @@ def api_detect_colors():
 
         # Full-resolution source for supersample (fine detail mode)
         # Store original before resizing so supersample can detect at 4× target
+        # Cap full_image to 800px max -- prevents huge base64 payloads
+        full_img_send = img
+        if max(img.width, img.height) > 800:
+            scale = 800 / max(img.width, img.height)
+            full_img_send = img.resize(
+                (int(img.width * scale), int(img.height * scale)), Image.LANCZOS)
         buf_full = io.BytesIO()
-        img.save(buf_full, format='JPEG', quality=95)
+        full_img_send.save(buf_full, format='JPEG', quality=85)
         full_image_b64 = base64.b64encode(buf_full.getvalue()).decode()
 
         return jsonify({
