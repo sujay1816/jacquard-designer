@@ -725,21 +725,28 @@ def _supersample_to_bmp(image: Image.Image,
             zari_mask_hi |= (lm_hi == int(cidx))
     zari_mask_hi = remove_noise(zari_mask_hi, min_size=noise_min_size)
 
-    # Smart fill at high resolution
-    s        = satin_settings.get('zari', {'n': 8, 'flip': False})
-    satin_hi = generate_satin(s['n'], hi_pins, hi_cards, flip=s['flip'])
-    arr_hi   = smart_fill(zari_mask_hi, satin_hi, s['n'],
-                          satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
+    # ── Pool RAW MASK to target, then satin at target resolution ────────────
+    # PREVIOUS approach (buggy): smart_fill at 4× then mean-pool the BMP.
+    # Problem: satin produces alternating 0/1 pixels at 4× scale; when a 4×4
+    # block covers a satin run its mean is ~50 % — right at the threshold —
+    # so interior-white gaps survive or vanish unpredictably, destroying IW.
+    #
+    # CORRECT approach:
+    #   1. Mean-pool the raw boolean MASK (no satin) from high-res to target.
+    #      A target pixel becomes TRUE if ≥ pool_threshold of the high-res
+    #      pixels covering it are design (detected at full 4× accuracy).
+    #   2. Apply smart_fill / satin at TARGET resolution.
+    #      Satin is now applied at the correct scale; interior gaps that were
+    #      wide at 4× collapse naturally to their correct width at target, and
+    #      the satin pattern fits the actual feature height, not a 4× phantom.
+    mask_pooled = block_reduce(zari_mask_hi.astype(np.float32),
+                               block_size=(scale, scale),
+                               func=np.mean)[:cards, :pins] >= pool_threshold
 
-    # Downsample: mean-pool then threshold
-    design_hi = (arr_hi == 0).astype(np.float32)
-    pooled    = block_reduce(design_hi,
-                             block_size=(scale, scale),
-                             func=np.mean)[:cards, :pins]
-    result    = np.where(pooled >= pool_threshold,
-                         np.uint8(0),   # UP
-                         np.uint8(1)    # DOWN
-                         ).astype(np.uint8)
+    s      = satin_settings.get('zari', {'n': 8, 'flip': False})
+    satin  = generate_satin(s['n'], pins, cards, flip=s['flip'])
+    result = smart_fill(mask_pooled, satin, s['n'],
+                        satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
     return result
 
 
