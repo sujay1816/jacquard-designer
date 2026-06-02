@@ -1505,18 +1505,18 @@ async function detectColors() {
   }, 8000);
 
   try {
-    // Quick server health check before main request
+    // Quick server health check before sending large image
     try {
       await fetch('/api/fill-patterns', { method: 'GET', signal: AbortSignal.timeout(3000) });
     } catch(pingErr) {
-      throw new Error('Flask server is not responding. Please restart run.py and refresh the page.');
+      throw new Error('Flask server is not responding. Please restart run.py and hard-refresh (Ctrl+Shift+R).');
     }
 
     const detectCtrl = new AbortController();
     const detectTimer = setTimeout(() => detectCtrl.abort(), 30000);
     const res = await fetch('/api/detect-colors', { method: 'POST', body: formData, signal: detectCtrl.signal });
     clearTimeout(detectTimer);
-    if (!res.ok) throw new Error(`Server error ${res.status}: ${res.statusText}`);
+    if (!res.ok) throw new Error('Server error ' + res.status + ': ' + res.statusText);
     const data = await res.json();
     if (!data.success) throw new Error(data.error);
 
@@ -1539,8 +1539,8 @@ async function detectColors() {
 
   } catch (err) {
     const msg = err.name === 'AbortError'
-      ? 'Detection timed out after 60s. Is Flask running? Try restarting run.py.'
-      : `Detection failed: ${err.message}`;
+      ? 'Detection timed out. Is Flask running? Restart run.py and try again.'
+      : err.message;
     showMsg('detect-error', msg);
     console.error('detectColors error:', err);
   } finally {
@@ -1952,11 +1952,10 @@ async function generateBMPs() {
   setLoading(true, 'Generating BMP Files', 'Applying weave patterns...');
 
   try {
-    // Quick ping before generate
     try {
       await fetch('/api/fill-patterns', { method: 'GET', signal: AbortSignal.timeout(3000) });
     } catch(pingErr) {
-      throw new Error('Flask server is not responding. Please restart run.py and refresh the page.');
+      throw new Error('Flask server is not responding. Please restart run.py and hard-refresh (Ctrl+Shift+R).');
     }
     const genCtrl  = new AbortController();
     const genTimer = setTimeout(() => genCtrl.abort(), 120000);
