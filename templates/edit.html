@@ -84,28 +84,31 @@
     #toolbar {
       position: fixed;
       top: 48px; left: 0;
-      width: 48px;
+      width: 52px;
       bottom: 0;
       background: var(--surface);
       border-right: 1px solid var(--border);
       display: flex; flex-direction: column; align-items: center;
-      padding: 8px 0; gap: 3px;
+      padding: 8px 0; gap: 2px;
       overflow-y: auto;
       z-index: 90;
+      scrollbar-width: none;
     }
+    #toolbar::-webkit-scrollbar { display: none; }
     .tsep { width:30px; height:1px; background:var(--border); margin:3px 0; flex-shrink:0; }
     .tbtn {
-      width: 34px; height: 34px; flex-shrink: 0;
-      border-radius: 6px; border: 1px solid transparent;
-      background: transparent; color: var(--muted);
+      width: 38px; height: 38px; flex-shrink: 0;
+      border-radius: 7px; border: 1px solid transparent;
+      background: transparent; color: #888;
       cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      font-size: 15px;
+      font-size: 16px;
       transition: all .15s;
       position: relative;
+      letter-spacing: 0;
     }
-    .tbtn:hover { background:var(--surface2); border-color:var(--border); color:var(--text); }
-    .tbtn.on   { background:var(--surface2); border-color:var(--gold); color:var(--gold); }
+    .tbtn:hover { background:var(--surface2); border-color:var(--border2); color:var(--text); }
+    .tbtn.on   { background:rgba(200,169,110,0.15); border-color:var(--gold); color:var(--gold); }
     .tbtn::after {
       content: attr(data-tip);
       position: absolute; left: 42px; top: 50%; transform: translateY(-50%);
@@ -120,17 +123,17 @@
     #side-panel {
       position: fixed;
       top: 48px; right: 0;
-      width: 210px;
+      width: 220px;
       bottom: 0;
       background: var(--surface);
       border-left: 1px solid var(--border);
       overflow-y: auto;
       z-index: 90;
     }
-    .psec { border-bottom: 1px solid var(--border); padding: 10px 12px; }
+    .psec { border-bottom: 1px solid var(--border); padding: 8px 10px; }
     .ptitle {
       font-size: 9px; letter-spacing: .08em; text-transform: uppercase;
-      color: var(--muted); margin-bottom: 8px;
+      color: var(--muted); margin-bottom: 6px;
     }
     .opt-row {
       display: flex; align-items: center;
@@ -152,15 +155,16 @@
       color: var(--text); border-radius: 5px; cursor: pointer;
       font-family: 'DM Mono',monospace; font-size: 10px;
       text-align: left; margin-bottom: 4px;
-      display: flex; align-items: center; gap: 6px;
+      display: flex; align-items: center; gap: 5px;
       transition: all .15s;
+      min-width: 0; overflow: hidden;
     }
     .obtn:hover { border-color:var(--gold); color:var(--gold); }
     .obtn.red   { color:var(--danger); }
     .obtn.red:hover { border-color:var(--danger); }
     .oic { font-size:11px; width:14px; text-align:center; }
     .pctl {
-      margin-left:auto; display:flex; align-items:center; gap:3px;
+      margin-left:auto; display:flex; align-items:center; gap:2px; flex-shrink:0;
     }
     .pbtn {
       width:16px; height:16px;
@@ -172,7 +176,7 @@
     .pval { font-size:10px; color:var(--gold2); min-width:12px; text-align:center; }
 
     /* Stats */
-    .srow { display:flex; justify-content:space-between; margin-bottom:4px; }
+    .srow { display:flex; justify-content:space-between; margin-bottom:3px; }
     .sl   { font-size:10px; color:var(--muted); }
     .sv   { font-size:10px; color:var(--gold2); }
     .sv.ok  { color:var(--success); }
@@ -193,7 +197,7 @@
     /* ─── CANVAS AREA (fills remaining space) ──────────────── */
     #canvas-area {
       position: fixed;
-      top: 48px; left: 48px; right: 210px; bottom: 0;
+      top: 48px; left: 52px; right: 220px; bottom: 0;
       background: #0a0a0a;
       overflow: auto;
       display: flex; align-items: center; justify-content: center;
@@ -232,15 +236,28 @@
 
     /* Zoom bar */
     #zoom-bar {
-      position: absolute; bottom: 12px; right: 12px;
-      display: flex; align-items: center; gap: 5px;
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 4px 8px;
-      z-index: 10;
+      position: absolute; bottom: 14px; right: 14px;
+      display: flex; align-items: center; gap: 0;
+      background: var(--surface); border: 1px solid var(--border2);
+      border-radius: 20px; padding: 0;
+      z-index: 10; overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
     }
-    .zbtn { background:transparent; border:none; color:var(--muted); cursor:pointer; font-size:13px; width:18px; text-align:center; }
-    .zbtn:hover { color:var(--gold); }
-    #zoom-label { font-size:10px; color:var(--text); min-width:34px; text-align:center; }
+    .zbtn {
+      background: transparent; border: none; color: var(--muted);
+      cursor: pointer; font-size: 16px; font-weight: 300;
+      width: 32px; height: 30px;
+      display: flex; align-items: center; justify-content: center;
+      transition: all .15s;
+    }
+    .zbtn:hover { background: var(--surface2); color: var(--gold); }
+    #zoom-label {
+      font-size: 11px; color: var(--text); min-width: 48px;
+      text-align: center; cursor: pointer; padding: 0 2px;
+      border-left: 1px solid var(--border); border-right: 1px solid var(--border);
+      height: 30px; line-height: 30px;
+    }
+    #zoom-label:hover { color: var(--gold); }
     #coord-bar {
       position: absolute; bottom: 12px; left: 12px;
       font-size: 9px; color: var(--muted);
@@ -283,15 +300,15 @@
 <!-- ─── LEFT TOOLBAR ────────────────────────────────────────── -->
 <div id="toolbar">
   <button class="tbtn on" id="tbtn-pencil" onclick="setTool('pencil')" data-tip="Pencil (P)">✏</button>
-  <button class="tbtn"    id="tbtn-eraser" onclick="setTool('eraser')" data-tip="Eraser (E)">◻</button>
+  <button class="tbtn"    id="tbtn-eraser" onclick="setTool('eraser')" data-tip="Eraser (E)" style="font-size:13px;font-weight:700;color:#aaa">E</button>
   <button class="tbtn"    id="tbtn-fill"   onclick="setTool('fill')"   data-tip="Flood Fill (F)">🪣</button>
-  <button class="tbtn"    id="tbtn-line"   onclick="setTool('line')"   data-tip="Line (L)">╱</button>
-  <button class="tbtn"    id="tbtn-rect"   onclick="setTool('rect')"   data-tip="Rectangle (R)">▬</button>
+  <button class="tbtn"    id="tbtn-line"   onclick="setTool('line')"   data-tip="Line (L)" style="font-size:11px;font-weight:700">/</button>
+  <button class="tbtn"    id="tbtn-rect"   onclick="setTool('rect')"   data-tip="Rectangle (R)" style="font-size:11px">▭</button>
   <div class="tsep"></div>
   <button class="tbtn"    id="tbtn-pan"    onclick="setTool('pan')"    data-tip="Pan (H)">✋</button>
   <div class="tsep"></div>
   <button class="tbtn"    id="tbtn-grid"   onclick="toggleGrid()"      data-tip="Grid (G)">⊞</button>
-  <button class="tbtn"                     onclick="fitToWindow()"     data-tip="Fit (0)">⛶</button>
+  <button class="tbtn"                     onclick="fitToWindow()"     data-tip="Fit (0)" style="font-size:12px;font-weight:600">[ ]</button>
   <div class="tsep"></div>
   <button class="tbtn"                     onclick="document.getElementById('file-input2').click()" data-tip="Upload BMP">📂</button>
   <input type="file" id="file-input2" accept=".bmp,.png" style="display:none" onchange="loadFile(this.files[0])">
@@ -327,10 +344,10 @@
   </div>
 
   <div id="zoom-bar">
-    <button class="zbtn" onclick="zoomStep(-1)">−</button>
-    <span id="zoom-label">100%</span>
-    <button class="zbtn" onclick="zoomStep(+1)">+</button>
-  </div>
+  <button class="zbtn" onclick="zoomStep(-1)" title="Zoom out (-)">−</button>
+  <span id="zoom-label" onclick="resetZoom()" title="Click to reset to 100%">100%</span>
+  <button class="zbtn" onclick="zoomStep(+1)" title="Zoom in (+)">+</button>
+</div>
   <div id="coord-bar">x:— y:—</div>
 </div>
 
@@ -455,6 +472,7 @@ const ox = OC.getContext('2d');
 function render() {
   if (!S.pixels) return;
   cx.putImageData(new ImageData(S.pixels.slice(), S.W, S.H), 0, 0);
+  renderGrid();
 }
 
 function applyZoom() {
@@ -462,6 +480,40 @@ function applyZoom() {
   MC.style.width  = OC.style.width  = (S.W * z) + 'px';
   MC.style.height = OC.style.height = (S.H * z) + 'px';
   document.getElementById('zoom-label').textContent = Math.round(z * 100) + '%';
+  renderGrid();
+  // Re-center if image fits in canvas area
+  const area = document.getElementById('canvas-area');
+  const wrap = document.getElementById('canvas-wrap');
+  if (area && wrap) {
+    const iw = S.W * z, ih = S.H * z;
+    const aw = area.clientWidth,  ah = area.clientHeight;
+    if (iw < aw) wrap.style.marginLeft = Math.max(0, (aw - iw) / 2) + 'px';
+    else         wrap.style.marginLeft = '20px';
+    if (ih < ah) wrap.style.marginTop  = Math.max(0, (ah - ih) / 2) + 'px';
+    else         wrap.style.marginTop  = '20px';
+  }
+}
+
+function renderGrid() {
+  ox.clearRect(0, 0, OC.width, OC.height);
+  if (!S.showGrid || !S.pixels) return;
+  const z = S.zoom;
+  if (z < 4) return;   // only show grid at 4x and above
+  ox.save();
+  ox.strokeStyle = z >= 8 ? 'rgba(200,169,110,0.35)' : 'rgba(200,169,110,0.18)';
+  ox.lineWidth = 1 / z;
+  for (let x = 0; x <= S.W; x++) {
+    ox.beginPath(); ox.moveTo(x, 0); ox.lineTo(x, S.H); ox.stroke();
+  }
+  for (let y = 0; y <= S.H; y++) {
+    ox.beginPath(); ox.moveTo(0, y); ox.lineTo(0 + S.W, y); ox.stroke();
+  }
+  ox.restore();
+}
+
+function resetZoom() {
+  S.zoom = 1;
+  applyZoom();
 }
 
 // ═══════════════════════════════════════════════════
@@ -670,12 +722,29 @@ function onMU(e) {
 
 function onML() { if(S.painting){pushHist('Draw');S.painting=false;updateStats();} }
 
-function onWheel(e) { e.preventDefault(); zoomStep(e.deltaY<0?1:-1); }
+function onWheel(e) {
+  e.preventDefault();
+  const area = document.getElementById('canvas-area');
+  const wrap = document.getElementById('canvas-wrap');
+  const rect = MC.getBoundingClientRect();
+  // Mouse position relative to canvas in BMP pixels before zoom
+  const bmpX = (e.clientX - rect.left) / S.zoom;
+  const bmpY = (e.clientY - rect.top)  / S.zoom;
+  // Apply zoom step
+  const oldZoom = S.zoom;
+  zoomStep(e.deltaY < 0 ? 1 : -1);
+  // Adjust scroll to keep the hovered pixel under the cursor
+  const newRect = MC.getBoundingClientRect();
+  const newX = bmpX * S.zoom;
+  const newY = bmpY * S.zoom;
+  area.scrollLeft += (newX - (e.clientX - area.getBoundingClientRect().left));
+  area.scrollTop  += (newY - (e.clientY - area.getBoundingClientRect().top));
+}
 
 // ═══════════════════════════════════════════════════
 // ZOOM / FIT
 // ═══════════════════════════════════════════════════
-const ZL = [0.25,0.5,1,1.5,2,3,4,6,8,12,16,24,32];
+const ZL = [0.25,0.5,0.75,1,1.5,2,3,4,6,8,10,12,16,20,24,32];
 function zoomStep(d) {
   const i = ZL.indexOf(S.zoom);
   S.zoom = ZL[Math.max(0,Math.min(ZL.length-1,(i<0?4:i)+d))];
@@ -683,12 +752,13 @@ function zoomStep(d) {
 }
 function fitToWindow() {
   if (!S.pixels) return;
-  const a=document.getElementById('canvas-area');
-  const sx=(a.clientWidth-40)/S.W, sy=(a.clientHeight-40)/S.H;
-  const sc=Math.min(sx,sy);
-  let best=ZL[0],bd=99;
-  ZL.forEach(z=>{const d=Math.abs(z-sc);if(d<bd){bd=d;best=z;}});
-  S.zoom=best; applyZoom();
+  const a = document.getElementById('canvas-area');
+  const sx = (a.clientWidth  - 40) / S.W;
+  const sy = (a.clientHeight - 40) / S.H;
+  const sc = Math.min(sx, sy);
+  // Use exact scale instead of snapping to a preset level
+  S.zoom = Math.max(0.1, Math.min(32, sc));
+  applyZoom();
 }
 
 // ═══════════════════════════════════════════════════
@@ -708,8 +778,9 @@ function setCol(c) {
 }
 
 function toggleGrid() {
-  S.showGrid=!S.showGrid;
-  document.getElementById('tbtn-grid').classList.toggle('on',S.showGrid);
+  S.showGrid = !S.showGrid;
+  document.getElementById('tbtn-grid').classList.toggle('on', S.showGrid);
+  renderGrid();
 }
 
 // ═══════════════════════════════════════════════════
