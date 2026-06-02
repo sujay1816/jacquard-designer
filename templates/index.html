@@ -1802,14 +1802,14 @@ function renderSatinSettings() {
       </div>
     `;
 
-    card.querySelector(`#satin-n-${sName}`).addEventListener('change', () => drawWeavePreview(sName));
+    card.querySelector(`#satin-n-${sName}`) && card.querySelector(`#satin-n-${sName}`).addEventListener('change', () => updateWeavePreview(sName));
     container.appendChild(card);
     // Render live preview after card is in DOM
     requestAnimationFrame(() => updateWeavePreview(sName));
   });
 
   // Draw initial weave previews
-  shuttles.forEach(sName => drawWeavePreview(sName));
+  shuttles.forEach(sName => updateWeavePreview(sName));
 }
 
 function toggleWeavePill(sName) {
@@ -1822,38 +1822,14 @@ function toggleWeavePill(sName) {
 }
 
 function toggleFlip(sName) {
+  // Flip toggle replaced by fill pattern dropdown -- kept for compatibility
   const el = document.getElementById(`flip-${sName}`);
-  el.classList.toggle('on');
-  drawWeavePreview(sName);
+  if (el) el.classList.toggle('on');
+  updateWeavePreview(sName);
 }
 
-function drawWeavePreview(sName) {
-  const canvas = document.getElementById(`weave-canvas-${sName}`);
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const n = parseInt(document.getElementById(`satin-n-${sName}`).value);
-  const flip = document.getElementById(`flip-${sName}`).classList.contains('on');
-  const size = 60;
-  const scale = Math.floor(size / n);
-  const draw_size = n * scale;
-
-  ctx.clearRect(0, 0, size, size);
-  for (let r = 0; r < n; r++) {
-    for (let c = 0; c < n; c++) {
-      const whiteCol = flip ? r % n : (-r + n * 100) % n;
-      const isWhite = (c % n) === whiteCol;
-      ctx.fillStyle = isWhite ? '#fff' : '#111';
-      ctx.fillRect(c * scale, r * scale, scale, scale);
-    }
-  }
-  // grid lines
-  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-  ctx.lineWidth = 0.5;
-  for (let i = 0; i <= n; i++) {
-    ctx.beginPath(); ctx.moveTo(i*scale,0); ctx.lineTo(i*scale,draw_size); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0,i*scale); ctx.lineTo(draw_size,i*scale); ctx.stroke();
-  }
-}
+// drawWeavePreview replaced by updateWeavePreview (supports all 14 fill patterns)
+function drawWeavePreview(sName) { updateWeavePreview(sName); }
 
 // =====================================================================
 // Generate BMPs
