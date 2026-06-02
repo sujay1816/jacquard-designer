@@ -863,6 +863,32 @@
       .emboss-desc { font-size: 11px; color: #888; line-height: 1.4; }
       /* supersample shares emboss styling */
 
+      /* ── Shuttle tab bar ──────────────────────────────────────────────────── */
+      .shuttle-tabs {
+        display: flex; gap: 4px; margin-bottom: 12px;
+        border-bottom: 1px solid var(--border); padding-bottom: 0;
+      }
+      .shuttle-tab {
+        display: flex; align-items: center; gap: 6px;
+        padding: 6px 12px; border-radius: 6px 6px 0 0;
+        font-size: 11px; font-weight: 600; letter-spacing: 0.05em;
+        cursor: pointer; border: 1px solid transparent;
+        border-bottom: none; margin-bottom: -1px;
+        background: transparent; color: var(--muted);
+        transition: background 0.15s, color 0.15s;
+        user-select: none;
+      }
+      .shuttle-tab:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+      .shuttle-tab.active {
+        background: var(--surface); color: var(--text);
+        border-color: var(--border); border-bottom-color: var(--surface);
+      }
+      .shuttle-tab-dot {
+        width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+      }
+      .shuttle-tab-panel { display: none; }
+      .shuttle-tab-panel.active { display: block; }
+
       /* ── Weave ON/OFF pill toggle ────────────────────────────────────────── */
       .weave-pill-row {
         display: flex; align-items: center; justify-content: space-between;
@@ -1669,91 +1695,47 @@ function refreshZoneChips() {
 // =====================================================================
 function renderSatinSettings() {
   const container = document.getElementById('satin-settings');
-  const saSection = document.getElementById('satin-section');
+  const saSection  = document.getElementById('satin-section');
   container.innerHTML = '';
 
-  // Show emboss toggle only for 1-shuttle
+  // Show/hide emboss toggle (1-shuttle only)
   const embossRow = document.getElementById('embossRow');
   if (embossRow) {
-    if (state.shuttleCount === 1) {
-      embossRow.classList.add('visible');
-    } else {
+    if (state.shuttleCount === 1) embossRow.classList.add('visible');
+    else {
       embossRow.classList.remove('visible');
       document.getElementById('embossMode').checked = false;
     }
   }
 
-  if (state.shuttleCount === 1) {
-    // Show a simplified fill threshold slider for 1-shuttle
-    saSection.style.display = 'block';
-    container.innerHTML = `
-      <div style="font-size:11px;color:var(--muted);margin-bottom:8px">
-        Controls how this shuttle's threads are woven.
-      </div>
-      <div class="satin-card" style="padding:10px 12px;">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <span style="font-size:11px;font-weight:600;color:#d4af60;letter-spacing:0.05em">ZARI</span>
-        </div>
-        <!-- Weave ON/OFF pill -->
-        <div class="weave-pill-row">
-          <span class="weave-pill-label">Fill Pattern</span>
-          <div class="weave-pill on" id="weave-pill-zari"
-            onclick="toggleWeavePill('zari')">
-            <span class="weave-pill-btn on-btn">ON</span>
-            <span class="weave-pill-btn off-btn">OFF</span>
-          </div>
-        </div>
-        <div class="satin-row">
-          <label style="visibility:hidden;height:0;margin:0">Fill Pattern</label>
-          <select class="field" id="satin-pat-zari"
-            style="padding:5px 8px;font-size:11px;width:100%"
-            onchange="updateWeavePreview('zari')">
-            ${FILL_PATTERNS.map(p => `<option value="${p.id}" ${p.id==='satin'?'selected':''}>${p.label}</option>`).join('')}
-          </select>
-        </div>
-        <div class="satin-row" style="margin-top:6px">
-          <label>Density (N)</label>
-          <div style="display:flex;align-items:center;gap:8px;flex:1">
-            <input type="range" id="satin-n-zari" min="4" max="16" step="1" value="8"
-              style="flex:1;accent-color:#f0a500"
-              oninput="document.getElementById('satin-n-val-zari').textContent=this.value; updateWeavePreview('zari')">
-            <span id="satin-n-val-zari" style="font-size:10px;color:#aaa;width:20px;text-align:right">8</span>
-          </div>
-        </div>
-        <label style="margin-top:8px;display:block" title="Lower = more texture, Higher = more solid fill.">Fill threshold</label>
-        <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
-          <input type="range" id="satin-mh-zari" min="1" max="200" step="1" value="35"
-            style="flex:1;accent-color:#f0a500"
-            oninput="document.getElementById('satin-mh-val-zari').textContent=this.value+'px'">
-          <span id="satin-mh-val-zari" style="font-size:10px;color:#aaa;width:36px;text-align:right">35px</span>
-        </div>
-        <div style="margin-top:10px;display:flex;align-items:center;gap:10px">
-          <canvas id="weave-canvas-zari" width="72" height="48"
-            style="border:1px solid rgba(255,255,255,0.1);border-radius:4px;image-rendering:pixelated"></canvas>
-          <span id="weave-upPct-zari" style="font-size:10px;color:#888"></span>
-        </div>
-      </div>
-    `;
-    requestAnimationFrame(() => updateWeavePreview('zari'));
-    return;
-  }
-
   saSection.style.display = 'block';
-  const shuttles = SHUTTLE_CONFIG[state.shuttleCount] || ['zari'];
 
-  shuttles.forEach(sName => {
-    const card = document.createElement('div');
-    card.className = 'satin-card';
-    const color = SHUTTLE_COLORS[sName] || '#888';
+  // ── Build full shuttle list including Rani ──────────────────────────────
+  const designShuttles = SHUTTLE_CONFIG[state.shuttleCount] || ['zari'];
+  // Rani always present for 2+ shuttles (auto-generated, read-only tab)
+  const allTabs = state.shuttleCount === 1
+    ? ['zari']
+    : [...designShuttles, 'rani'];
 
-    card.innerHTML = `
-      <div class="satin-card-title">
-        <div class="shuttle-dot" style="background:${color}"></div>
-        ${sName.toUpperCase()} Weave
-      </div>
-
-      <!-- Weave ON/OFF pill toggle -->
-      <div class="weave-pill-row">
+  // ── Build settings card HTML for one design shuttle ─────────────────────
+  function buildPanel(sName) {
+    const isRani = sName === 'rani';
+    if (isRani) {
+      return `
+        <div style="padding:14px 2px">
+          <div style="font-size:11px;color:var(--muted);line-height:1.6">
+            <strong style="color:var(--text)">Rani is auto-generated.</strong><br>
+            It fires the plain weave base thread everywhere the named shuttles
+            (Zari, Meena) are <em>not</em> weaving — no fill pattern needed.<br><br>
+            Formula: <code style="font-size:10px;background:rgba(255,255,255,0.07);padding:2px 5px;border-radius:3px">
+              Rani = (Plain Weave AND NOT any named shuttle) OR extra design
+            </code>
+          </div>
+        </div>`;
+    }
+    return `
+      <!-- Weave ON/OFF pill -->
+      <div class="weave-pill-row" style="margin-top:2px">
         <span class="weave-pill-label">Fill Pattern</span>
         <div class="weave-pill on" id="weave-pill-${sName}"
           onclick="toggleWeavePill('${sName}')">
@@ -1763,8 +1745,8 @@ function renderSatinSettings() {
       </div>
 
       <!-- Fill pattern dropdown -->
-      <div class="satin-row">
-        <label style="visibility:hidden;height:0;margin:0">Fill Pattern</label>
+      <div class="satin-row" style="margin-top:6px">
+        <label style="visibility:hidden;height:0;margin:0">Pattern</label>
         <select class="field" id="satin-pat-${sName}"
           style="padding:5px 8px;font-size:11px;width:100%"
           onchange="updateWeavePreview('${sName}')">
@@ -1772,20 +1754,21 @@ function renderSatinSettings() {
         </select>
       </div>
 
-      <!-- N density slider -->
+      <!-- Density slider -->
       <div class="satin-row" style="margin-top:6px">
         <label>Density (N)</label>
         <div style="display:flex;align-items:center;gap:8px;flex:1">
           <input type="range" id="satin-n-${sName}" min="4" max="16" step="1" value="8"
             style="flex:1;accent-color:#f0a500"
-            oninput="document.getElementById('satin-n-val-${sName}').textContent=this.value; updateWeavePreview('${sName}')">
+            oninput="document.getElementById('satin-n-val-${sName}').textContent=this.value;
+                     updateWeavePreview('${sName}')">
           <span id="satin-n-val-${sName}" style="font-size:10px;color:#aaa;width:20px;text-align:right">8</span>
         </div>
       </div>
 
       <!-- Fill threshold slider -->
       <div class="satin-row" style="margin-top:6px">
-        <label title="Minimum run height before fill is applied. Lower = more texture.">Fill threshold</label>
+        <label title="Lower = more texture. Higher = more solid fill.">Fill threshold</label>
         <div style="display:flex;align-items:center;gap:8px;flex:1">
           <input type="range" id="satin-mh-${sName}" min="1" max="200" step="1" value="35"
             style="flex:1;accent-color:#f0a500"
@@ -1794,22 +1777,57 @@ function renderSatinSettings() {
         </div>
       </div>
 
-      <!-- Live preview swatch -->
+      <!-- Live preview -->
       <div style="margin-top:10px;display:flex;align-items:center;gap:10px">
         <canvas id="weave-canvas-${sName}" width="72" height="48"
           style="border:1px solid rgba(255,255,255,0.1);border-radius:4px;image-rendering:pixelated"></canvas>
         <span id="weave-upPct-${sName}" style="font-size:10px;color:#888"></span>
-      </div>
-    `;
+      </div>`;
+  }
 
-    card.querySelector(`#satin-n-${sName}`) && card.querySelector(`#satin-n-${sName}`).addEventListener('change', () => updateWeavePreview(sName));
-    container.appendChild(card);
-    // Render live preview after card is in DOM
-    requestAnimationFrame(() => updateWeavePreview(sName));
+  // ── Tab bar ─────────────────────────────────────────────────────────────
+  const tabBar = document.createElement('div');
+  tabBar.className = 'shuttle-tabs';
+  allTabs.forEach((sName, idx) => {
+    const color = SHUTTLE_COLORS[sName] || '#888';
+    const label = sName === 'meena1' ? 'Meena 1'
+                : sName === 'meena2' ? 'Meena 2'
+                : sName.charAt(0).toUpperCase() + sName.slice(1);
+    const tab = document.createElement('div');
+    tab.className = 'shuttle-tab' + (idx === 0 ? ' active' : '');
+    tab.id = `stab-${sName}`;
+    tab.innerHTML = `<div class="shuttle-tab-dot" style="background:${color}"></div>${label}`;
+    tab.onclick = () => switchShuttleTab(sName);
+    tabBar.appendChild(tab);
+  });
+  container.appendChild(tabBar);
+
+  // ── Panels ───────────────────────────────────────────────────────────────
+  allTabs.forEach((sName, idx) => {
+    const panel = document.createElement('div');
+    panel.className = 'shuttle-tab-panel' + (idx === 0 ? ' active' : '');
+    panel.id = `spanel-${sName}`;
+    panel.innerHTML = buildPanel(sName);
+    container.appendChild(panel);
   });
 
-  // Draw initial weave previews
-  shuttles.forEach(sName => updateWeavePreview(sName));
+  // Render preview for first active tab
+  requestAnimationFrame(() => updateWeavePreview(allTabs[0]));
+}
+
+
+
+function switchShuttleTab(sName) {
+  // Deactivate all tabs and panels
+  document.querySelectorAll('.shuttle-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.shuttle-tab-panel').forEach(p => p.classList.remove('active'));
+  // Activate selected
+  const tab   = document.getElementById(`stab-${sName}`);
+  const panel = document.getElementById(`spanel-${sName}`);
+  if (tab)   tab.classList.add('active');
+  if (panel) panel.classList.add('active');
+  // Render preview for newly visible tab
+  requestAnimationFrame(() => updateWeavePreview(sName));
 }
 
 function toggleWeavePill(sName) {
