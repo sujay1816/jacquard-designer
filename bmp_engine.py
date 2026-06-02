@@ -480,17 +480,28 @@ def assess_image_quality(image: Image.Image) -> dict:
     jpeg_score = min(100.0, (block_h + block_v) / 2.0 * 3.0)
 
     # ── Noise level in background ────────────────────────────────────────────
-    bg_brightness = float(np.percentile(grey, 5))
-    is_dark_bg    = bg_brightness < 30   # absolute dark check for quality assessment
-    if is_dark_bg:
-        bg_mask = grey < 15
+    # Use the 90th percentile as background brightness for light-bg images
+    # and 10th percentile for dark-bg images.
+    # The 5th percentile incorrectly picks up dark design lines on white backgrounds.
+    p10 = float(np.percentile(grey, 10))
+    p90 = float(np.percentile(grey, 90))
+    p50 = float(np.percentile(grey, 50))
+    # Background is whichever end is further from the middle
+    if abs(p90 - p50) >= abs(p50 - p10):
+        # Light background (white/cream bg with dark design)
+        bg_brightness = p90
+        is_dark_bg    = False
+        bg_mask       = grey > p90 * 0.92
     else:
-        bg_mask = grey > float(np.percentile(grey, 90))
+        # Dark background (dark bg with light design)
+        bg_brightness = p10
+        is_dark_bg    = bg_brightness < 40
+        bg_mask       = grey < max(15, p10 * 1.5)
 
     if bg_mask.sum() > 100:
         smooth_bg   = ndimage.uniform_filter(grey.astype(float), size=5)
         noise_field = np.abs(grey.astype(float) - smooth_bg)
-        noise_level = float(min(100.0, noise_field[bg_mask].mean() * 5.0))
+        noise_level = float(min(100.0, noise_field[bg_mask].mean() * 2.0))
     else:
         noise_level = 0.0
 

@@ -1052,7 +1052,7 @@
     <div class="panel-section">
       <div class="section-label">Number of Shuttles</div>
       <div class="shuttle-buttons">
-        <button class="shuttle-btn" data-n="1" onclick="setShuttles(1)">
+        <button class="shuttle-btn active" data-n="1" onclick="setShuttles(1)">
           <span class="num">1</span>Zari
         </button>
         <button class="shuttle-btn" data-n="2" onclick="setShuttles(2)">
@@ -1207,7 +1207,7 @@ const state = {
   imageFile: null,
   imageB64: null,
   fullImageB64: null,   // full-res source for fine detail mode (supersample)
-  shuttleCount: 0,
+  shuttleCount: 1,
   detectedColors: [],
   colorAssignments: {},   // colorIndex -> shuttleName
   safeImageB64: null,
