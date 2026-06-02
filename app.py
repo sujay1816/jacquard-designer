@@ -190,7 +190,7 @@ def api_detect_colors():
 
     except Exception as e:
         import traceback
-        return _json_error(f'Unexpected error: {e}'), 500
+        return _json_error(f'Unexpected error: {e}')
 
 
 @app.route('/api/generate', methods=['POST'])
@@ -350,7 +350,7 @@ def api_generate():
         return _json_error(str(e))
     except Exception as e:
         import traceback
-        return _json_error(f'Generation failed: {e}'), 500
+        return _json_error(f'Generation failed: {e}')
 
 
 @app.route('/api/assess-quality', methods=['POST'])

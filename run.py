@@ -9,6 +9,9 @@ def open_browser():
     webbrowser.open('http://localhost:5000')
 
 if __name__ == '__main__':
+    # Disable joblib parallel workers to prevent Windows startup delay
+    os.environ['LOKY_MAX_CPU_COUNT'] = '1'
+    os.environ['OMP_NUM_THREADS']    = '1'
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     print("="*50)
     print(" JACQUARD DESIGNER")
