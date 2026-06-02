@@ -10,947 +10,853 @@
     :root {
       --bg:#0e0c0a; --surface:#161410; --surface2:#1e1b17;
       --border:#2e2a24; --border2:#3e3830;
-      --gold:#c8a96e; --gold2:#e8c98e; --cream:#f0e8d8;
+      --gold:#c8a96e; --gold2:#e8c98e;
       --muted:#7a6f62; --text:#e8e0d0;
       --danger:#c06060; --success:#6a9e6a;
       --radius:8px;
     }
-    *{box-sizing:border-box;margin:0;padding:0;}
-    body{background:var(--bg);color:var(--text);font-family:'DM Mono',monospace;font-size:12px;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    /* ── Header ── */
-    header{border-bottom:1px solid var(--border);padding:12px 20px;display:flex;align-items:center;gap:12px;background:var(--surface);flex-shrink:0;z-index:50;}
-    .logo-mark{width:30px;height:30px;background:linear-gradient(135deg,var(--gold),var(--gold2));border-radius:5px;display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:600;color:#1a1510;flex-shrink:0;}
-    .header-title{font-family:'Cormorant Garamond',serif;font-size:16px;color:var(--gold2);}
-    .header-sub{font-size:9px;color:var(--muted);}
-    .header-file{margin-left:8px;font-size:10px;color:var(--muted);border:1px solid var(--border);padding:3px 8px;border-radius:4px;}
-    .header-nav{margin-left:auto;display:flex;gap:6px;align-items:center;}
-    .nav-btn{padding:5px 12px;border:1px solid var(--border);background:transparent;color:var(--muted);border-radius:var(--radius);cursor:pointer;font-family:'DM Mono',monospace;font-size:10px;text-decoration:none;transition:all 0.15s;}
-    .nav-btn:hover{border-color:var(--gold);color:var(--gold);}
-    .nav-btn.primary{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#1a1510;border-color:var(--gold2);font-weight:500;}
-    .nav-btn.primary:hover{opacity:0.85;}
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      overflow: hidden;
+    }
 
-    /* ── Layout ── */
-    .workspace{display:flex;flex:1;overflow:hidden;}
-
-    /* ── Left toolbar ── */
-    .toolbar{width:52px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:4px;flex-shrink:0;overflow-y:auto;}
-    .tool-sep{width:32px;height:1px;background:var(--border);margin:4px 0;}
-    .tool-btn{width:36px;height:36px;border-radius:6px;border:1px solid transparent;background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;transition:all 0.15s;position:relative;flex-shrink:0;}
-    .tool-btn:hover{background:var(--surface2);border-color:var(--border);color:var(--text);}
-    .tool-btn.active{background:var(--surface2);border-color:var(--gold);color:var(--gold);}
-    .tool-btn[title]:hover::after{content:attr(title);position:absolute;left:44px;top:50%;transform:translateY(-50%);background:var(--surface2);border:1px solid var(--border);padding:3px 8px;border-radius:4px;font-size:9px;white-space:nowrap;color:var(--text);z-index:100;pointer-events:none;}
-
-    /* ── Right panel ── */
-    .side-panel{width:220px;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;flex-shrink:0;}
-    .panel-section{border-bottom:1px solid var(--border);padding:12px;}
-    .panel-title{font-size:9px;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;}
-
-    /* Tool options */
-    .opt-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
-    .opt-label{font-size:10px;color:var(--muted);}
-    .opt-val{font-size:10px;color:var(--gold2);width:28px;text-align:right;}
-    input[type=range]{width:90px;accent-color:var(--gold);cursor:pointer;}
-    .colour-btns{display:flex;gap:6px;}
-    .colour-btn{width:28px;height:28px;border-radius:5px;border:2px solid transparent;cursor:pointer;transition:border-color 0.15s;}
-    .colour-btn.active{border-color:var(--gold);}
-
-    /* Op buttons */
-    .op-btn{width:100%;padding:7px 10px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:5px;cursor:pointer;font-family:'DM Mono',monospace;font-size:10px;text-align:left;margin-bottom:5px;transition:all 0.15s;display:flex;align-items:center;gap:7px;}
-    .op-btn:hover{border-color:var(--gold);color:var(--gold);}
-    .op-icon{font-size:12px;width:16px;text-align:center;}
-    .op-btn.danger{color:var(--danger);}
-    .op-btn.danger:hover{border-color:var(--danger);}
-
-    /* Stats */
-    .stat-row{display:flex;justify-content:space-between;margin-bottom:5px;}
-    .stat-l{font-size:10px;color:var(--muted);}
-    .stat-v{font-size:10px;color:var(--gold2);}
-    .stat-v.ok{color:var(--success);}
-    .stat-v.bad{color:var(--danger);}
-
-    /* History */
-    .hist-list{display:flex;flex-direction:column;gap:3px;max-height:120px;overflow-y:auto;}
-    .hist-item{padding:4px 7px;border-radius:4px;font-size:9px;color:var(--muted);cursor:pointer;transition:all 0.12s;display:flex;justify-content:space-between;align-items:center;}
-    .hist-item:hover{background:var(--surface2);color:var(--text);}
-    .hist-item.current{background:var(--surface2);border:1px solid var(--border);color:var(--text);}
-    .hist-dot{width:6px;height:6px;border-radius:50%;background:var(--border2);}
-    .hist-item.current .hist-dot{background:var(--gold);}
-
-    /* ── Canvas area ── */
-    .canvas-area{flex:1;overflow:hidden;position:relative;background:#111;display:flex;align-items:center;justify-content:center;}
-    .canvas-wrap{position:relative;cursor:crosshair;}
-    #main-canvas{display:block;image-rendering:pixelated;}
-    #overlay-canvas{position:absolute;top:0;left:0;pointer-events:none;image-rendering:pixelated;}
-
-    /* Grid overlay */
-    .canvas-wrap.show-grid #main-canvas{outline:1px solid rgba(255,255,255,0.05);}
-
-    /* Zoom controls */
-    .zoom-bar{position:absolute;bottom:12px;right:12px;display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:5px 10px;}
-    .zoom-btn{background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:14px;width:20px;text-align:center;line-height:1;}
-    .zoom-btn:hover{color:var(--gold);}
-    .zoom-label{font-size:10px;color:var(--text);min-width:36px;text-align:center;}
-
-    /* Coord bar */
-    .coord-bar{position:absolute;bottom:12px;left:12px;font-size:9px;color:var(--muted);background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:4px 8px;}
-
-    /* Upload overlay */
-    .upload-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;background:rgba(14,12,10,0.95);z-index:10;}
-    .upload-drop{border:1.5px dashed var(--border2);border-radius:var(--radius);padding:40px 60px;text-align:center;cursor:pointer;transition:all 0.2s;background:var(--surface);}
-    .upload-drop:hover,.upload-drop.drag-over{border-color:var(--gold);background:var(--surface2);}
-    .upload-drop-icon{font-size:32px;margin-bottom:10px;}
-    .upload-drop-label{font-size:13px;color:var(--text);margin-bottom:4px;}
-    .upload-drop-hint{font-size:10px;color:var(--muted);}
-
-    /* Spinner */
-    .spinner{width:18px;height:18px;border:2px solid var(--border2);border-top-color:var(--gold);border-radius:50%;animation:spin 0.7s linear infinite;display:none;}
-    .spinner.show{display:inline-block;}
+    /* ─── FIXED HEADER ─────────────────────────────────────── */
+    #app-header {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 48px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 16px;
+      z-index: 100;
+    }
+    .logo-mark {
+      width: 28px; height: 28px; flex-shrink: 0;
+      background: linear-gradient(135deg,var(--gold),var(--gold2));
+      border-radius: 5px;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Cormorant Garamond',serif; font-size: 15px; font-weight: 600;
+      color: #1a1510;
+    }
+    #header-title { font-family:'Cormorant Garamond',serif; font-size:15px; color:var(--gold2); }
+    #header-sub   { font-size:9px; color:var(--muted); }
+    #header-file  {
+      margin-left: 6px; font-size:10px; color:var(--muted);
+      border:1px solid var(--border); padding:2px 8px; border-radius:4px;
+      max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .h-spacer { flex: 1; }
+    .hbtn {
+      padding: 4px 12px;
+      border: 1px solid var(--border);
+      background: transparent; color: var(--muted);
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-family: 'DM Mono',monospace; font-size: 10px;
+      text-decoration: none;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .hbtn:hover { border-color:var(--gold); color:var(--gold); }
+    .hbtn.gold {
+      background: linear-gradient(135deg,var(--gold),var(--gold2));
+      color: #1a1510; border-color: var(--gold2); font-weight:500;
+    }
+    .hbtn.gold:hover { opacity:.85; }
+    #spinner {
+      width:14px; height:14px;
+      border:2px solid var(--border2); border-top-color:var(--gold);
+      border-radius:50%; animation:spin .7s linear infinite; display:none;
+    }
+    #spinner.show { display:inline-block; }
     @keyframes spin{to{transform:rotate(360deg);}}
 
-    /* Toast */
-    .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--surface2);border:1px solid var(--border);padding:8px 16px;border-radius:var(--radius);font-size:10px;color:var(--text);z-index:200;opacity:0;transition:opacity 0.2s;pointer-events:none;}
-    .toast.show{opacity:1;}
+    /* ─── FIXED LEFT TOOLBAR ────────────────────────────────── */
+    #toolbar {
+      position: fixed;
+      top: 48px; left: 0;
+      width: 48px;
+      bottom: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; align-items: center;
+      padding: 8px 0; gap: 3px;
+      overflow-y: auto;
+      z-index: 90;
+    }
+    .tsep { width:30px; height:1px; background:var(--border); margin:3px 0; flex-shrink:0; }
+    .tbtn {
+      width: 34px; height: 34px; flex-shrink: 0;
+      border-radius: 6px; border: 1px solid transparent;
+      background: transparent; color: var(--muted);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px;
+      transition: all .15s;
+      position: relative;
+    }
+    .tbtn:hover { background:var(--surface2); border-color:var(--border); color:var(--text); }
+    .tbtn.on   { background:var(--surface2); border-color:var(--gold); color:var(--gold); }
+    .tbtn::after {
+      content: attr(data-tip);
+      position: absolute; left: 42px; top: 50%; transform: translateY(-50%);
+      background: var(--surface2); border: 1px solid var(--border);
+      padding: 3px 8px; border-radius: 4px; font-size: 9px;
+      white-space: nowrap; color: var(--text); z-index: 200;
+      pointer-events: none; opacity: 0; transition: opacity .12s;
+    }
+    .tbtn:hover::after { opacity: 1; }
 
-    /* Radius badge on op buttons */
-    .op-param{margin-left:auto;display:flex;align-items:center;gap:4px;}
-    .param-btn{width:18px;height:18px;background:var(--surface);border:1px solid var(--border);border-radius:3px;color:var(--muted);cursor:pointer;font-size:10px;display:flex;align-items:center;justify-content:center;line-height:1;}
-    .param-btn:hover{border-color:var(--gold);color:var(--gold);}
-    .param-val{font-size:10px;color:var(--gold2);min-width:14px;text-align:center;}
+    /* ─── FIXED RIGHT PANEL ─────────────────────────────────── */
+    #side-panel {
+      position: fixed;
+      top: 48px; right: 0;
+      width: 210px;
+      bottom: 0;
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      overflow-y: auto;
+      z-index: 90;
+    }
+    .psec { border-bottom: 1px solid var(--border); padding: 10px 12px; }
+    .ptitle {
+      font-size: 9px; letter-spacing: .08em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 8px;
+    }
+    .opt-row {
+      display: flex; align-items: center;
+      justify-content: space-between; margin-bottom: 6px;
+    }
+    .opt-label { font-size: 10px; color: var(--muted); }
+    .opt-val   { font-size: 10px; color: var(--gold2); width: 24px; text-align: right; }
+    input[type=range] { width: 80px; accent-color: var(--gold); cursor: pointer; }
+    .cbtn {
+      width: 26px; height: 26px; border-radius: 4px;
+      border: 2px solid transparent; cursor: pointer; transition: border-color .15s;
+    }
+    .cbtn.on { border-color: var(--gold); }
+
+    /* Op buttons */
+    .obtn {
+      width: 100%; padding: 6px 8px;
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); border-radius: 5px; cursor: pointer;
+      font-family: 'DM Mono',monospace; font-size: 10px;
+      text-align: left; margin-bottom: 4px;
+      display: flex; align-items: center; gap: 6px;
+      transition: all .15s;
+    }
+    .obtn:hover { border-color:var(--gold); color:var(--gold); }
+    .obtn.red   { color:var(--danger); }
+    .obtn.red:hover { border-color:var(--danger); }
+    .oic { font-size:11px; width:14px; text-align:center; }
+    .pctl {
+      margin-left:auto; display:flex; align-items:center; gap:3px;
+    }
+    .pbtn {
+      width:16px; height:16px;
+      background:var(--surface); border:1px solid var(--border);
+      border-radius:3px; color:var(--muted); cursor:pointer;
+      font-size:9px; display:flex; align-items:center; justify-content:center;
+    }
+    .pbtn:hover { border-color:var(--gold); color:var(--gold); }
+    .pval { font-size:10px; color:var(--gold2); min-width:12px; text-align:center; }
+
+    /* Stats */
+    .srow { display:flex; justify-content:space-between; margin-bottom:4px; }
+    .sl   { font-size:10px; color:var(--muted); }
+    .sv   { font-size:10px; color:var(--gold2); }
+    .sv.ok  { color:var(--success); }
+    .sv.bad { color:var(--danger); }
+
+    /* History */
+    .hlist { display:flex; flex-direction:column; gap:2px; }
+    .hitem {
+      padding:3px 6px; border-radius:3px; font-size:9px;
+      color:var(--muted); cursor:pointer; transition:all .1s;
+      display:flex; justify-content:space-between; align-items:center;
+    }
+    .hitem:hover { background:var(--surface2); color:var(--text); }
+    .hitem.cur   { background:var(--surface2); border:1px solid var(--border2); color:var(--text); }
+    .hdot { width:5px; height:5px; border-radius:50%; background:var(--border2); }
+    .hitem.cur .hdot { background:var(--gold); }
+
+    /* ─── CANVAS AREA (fills remaining space) ──────────────── */
+    #canvas-area {
+      position: fixed;
+      top: 48px; left: 48px; right: 210px; bottom: 0;
+      background: #0a0a0a;
+      overflow: auto;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* Upload overlay — sits inside canvas-area, covers it */
+    #upload-overlay {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 14px;
+      background: #0a0a0a;
+      z-index: 20;
+    }
+    #upload-drop {
+      border: 1.5px dashed var(--border2);
+      border-radius: var(--radius);
+      padding: 44px 64px;
+      text-align: center; cursor: pointer;
+      transition: all .2s; background: var(--surface);
+    }
+    #upload-drop:hover, #upload-drop.over {
+      border-color: var(--gold); background: var(--surface2);
+    }
+    .udicon  { font-size:30px; margin-bottom:10px; }
+    .udlabel { font-size:13px; color:var(--text); margin-bottom:4px; }
+    .udhint  { font-size:10px; color:var(--muted); }
+    #gen-hint { font-size:10px; color:var(--muted); text-align:center; display:none; }
+
+    /* Canvas wrap */
+    #canvas-wrap { position:relative; display:none; cursor:crosshair; }
+    #main-canvas { display:block; image-rendering:pixelated; }
+    #ov-canvas   {
+      position:absolute; top:0; left:0;
+      pointer-events:none; image-rendering:pixelated;
+    }
+
+    /* Zoom bar */
+    #zoom-bar {
+      position: absolute; bottom: 12px; right: 12px;
+      display: flex; align-items: center; gap: 5px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 4px 8px;
+      z-index: 10;
+    }
+    .zbtn { background:transparent; border:none; color:var(--muted); cursor:pointer; font-size:13px; width:18px; text-align:center; }
+    .zbtn:hover { color:var(--gold); }
+    #zoom-label { font-size:10px; color:var(--text); min-width:34px; text-align:center; }
+    #coord-bar {
+      position: absolute; bottom: 12px; left: 12px;
+      font-size: 9px; color: var(--muted);
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 4px; padding: 3px 7px; z-index: 10;
+    }
+
+    /* Toast */
+    #toast {
+      position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+      background: var(--surface2); border: 1px solid var(--border);
+      padding: 7px 14px; border-radius: var(--radius);
+      font-size: 10px; color: var(--text); z-index: 300;
+      opacity: 0; transition: opacity .2s; pointer-events: none;
+      white-space: nowrap;
+    }
+    #toast.on { opacity: 1; }
   </style>
 </head>
 <body>
 
-<!-- Header -->
-<header>
+<!-- ─── HEADER ──────────────────────────────────────────────── -->
+<div id="app-header">
   <div class="logo-mark">J</div>
   <div>
-    <div class="header-title">BMP Editor</div>
-    <div class="header-sub">Jacquard Designer</div>
+    <div id="header-title">BMP Editor</div>
+    <div id="header-sub">Jacquard Designer</div>
   </div>
-  <div class="header-file" id="header-filename">No file loaded</div>
-  <div class="header-nav">
-    <div class="spinner" id="op-spinner"></div>
-    <button class="nav-btn" onclick="undo()" title="Undo (Ctrl+Z)">↩ Undo</button>
-    <button class="nav-btn" onclick="redo()" title="Redo (Ctrl+Y)">↪ Redo</button>
-    <button class="nav-btn" onclick="downloadBMP()">↓ Download BMP</button>
-    <button class="nav-btn primary" onclick="sendBackToGenerator()">→ Back to Generator</button>
-    <a href="/"      class="nav-btn">⬡ Generator</a>
-    <a href="/trace" class="nav-btn">✦ Trace</a>
-  </div>
-</header>
-
-<div class="workspace">
-
-  <!-- Left toolbar -->
-  <div class="toolbar">
-    <!-- Draw tools -->
-    <button class="tool-btn active" id="tool-pencil"  onclick="setTool('pencil')"  title="Pencil — draw UP pixels">✏</button>
-    <button class="tool-btn"        id="tool-eraser"  onclick="setTool('eraser')"  title="Eraser — draw DOWN pixels">◻</button>
-    <button class="tool-btn"        id="tool-fill"    onclick="setTool('fill')"    title="Flood fill">🪣</button>
-    <button class="tool-btn"        id="tool-line"    onclick="setTool('line')"    title="Draw line">╱</button>
-    <button class="tool-btn"        id="tool-rect"    onclick="setTool('rect')"    title="Draw filled rectangle">▬</button>
-    <div class="tool-sep"></div>
-    <!-- Selection -->
-    <button class="tool-btn"        id="tool-select"  onclick="setTool('select')"  title="Rectangle select">⬚</button>
-    <button class="tool-btn"        id="tool-pan"     onclick="setTool('pan')"     title="Pan / move canvas">✋</button>
-    <div class="tool-sep"></div>
-    <!-- View -->
-    <button class="tool-btn" onclick="toggleGrid()" id="btn-grid" title="Toggle pixel grid">⊞</button>
-    <button class="tool-btn" onclick="fitToWindow()" title="Fit to window">⛶</button>
-  </div>
-
-  <!-- Canvas area -->
-  <div class="canvas-area" id="canvas-area"
-       ondragover="event.preventDefault();document.getElementById('upload-drop-zone').classList.add('drag-over')"
-       ondragleave="document.getElementById('upload-drop-zone').classList.remove('drag-over')"
-       ondrop="handleFileDrop(event)">
-
-    <!-- Upload overlay (shown when no image loaded) -->
-    <div class="upload-overlay" id="upload-overlay">
-      <div class="upload-drop" id="upload-drop-zone"
-           onclick="document.getElementById('file-input').click()">
-        <div class="upload-drop-icon">⬡</div>
-        <div class="upload-drop-label">Drop BMP file here or click to upload</div>
-        <div class="upload-drop-hint">1-bit BMP files • black = UP thread • white = DOWN thread</div>
-      </div>
-      <div id="from-generator-hint" style="display:none;font-size:10px;color:var(--muted);text-align:center">
-        Or loading from generator…
-      </div>
-    </div>
-    <input type="file" id="file-input" accept=".bmp,.png" style="display:none" onchange="loadFile(this.files[0])">
-
-    <!-- Canvas -->
-    <div class="canvas-wrap" id="canvas-wrap"
-         style="display:none"
-         onmousedown="canvasMouseDown(event)"
-         onmousemove="canvasMouseMove(event)"
-         onmouseup="canvasMouseUp(event)"
-         onmouseleave="canvasMouseLeave(event)"
-         onwheel="canvasWheel(event)">
-      <canvas id="main-canvas"></canvas>
-      <canvas id="overlay-canvas"></canvas>
-    </div>
-
-    <!-- Zoom bar -->
-    <div class="zoom-bar">
-      <button class="zoom-btn" onclick="zoom(-1)">−</button>
-      <span class="zoom-label" id="zoom-label">100%</span>
-      <button class="zoom-btn" onclick="zoom(+1)">+</button>
-    </div>
-    <!-- Coord bar -->
-    <div class="coord-bar" id="coord-bar">x:— y:—</div>
-  </div>
-
-  <!-- Right panel -->
-  <div class="side-panel">
-
-    <!-- Tool options -->
-    <div class="panel-section">
-      <div class="panel-title">Brush</div>
-      <div class="opt-row">
-        <span class="opt-label">Size</span>
-        <input type="range" id="brush-size" min="1" max="20" value="1"
-               oninput="brushSize=+this.value;document.getElementById('brush-val').textContent=this.value">
-        <span class="opt-val" id="brush-val">1</span>
-      </div>
-      <div class="opt-row">
-        <span class="opt-label">Colour</span>
-        <div class="colour-btns">
-          <div class="colour-btn active" id="col-black" style="background:#000"
-               onclick="setDrawColour('black')" title="UP (black)"></div>
-          <div class="colour-btn" id="col-white" style="background:#fff"
-               onclick="setDrawColour('white')" title="DOWN (white)"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Transform -->
-    <div class="panel-section">
-      <div class="panel-title">Transform</div>
-      <button class="op-btn" onclick="applyOp('flip_h')">   <span class="op-icon">⇄</span> Flip Horizontal</button>
-      <button class="op-btn" onclick="applyOp('flip_v')">   <span class="op-icon">⇅</span> Flip Vertical</button>
-      <button class="op-btn" onclick="applyOp('rotate_90')"><span class="op-icon">↻</span> Rotate 90°</button>
-      <button class="op-btn" onclick="applyOp('rotate_180')"><span class="op-icon">↺</span> Rotate 180°</button>
-      <button class="op-btn" onclick="applyOp('rotate_270')"><span class="op-icon">↻</span> Rotate 270°</button>
-    </div>
-
-    <!-- Morphological -->
-    <div class="panel-section">
-      <div class="panel-title">Morphological</div>
-      <button class="op-btn" onclick="applyMorphOp('dilate')">
-        <span class="op-icon">⊕</span> Dilate (thicken)
-        <div class="op-param">
-          <button class="param-btn" onclick="event.stopPropagation();changeParam('dilate',-1)">−</button>
-          <span class="param-val" id="param-dilate">1</span>
-          <button class="param-btn" onclick="event.stopPropagation();changeParam('dilate',+1)">+</button>
-        </div>
-      </button>
-      <button class="op-btn" onclick="applyMorphOp('erode')">
-        <span class="op-icon">⊖</span> Erode (thin)
-        <div class="op-param">
-          <button class="param-btn" onclick="event.stopPropagation();changeParam('erode',-1)">−</button>
-          <span class="param-val" id="param-erode">1</span>
-          <button class="param-btn" onclick="event.stopPropagation();changeParam('erode',+1)">+</button>
-        </div>
-      </button>
-      <button class="op-btn" onclick="applyMorphOp('close_gaps')">
-        <span class="op-icon">⬡</span> Close Gaps
-        <div class="op-param">
-          <button class="param-btn" onclick="event.stopPropagation();changeParam('close_gaps',-1)">−</button>
-          <span class="param-val" id="param-close_gaps">2</span>
-          <button class="param-btn" onclick="event.stopPropagation();changeParam('close_gaps',+1)">+</button>
-        </div>
-      </button>
-      <button class="op-btn" onclick="applyMorphOp('open')">
-        <span class="op-icon">◎</span> Open (smooth)
-        <div class="op-param">
-          <button class="param-btn" onclick="event.stopPropagation();changeParam('open',-1)">−</button>
-          <span class="param-val" id="param-open">1</span>
-          <button class="param-btn" onclick="event.stopPropagation();changeParam('open',+1)">+</button>
-        </div>
-      </button>
-    </div>
-
-    <!-- Clean-up -->
-    <div class="panel-section">
-      <div class="panel-title">Clean-up</div>
-      <button class="op-btn" onclick="applyMorphOp('remove_isolated')">
-        <span class="op-icon">✕</span> Remove Isolated Pixels
-      </button>
-      <button class="op-btn" onclick="applyCleanNoise()">
-        <span class="op-icon">◌</span> Clean Noise
-        <div class="op-param">
-          <button class="param-btn" onclick="event.stopPropagation();changeParam('clean_noise',-1)">−</button>
-          <span class="param-val" id="param-clean_noise">5</span>
-          <button class="param-btn" onclick="event.stopPropagation();changeParam('clean_noise',+1)">+</button>
-        </div>
-      </button>
-      <button class="op-btn danger" onclick="applyOp('invert')">
-        <span class="op-icon">⬛</span> Invert (swap UP/DOWN)
-      </button>
-    </div>
-
-    <!-- Stats -->
-    <div class="panel-section">
-      <div class="panel-title">Statistics</div>
-      <div class="stat-row"><span class="stat-l">Size</span>      <span class="stat-v" id="stat-size">—</span></div>
-      <div class="stat-row"><span class="stat-l">UP pixels</span> <span class="stat-v" id="stat-up">—</span></div>
-      <div class="stat-row"><span class="stat-l">UP %</span>      <span class="stat-v" id="stat-pct">—</span></div>
-      <div class="stat-row"><span class="stat-l">1-bit clean</span><span class="stat-v ok" id="stat-clean">—</span></div>
-    </div>
-
-    <!-- History -->
-    <div class="panel-section" style="border-bottom:none">
-      <div class="panel-title">History</div>
-      <div class="hist-list" id="hist-list"></div>
-    </div>
-
-  </div>
+  <div id="header-file">No file loaded</div>
+  <div class="h-spacer"></div>
+  <div id="spinner"></div>
+  <button class="hbtn" onclick="undo()">↩ Undo</button>
+  <button class="hbtn" onclick="redo()">↪ Redo</button>
+  <button class="hbtn" onclick="downloadBMP()">↓ Download BMP</button>
+  <button class="hbtn gold" onclick="sendToGenerator()">→ Back to Generator</button>
+  <a href="/"      class="hbtn">⬡ Generator</a>
+  <a href="/trace" class="hbtn">✦ Trace</a>
 </div>
 
-<!-- Toast -->
-<div class="toast" id="toast"></div>
+<!-- ─── LEFT TOOLBAR ────────────────────────────────────────── -->
+<div id="toolbar">
+  <button class="tbtn on" id="tbtn-pencil" onclick="setTool('pencil')" data-tip="Pencil (P)">✏</button>
+  <button class="tbtn"    id="tbtn-eraser" onclick="setTool('eraser')" data-tip="Eraser (E)">◻</button>
+  <button class="tbtn"    id="tbtn-fill"   onclick="setTool('fill')"   data-tip="Flood Fill (F)">🪣</button>
+  <button class="tbtn"    id="tbtn-line"   onclick="setTool('line')"   data-tip="Line (L)">╱</button>
+  <button class="tbtn"    id="tbtn-rect"   onclick="setTool('rect')"   data-tip="Rectangle (R)">▬</button>
+  <div class="tsep"></div>
+  <button class="tbtn"    id="tbtn-pan"    onclick="setTool('pan')"    data-tip="Pan (H)">✋</button>
+  <div class="tsep"></div>
+  <button class="tbtn"    id="tbtn-grid"   onclick="toggleGrid()"      data-tip="Grid (G)">⊞</button>
+  <button class="tbtn"                     onclick="fitToWindow()"     data-tip="Fit (0)">⛶</button>
+  <div class="tsep"></div>
+  <button class="tbtn"                     onclick="document.getElementById('file-input2').click()" data-tip="Upload BMP">📂</button>
+  <input type="file" id="file-input2" accept=".bmp,.png" style="display:none" onchange="loadFile(this.files[0])">
+</div>
+
+<!-- ─── CANVAS AREA ─────────────────────────────────────────── -->
+<div id="canvas-area"
+     ondragover="event.preventDefault();document.getElementById('upload-drop').classList.add('over')"
+     ondragleave="document.getElementById('upload-drop').classList.remove('over')"
+     ondrop="onDrop(event)">
+
+  <!-- Upload overlay -->
+  <div id="upload-overlay">
+    <div id="upload-drop" onclick="document.getElementById('file-input').click()">
+      <div class="udicon">📂</div>
+      <div class="udlabel">Drop BMP / PNG here, or click to upload</div>
+      <div class="udhint">1-bit BMP files · black = UP thread · white = DOWN thread</div>
+    </div>
+    <div id="gen-hint">Loading from generator…</div>
+    <input type="file" id="file-input" accept=".bmp,.png" style="display:none"
+           onchange="loadFile(this.files[0])">
+  </div>
+
+  <!-- Canvas (hidden until file loaded) -->
+  <div id="canvas-wrap"
+       onmousedown="onMD(event)"
+       onmousemove="onMM(event)"
+       onmouseup="onMU(event)"
+       onmouseleave="onML(event)"
+       onwheel="onWheel(event)">
+    <canvas id="main-canvas"></canvas>
+    <canvas id="ov-canvas"></canvas>
+  </div>
+
+  <div id="zoom-bar">
+    <button class="zbtn" onclick="zoomStep(-1)">−</button>
+    <span id="zoom-label">100%</span>
+    <button class="zbtn" onclick="zoomStep(+1)">+</button>
+  </div>
+  <div id="coord-bar">x:— y:—</div>
+</div>
+
+<!-- ─── RIGHT PANEL ──────────────────────────────────────────── -->
+<div id="side-panel">
+
+  <div class="psec">
+    <div class="ptitle">Brush</div>
+    <div class="opt-row">
+      <span class="opt-label">Size</span>
+      <input type="range" id="brush-size" min="1" max="20" value="1"
+             oninput="S.brushSz=+this.value;document.getElementById('bsval').textContent=this.value">
+      <span class="opt-val" id="bsval">1</span>
+    </div>
+    <div class="opt-row">
+      <span class="opt-label">Colour</span>
+      <div style="display:flex;gap:5px">
+        <div class="cbtn on" id="c-black" style="background:#000" onclick="setCol('black')" title="UP (black)"></div>
+        <div class="cbtn"    id="c-white" style="background:#fff;border:1px solid #555" onclick="setCol('white')" title="DOWN (white)"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="psec">
+    <div class="ptitle">Transform</div>
+    <button class="obtn" onclick="runOp('flip_h')">  <span class="oic">⇄</span> Flip Horizontal</button>
+    <button class="obtn" onclick="runOp('flip_v')">  <span class="oic">⇅</span> Flip Vertical</button>
+    <button class="obtn" onclick="runOp('rotate_90')"><span class="oic">↻</span> Rotate 90°</button>
+    <button class="obtn" onclick="runOp('rotate_180')"><span class="oic">↺</span> Rotate 180°</button>
+    <button class="obtn" onclick="runOp('rotate_270')"><span class="oic">↻</span> Rotate 270°</button>
+  </div>
+
+  <div class="psec">
+    <div class="ptitle">Morphological</div>
+    <button class="obtn" onclick="runMorph('dilate')">
+      <span class="oic">⊕</span> Dilate
+      <div class="pctl">
+        <button class="pbtn" onclick="event.stopPropagation();adj('dilate',-1)">−</button>
+        <span class="pval" id="pv-dilate">1</span>
+        <button class="pbtn" onclick="event.stopPropagation();adj('dilate',+1)">+</button>
+      </div>
+    </button>
+    <button class="obtn" onclick="runMorph('erode')">
+      <span class="oic">⊖</span> Erode
+      <div class="pctl">
+        <button class="pbtn" onclick="event.stopPropagation();adj('erode',-1)">−</button>
+        <span class="pval" id="pv-erode">1</span>
+        <button class="pbtn" onclick="event.stopPropagation();adj('erode',+1)">+</button>
+      </div>
+    </button>
+    <button class="obtn" onclick="runMorph('close_gaps')">
+      <span class="oic">⬡</span> Close Gaps
+      <div class="pctl">
+        <button class="pbtn" onclick="event.stopPropagation();adj('close_gaps',-1)">−</button>
+        <span class="pval" id="pv-close_gaps">2</span>
+        <button class="pbtn" onclick="event.stopPropagation();adj('close_gaps',+1)">+</button>
+      </div>
+    </button>
+    <button class="obtn" onclick="runMorph('open')">
+      <span class="oic">◎</span> Open (smooth)
+      <div class="pctl">
+        <button class="pbtn" onclick="event.stopPropagation();adj('open',-1)">−</button>
+        <span class="pval" id="pv-open">1</span>
+        <button class="pbtn" onclick="event.stopPropagation();adj('open',+1)">+</button>
+      </div>
+    </button>
+  </div>
+
+  <div class="psec">
+    <div class="ptitle">Clean-up</div>
+    <button class="obtn" onclick="runOp('remove_isolated')"><span class="oic">✕</span> Remove Isolated Pixels</button>
+    <button class="obtn" onclick="runMorph('clean_noise')">
+      <span class="oic">◌</span> Clean Noise
+      <div class="pctl">
+        <button class="pbtn" onclick="event.stopPropagation();adj('clean_noise',-1)">−</button>
+        <span class="pval" id="pv-clean_noise">5</span>
+        <button class="pbtn" onclick="event.stopPropagation();adj('clean_noise',+1)">+</button>
+      </div>
+    </button>
+    <button class="obtn red" onclick="runOp('invert')"><span class="oic">⬛</span> Invert UP/DOWN</button>
+  </div>
+
+  <div class="psec">
+    <div class="ptitle">Statistics</div>
+    <div class="srow"><span class="sl">Size</span>       <span class="sv" id="st-size">—</span></div>
+    <div class="srow"><span class="sl">UP pixels</span>  <span class="sv" id="st-up">—</span></div>
+    <div class="srow"><span class="sl">UP %</span>       <span class="sv" id="st-pct">—</span></div>
+    <div class="srow"><span class="sl">1-bit clean</span><span class="sv ok" id="st-clean">—</span></div>
+  </div>
+
+  <div class="psec" style="border-bottom:none">
+    <div class="ptitle">History <span style="color:var(--border2);font-size:8px">(click to jump)</span></div>
+    <div class="hlist" id="hlist"></div>
+  </div>
+
+</div>
+
+<div id="toast"></div>
 
 <script>
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
 // STATE
-// ═══════════════════════════════════════════════════════════════
-const state = {
-  // Image data: Uint8ClampedArray (RGBA) of the current BMP
-  // Black (0,0,0,255) = UP thread, White (255,255,255,255) = DOWN thread
-  pixels:     null,    // Uint8ClampedArray
-  width:      0,
-  height:     0,
-  filename:   '',
-
-  // View
-  zoom:       2,       // px per BMP pixel
-  panX:       0,
-  panY:       0,
-  showGrid:   false,
-
-  // Tool
-  tool:       'pencil',
-  drawColour: 'black',
-  brushSize:  1,
-
-  // Interaction
-  painting:   false,
-  lastX:      -1,
-  lastY:      -1,
-  lineStart:  null,    // {x,y} for line tool
-  rectStart:  null,    // {x,y} for rect tool
-  panStart:   null,    // {mx,my,panX,panY}
-
-  // Undo/redo stacks (each entry is a copy of pixels + label)
-  history:    [],
-  histIndex:  -1,
-  MAX_HIST:   50,
-
-  // Op params
-  params: {
-    dilate:      1,
-    erode:       1,
-    close_gaps:  2,
-    open:        1,
-    clean_noise: 5,
-  },
+// ═══════════════════════════════════════════════════
+const S = {
+  pixels: null, W: 0, H: 0, filename: '',
+  zoom: 2, tool: 'pencil', drawCol: 'black', brushSz: 1,
+  painting: false, lx: -1, ly: -1,
+  lineStart: null, rectStart: null, panStart: null,
+  showGrid: false,
+  history: [], hi: -1,
+  params: { dilate:1, erode:1, close_gaps:2, open:1, clean_noise:5 },
 };
 
-// ═══════════════════════════════════════════════════════════════
-// CANVAS SETUP
-// ═══════════════════════════════════════════════════════════════
-const mainCanvas    = document.getElementById('main-canvas');
-const overlayCanvas = document.getElementById('overlay-canvas');
-const ctx           = mainCanvas.getContext('2d');
-const octx          = overlayCanvas.getContext('2d');
+const MC = document.getElementById('main-canvas');
+const OC = document.getElementById('ov-canvas');
+const cx = MC.getContext('2d');
+const ox = OC.getContext('2d');
 
-function initCanvas(w, h) {
-  mainCanvas.width  = w; mainCanvas.height  = h;
-  overlayCanvas.width = w; overlayCanvas.height = h;
-  state.width  = w; state.height = h;
-}
-
+// ═══════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════
 function render() {
-  if (!state.pixels) return;
-  const id = new ImageData(state.pixels.slice(), state.width, state.height);
-  ctx.putImageData(id, 0, 0);
-  renderGrid();
-}
-
-function renderGrid() {
-  octx.clearRect(0, 0, state.width, state.height);
-  if (!state.showGrid || state.zoom < 6) return;
-  octx.strokeStyle = 'rgba(200,169,110,0.15)';
-  octx.lineWidth   = 0.5 / state.zoom;
-  for (let x = 0; x <= state.width; x++) {
-    octx.beginPath(); octx.moveTo(x, 0); octx.lineTo(x, state.height); octx.stroke();
-  }
-  for (let y = 0; y <= state.height; y++) {
-    octx.beginPath(); octx.moveTo(0, y); octx.lineTo(state.width, y); octx.stroke();
-  }
+  if (!S.pixels) return;
+  cx.putImageData(new ImageData(S.pixels.slice(), S.W, S.H), 0, 0);
 }
 
 function applyZoom() {
-  const z = state.zoom;
-  mainCanvas.style.width    = (state.width  * z) + 'px';
-  mainCanvas.style.height   = (state.height * z) + 'px';
-  overlayCanvas.style.width  = (state.width  * z) + 'px';
-  overlayCanvas.style.height = (state.height * z) + 'px';
+  const z = S.zoom;
+  MC.style.width  = OC.style.width  = (S.W * z) + 'px';
+  MC.style.height = OC.style.height = (S.H * z) + 'px';
   document.getElementById('zoom-label').textContent = Math.round(z * 100) + '%';
 }
 
-// ═══════════════════════════════════════════════════════════════
-// LOAD IMAGE
-// ═══════════════════════════════════════════════════════════════
-function loadFromImageData(imageData, w, h, label) {
-  initCanvas(w, h);
-  state.pixels   = new Uint8ClampedArray(imageData);
-  state.filename = label || 'edited.bmp';
-  document.getElementById('header-filename').textContent = state.filename;
+// ═══════════════════════════════════════════════════
+// LOAD
+// ═══════════════════════════════════════════════════
+function initImage(pixels, w, h, name) {
+  MC.width = OC.width  = S.W = w;
+  MC.height = OC.height = S.H = h;
+  S.pixels = new Uint8ClampedArray(pixels);
+  S.filename = name;
+  document.getElementById('header-file').textContent = name;
 
-  // Reset history
-  state.history  = [];
-  state.histIndex = -1;
-  pushHistory('Original');
+  S.history = []; S.hi = -1;
+  pushHist('Original');
 
   document.getElementById('upload-overlay').style.display = 'none';
   document.getElementById('canvas-wrap').style.display    = 'block';
 
   fitToWindow();
+  render();
   updateStats();
 }
 
 function loadFile(file) {
   if (!file) return;
-  state.filename = file.name;
+  S.filename = file.name;
   const reader = new FileReader();
   reader.onload = e => {
     const img = new Image();
     img.onload = () => {
-      const offscreen = document.createElement('canvas');
-      offscreen.width  = img.naturalWidth;
-      offscreen.height = img.naturalHeight;
-      const oc = offscreen.getContext('2d');
-      oc.drawImage(img, 0, 0);
-      const id = oc.getImageData(0, 0, offscreen.width, offscreen.height);
-      // Binarise: dark pixels → black (UP), light pixels → white (DOWN)
+      const oc = Object.assign(document.createElement('canvas'),
+                               {width: img.naturalWidth, height: img.naturalHeight});
+      const c2 = oc.getContext('2d');
+      c2.drawImage(img, 0, 0);
+      const id = c2.getImageData(0, 0, oc.width, oc.height);
+      // Binarise
       for (let i = 0; i < id.data.length; i += 4) {
-        const bright = (id.data[i] + id.data[i+1] + id.data[i+2]) / 3;
-        const v = bright < 128 ? 0 : 255;
-        id.data[i] = id.data[i+1] = id.data[i+2] = v;
-        id.data[i+3] = 255;
+        const v = (id.data[i] + id.data[i+1] + id.data[i+2]) / 3 < 128 ? 0 : 255;
+        id.data[i] = id.data[i+1] = id.data[i+2] = v; id.data[i+3] = 255;
       }
-      loadFromImageData(id.data, offscreen.width, offscreen.height, file.name);
+      initImage(id.data, oc.width, oc.height, file.name);
     };
     img.src = e.target.result;
   };
   reader.readAsDataURL(file);
 }
 
-function handleFileDrop(e) {
+function onDrop(e) {
   e.preventDefault();
-  document.getElementById('upload-drop-zone').classList.remove('drag-over');
-  const file = e.dataTransfer.files[0];
-  if (file) loadFile(file);
+  document.getElementById('upload-drop').classList.remove('over');
+  const f = e.dataTransfer.files[0];
+  if (f) loadFile(f);
 }
 
-// Load from generator via sessionStorage
+// Load from generator
 function tryLoadFromGenerator() {
-  const params = new URLSearchParams(window.location.search);
-  if (params.get('from_generator') !== '1') return;
-
-  document.getElementById('from-generator-hint').style.display = 'block';
-  const zipB64   = sessionStorage.getItem('editor_zip_b64')   || '';
-  const filename = sessionStorage.getItem('editor_filename')   || '';
-  const preview  = sessionStorage.getItem('editor_preview')    || '';
-
-  if (!zipB64 || !filename) {
-    document.getElementById('from-generator-hint').textContent = 'No data from generator — upload manually';
+  const p = new URLSearchParams(window.location.search);
+  if (p.get('from_generator') !== '1') return;
+  document.getElementById('gen-hint').style.display = 'block';
+  const preview  = sessionStorage.getItem('editor_preview')   || '';
+  const filename = sessionStorage.getItem('editor_filename')  || 'from_generator.bmp';
+  if (!preview) {
+    document.getElementById('gen-hint').textContent = 'No data from generator — upload file manually';
     return;
   }
-
-  // Decode zip, extract the BMP, load it
-  try {
-    const zipBytes = Uint8Array.from(atob(zipB64), c => c.charCodeAt(0));
-    // Use a simple approach: load the thumbnail preview (PNG b64) directly
-    // The preview is already a PNG of the BMP at thumbnail size
-    // Better: decode the actual BMP from the zip
-    if (preview) {
-      state.filename = filename;
-      const img = new Image();
-      img.onload = () => {
-        const offscreen = document.createElement('canvas');
-        offscreen.width  = img.naturalWidth;
-        offscreen.height = img.naturalHeight;
-        const oc = offscreen.getContext('2d');
-        oc.drawImage(img, 0, 0);
-        const id = oc.getImageData(0, 0, offscreen.width, offscreen.height);
-        // The preview may be thumbnail -- check if we need to use zip instead
-        // For now use preview (thumbnail) and note limitation
-        for (let i = 0; i < id.data.length; i += 4) {
-          const bright = (id.data[i]+id.data[i+1]+id.data[i+2])/3;
-          const v = bright < 128 ? 0 : 255;
-          id.data[i]=id.data[i+1]=id.data[i+2]=v; id.data[i+3]=255;
-        }
-        loadFromImageData(id.data, offscreen.width, offscreen.height, filename);
-        showToast('Loaded from generator (thumbnail — for full-res, download the ZIP and upload the BMP)');
-        sessionStorage.removeItem('editor_zip_b64');
-        sessionStorage.removeItem('editor_filename');
-        sessionStorage.removeItem('editor_preview');
-      };
-      img.src = 'data:image/png;base64,' + preview;
+  const img = new Image();
+  img.onload = () => {
+    const oc = Object.assign(document.createElement('canvas'),
+                             {width: img.naturalWidth, height: img.naturalHeight});
+    const c2 = oc.getContext('2d'); c2.drawImage(img, 0, 0);
+    const id = c2.getImageData(0, 0, oc.width, oc.height);
+    for (let i = 0; i < id.data.length; i += 4) {
+      const v = (id.data[i]+id.data[i+1]+id.data[i+2])/3 < 128 ? 0 : 255;
+      id.data[i]=id.data[i+1]=id.data[i+2]=v; id.data[i+3]=255;
     }
-  } catch(err) {
-    showToast('Could not load from generator: ' + err.message);
-  }
+    initImage(id.data, oc.width, oc.height, filename);
+    toast('Loaded from generator (thumbnail). For full-res: download ZIP → upload the .bmp');
+    ['editor_preview','editor_filename','editor_zip_b64','editor_design'].forEach(k => sessionStorage.removeItem(k));
+  };
+  img.src = 'data:image/png;base64,' + preview;
 }
 
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
 // HISTORY
-// ═══════════════════════════════════════════════════════════════
-function pushHistory(label) {
-  // Truncate forward history
-  state.history = state.history.slice(0, state.histIndex + 1);
-  // Limit size
-  if (state.history.length >= state.MAX_HIST) {
-    state.history.shift();
-  }
-  state.history.push({ pixels: state.pixels.slice(), label });
-  state.histIndex = state.history.length - 1;
-  renderHistoryList();
+// ═══════════════════════════════════════════════════
+function pushHist(label) {
+  S.history = S.history.slice(0, S.hi + 1);
+  if (S.history.length >= 50) S.history.shift();
+  S.history.push({ p: S.pixels.slice(), label });
+  S.hi = S.history.length - 1;
+  renderHist();
 }
 
 function undo() {
-  if (state.histIndex <= 0) return;
-  state.histIndex--;
-  state.pixels = state.history[state.histIndex].pixels.slice();
-  render(); updateStats(); renderHistoryList();
+  if (S.hi <= 0) return;
+  S.pixels = S.history[--S.hi].p.slice();
+  render(); updateStats(); renderHist();
 }
 
 function redo() {
-  if (state.histIndex >= state.history.length - 1) return;
-  state.histIndex++;
-  state.pixels = state.history[state.histIndex].pixels.slice();
-  render(); updateStats(); renderHistoryList();
+  if (S.hi >= S.history.length - 1) return;
+  S.pixels = S.history[++S.hi].p.slice();
+  render(); updateStats(); renderHist();
 }
 
-function renderHistoryList() {
-  const list = document.getElementById('hist-list');
+function renderHist() {
+  const list = document.getElementById('hlist');
   list.innerHTML = '';
-  state.history.forEach((h, i) => {
+  [...S.history].reverse().forEach((h, ri) => {
+    const i = S.history.length - 1 - ri;
     const el = document.createElement('div');
-    el.className = 'hist-item' + (i === state.histIndex ? ' current' : '');
-    el.innerHTML = `<span>${h.label}</span><div class="hist-dot"></div>`;
-    el.onclick = () => {
-      state.histIndex = i;
-      state.pixels = state.history[i].pixels.slice();
-      render(); updateStats(); renderHistoryList();
-    };
-    list.insertBefore(el, list.firstChild);
+    el.className = 'hitem' + (i === S.hi ? ' cur' : '');
+    el.innerHTML = `<span>${h.label}</span><div class="hdot"></div>`;
+    el.onclick = () => { S.hi=i; S.pixels=S.history[i].p.slice(); render(); updateStats(); renderHist(); };
+    list.appendChild(el);
   });
 }
 
-// ═══════════════════════════════════════════════════════════════
-// PIXEL HELPERS
-// ═══════════════════════════════════════════════════════════════
-function getPixel(x, y) {
-  if (x < 0 || x >= state.width || y < 0 || y >= state.height) return -1;
-  const i = (y * state.width + x) * 4;
-  return state.pixels[i] < 128 ? 0 : 255; // 0=UP, 255=DOWN
+// ═══════════════════════════════════════════════════
+// PIXEL OPS
+// ═══════════════════════════════════════════════════
+function gpx(x,y) {
+  if (x<0||x>=S.W||y<0||y>=S.H) return -1;
+  return S.pixels[(y*S.W+x)*4] < 128 ? 0 : 255;
+}
+function spx(x,y,v) {
+  if (x<0||x>=S.W||y<0||y>=S.H) return;
+  const i=(y*S.W+x)*4;
+  S.pixels[i]=S.pixels[i+1]=S.pixels[i+2]=v; S.pixels[i+3]=255;
+}
+function dv() { return S.drawCol==='black' ? 0 : 255; }
+
+function brush(bx,by) {
+  const v=dv(), r=Math.floor(S.brushSz/2);
+  for (let dy=-r;dy<=r;dy++)
+    for (let dx=-r;dx<=r;dx++)
+      if (S.brushSz===1||dx*dx+dy*dy<=r*r) spx(bx+dx,by+dy,v);
 }
 
-function setPixel(x, y, val) {
-  if (x < 0 || x >= state.width || y < 0 || y >= state.height) return;
-  const i = (y * state.width + x) * 4;
-  state.pixels[i] = state.pixels[i+1] = state.pixels[i+2] = val;
-  state.pixels[i+3] = 255;
+function line(x0,y0,x1,y1) {
+  let dx=Math.abs(x1-x0),dy=Math.abs(y1-y0),sx=x0<x1?1:-1,sy=y0<y1?1:-1,e=dx-dy;
+  for(;;){brush(x0,y0);if(x0===x1&&y0===y1)break;const e2=2*e;if(e2>-dy){e-=dy;x0+=sx;}if(e2<dx){e+=dx;y0+=sy;}}
 }
 
-function drawVal() { return state.drawColour === 'black' ? 0 : 255; }
-
-function paintBrush(bx, by) {
-  const v  = drawVal();
-  const sz = state.brushSize;
-  const r  = Math.floor(sz / 2);
-  for (let dy = -r; dy <= r; dy++)
-    for (let dx = -r; dx <= r; dx++)
-      if (sz === 1 || dx*dx+dy*dy <= r*r)
-        setPixel(bx+dx, by+dy, v);
-}
-
-// Bresenham line
-function paintLine(x0, y0, x1, y1) {
-  let dx = Math.abs(x1-x0), dy = Math.abs(y1-y0);
-  let sx = x0<x1?1:-1, sy = y0<y1?1:-1, err = dx-dy;
-  while (true) {
-    paintBrush(x0, y0);
-    if (x0===x1 && y0===y1) break;
-    const e2 = 2*err;
-    if (e2>-dy){err-=dy;x0+=sx;}
-    if (e2<dx){err+=dx;y0+=sy;}
+function fill(sx,sy,fv) {
+  const tgt=gpx(sx,sy); if(tgt===fv) return;
+  const stk=[[sx,sy]], vis=new Uint8Array(S.W*S.H);
+  while(stk.length){
+    const [x,y]=stk.pop();
+    if(x<0||x>=S.W||y<0||y>=S.H) continue;
+    const idx=y*S.W+x; if(vis[idx]) continue;
+    if(gpx(x,y)!==tgt) continue;
+    vis[idx]=1; spx(x,y,fv);
+    stk.push([x+1,y],[x-1,y],[x,y+1],[x,y-1]);
   }
 }
 
-// Flood fill
-function floodFill(startX, startY, fillVal) {
-  const target = getPixel(startX, startY);
-  if (target === fillVal) return;
-  const stack = [[startX, startY]];
-  const visited = new Uint8Array(state.width * state.height);
-  while (stack.length) {
-    const [x, y] = stack.pop();
-    if (x<0||x>=state.width||y<0||y>=state.height) continue;
-    const idx = y*state.width+x;
-    if (visited[idx]) continue;
-    if (getPixel(x,y) !== target) continue;
-    visited[idx] = 1;
-    setPixel(x,y,fillVal);
-    stack.push([x+1,y],[x-1,y],[x,y+1],[x,y-1]);
-  }
+// ═══════════════════════════════════════════════════
+// COORDINATES
+// ═══════════════════════════════════════════════════
+function coords(e) {
+  const r = MC.getBoundingClientRect();
+  return { x: Math.floor((e.clientX-r.left)/S.zoom), y: Math.floor((e.clientY-r.top)/S.zoom) };
 }
 
-// ═══════════════════════════════════════════════════════════════
-// CANVAS → BMP COORDINATES
-// ═══════════════════════════════════════════════════════════════
-function eventToBmpCoords(e) {
-  const wrap = document.getElementById('canvas-wrap');
-  const rect = mainCanvas.getBoundingClientRect();
-  const mx = e.clientX - rect.left;
-  const my = e.clientY - rect.top;
-  return {
-    x: Math.floor(mx / state.zoom),
-    y: Math.floor(my / state.zoom),
-  };
+// ═══════════════════════════════════════════════════
+// MOUSE EVENTS
+// ═══════════════════════════════════════════════════
+function onMD(e) {
+  if (!S.pixels) return;
+  const {x,y}=coords(e);
+  if (S.tool==='pan') { S.panStart={mx:e.clientX,my:e.clientY,sx:document.getElementById('canvas-area').scrollLeft,sy:document.getElementById('canvas-area').scrollTop}; return; }
+  if (S.tool==='fill') { pushHist(`Fill (${x},${y})`); fill(x,y,dv()); render(); updateStats(); return; }
+  if (S.tool==='line') { S.lineStart={x,y}; return; }
+  if (S.tool==='rect') { S.rectStart={x,y}; return; }
+  S.painting=true; S.lx=x; S.ly=y; brush(x,y); render();
 }
 
-// ═══════════════════════════════════════════════════════════════
-// CANVAS EVENTS
-// ═══════════════════════════════════════════════════════════════
-function canvasMouseDown(e) {
-  if (!state.pixels) return;
-  const {x, y} = eventToBmpCoords(e);
-  if (state.tool === 'pan') {
-    state.panStart = { mx: e.clientX, my: e.clientY, panX: state.panX, panY: state.panY };
+function onMM(e) {
+  if (!S.pixels) return;
+  const {x,y}=coords(e);
+  document.getElementById('coord-bar').textContent=`x:${x} y:${y}`;
+  if (S.tool==='pan' && S.panStart) {
+    const a=document.getElementById('canvas-area');
+    a.scrollLeft=S.panStart.sx-(e.clientX-S.panStart.mx);
+    a.scrollTop =S.panStart.sy-(e.clientY-S.panStart.my);
     return;
   }
-  if (state.tool === 'fill') {
-    pushHistory(`Fill at (${x},${y})`);
-    floodFill(x, y, drawVal());
-    render(); updateStats(); return;
-  }
-  if (state.tool === 'line') { state.lineStart = {x,y}; return; }
-  if (state.tool === 'rect') { state.rectStart = {x,y}; return; }
-  state.painting = true;
-  state.lastX = x; state.lastY = y;
-  paintBrush(x, y);
-  render();
+  if (!S.painting) return;
+  if (S.tool==='pencil'||S.tool==='eraser') { line(S.lx,S.ly,x,y); S.lx=x; S.ly=y; render(); }
 }
 
-function canvasMouseMove(e) {
-  if (!state.pixels) return;
-  const {x, y} = eventToBmpCoords(e);
-  document.getElementById('coord-bar').textContent = `x:${x} y:${y}`;
-
-  if (state.tool === 'pan' && state.panStart) {
-    const dx = e.clientX - state.panStart.mx;
-    const dy = e.clientY - state.panStart.my;
-    const area = document.getElementById('canvas-area');
-    area.scrollLeft = state.panStart.panX - dx;
-    area.scrollTop  = state.panStart.panY - dy;
-    return;
+function onMU(e) {
+  if (!S.pixels) return;
+  const {x,y}=coords(e);
+  if (S.tool==='pan') { S.panStart=null; return; }
+  if (S.tool==='line'&&S.lineStart) { pushHist('Line'); line(S.lineStart.x,S.lineStart.y,x,y); S.lineStart=null; render(); updateStats(); return; }
+  if (S.tool==='rect'&&S.rectStart) {
+    pushHist('Rectangle');
+    const x0=Math.min(S.rectStart.x,x),x1=Math.max(S.rectStart.x,x),y0=Math.min(S.rectStart.y,y),y1=Math.max(S.rectStart.y,y);
+    for(let ry=y0;ry<=y1;ry++) for(let rx=x0;rx<=x1;rx++) spx(rx,ry,dv());
+    S.rectStart=null; render(); updateStats(); return;
   }
-  if (!state.painting) return;
-  if (state.tool === 'pencil' || state.tool === 'eraser') {
-    paintLine(state.lastX, state.lastY, x, y);
-    state.lastX = x; state.lastY = y;
-    render();
-  }
+  if (S.painting) { pushHist('Draw'); S.painting=false; updateStats(); }
 }
 
-function canvasMouseUp(e) {
-  if (!state.pixels) return;
-  const {x, y} = eventToBmpCoords(e);
-  if (state.tool === 'pan') { state.panStart = null; return; }
-  if (state.tool === 'line' && state.lineStart) {
-    pushHistory(`Line tool`);
-    paintLine(state.lineStart.x, state.lineStart.y, x, y);
-    state.lineStart = null; render(); updateStats(); return;
-  }
-  if (state.tool === 'rect' && state.rectStart) {
-    pushHistory(`Rectangle tool`);
-    const x0=Math.min(state.rectStart.x,x), x1=Math.max(state.rectStart.x,x);
-    const y0=Math.min(state.rectStart.y,y), y1=Math.max(state.rectStart.y,y);
-    for (let ry=y0;ry<=y1;ry++) for (let rx=x0;rx<=x1;rx++) setPixel(rx,ry,drawVal());
-    state.rectStart = null; render(); updateStats(); return;
-  }
-  if (state.painting) {
-    pushHistory(`Draw (${state.tool})`);
-    state.painting = false;
-    updateStats();
-  }
-}
+function onML() { if(S.painting){pushHist('Draw');S.painting=false;updateStats();} }
 
-function canvasMouseLeave() { if (state.painting) { pushHistory('Draw'); state.painting=false; updateStats(); } }
+function onWheel(e) { e.preventDefault(); zoomStep(e.deltaY<0?1:-1); }
 
-function canvasWheel(e) {
-  e.preventDefault();
-  zoom(e.deltaY < 0 ? 1 : -1);
-}
-
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
 // ZOOM / FIT
-// ═══════════════════════════════════════════════════════════════
-const ZOOM_LEVELS = [0.5, 1, 2, 3, 4, 6, 8, 12, 16, 24, 32];
-
-function zoom(dir) {
-  const cur = ZOOM_LEVELS.indexOf(state.zoom);
-  const next = Math.max(0, Math.min(ZOOM_LEVELS.length-1, cur + dir));
-  state.zoom = ZOOM_LEVELS[next];
+// ═══════════════════════════════════════════════════
+const ZL = [0.25,0.5,1,1.5,2,3,4,6,8,12,16,24,32];
+function zoomStep(d) {
+  const i = ZL.indexOf(S.zoom);
+  S.zoom = ZL[Math.max(0,Math.min(ZL.length-1,(i<0?4:i)+d))];
   applyZoom();
 }
-
 function fitToWindow() {
-  if (!state.pixels) return;
-  const area  = document.getElementById('canvas-area');
-  const aw    = area.clientWidth  - 40;
-  const ah    = area.clientHeight - 40;
-  const scaleX = aw / state.width;
-  const scaleY = ah / state.height;
-  const scale  = Math.min(scaleX, scaleY);
-  // Pick nearest zoom level
-  let best = ZOOM_LEVELS[0], bestDiff = 999;
-  ZOOM_LEVELS.forEach(z => { const d = Math.abs(z-scale); if(d<bestDiff){bestDiff=d;best=z;} });
-  state.zoom = best;
-  applyZoom();
+  if (!S.pixels) return;
+  const a=document.getElementById('canvas-area');
+  const sx=(a.clientWidth-40)/S.W, sy=(a.clientHeight-40)/S.H;
+  const sc=Math.min(sx,sy);
+  let best=ZL[0],bd=99;
+  ZL.forEach(z=>{const d=Math.abs(z-sc);if(d<bd){bd=d;best=z;}});
+  S.zoom=best; applyZoom();
 }
 
-// ═══════════════════════════════════════════════════════════════
-// TOOLS
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
+// TOOL / COLOUR
+// ═══════════════════════════════════════════════════
 function setTool(t) {
-  state.tool = t;
-  document.querySelectorAll('.tool-btn[id^="tool-"]').forEach(b=>b.classList.remove('active'));
-  const btn = document.getElementById('tool-'+t);
-  if (btn) btn.classList.add('active');
-  mainCanvas.style.cursor = {
-    pencil:'crosshair', eraser:'cell', fill:'default',
-    line:'crosshair', rect:'crosshair', select:'default', pan:'grab'
-  }[t] || 'crosshair';
+  S.tool=t;
+  document.querySelectorAll('.tbtn[id^="tbtn-"]').forEach(b=>b.classList.remove('on'));
+  const b=document.getElementById('tbtn-'+t); if(b) b.classList.add('on');
+  MC.style.cursor={pencil:'crosshair',eraser:'cell',fill:'default',line:'crosshair',rect:'crosshair',pan:'grab'}[t]||'crosshair';
 }
 
-function setDrawColour(c) {
-  state.drawColour = c;
-  document.getElementById('col-black').classList.toggle('active', c==='black');
-  document.getElementById('col-white').classList.toggle('active', c==='white');
-  // Auto-switch tool
-  if (c==='black' && state.tool==='eraser') setTool('pencil');
-  if (c==='white' && state.tool==='pencil') setTool('eraser');
+function setCol(c) {
+  S.drawCol=c;
+  document.getElementById('c-black').classList.toggle('on',c==='black');
+  document.getElementById('c-white').classList.toggle('on',c==='white');
 }
-
-let brushSize = 1;
-document.getElementById('brush-size').addEventListener('input', function(){
-  state.brushSize = +this.value;
-});
 
 function toggleGrid() {
-  state.showGrid = !state.showGrid;
-  document.getElementById('btn-grid').classList.toggle('active', state.showGrid);
-  renderGrid();
+  S.showGrid=!S.showGrid;
+  document.getElementById('tbtn-grid').classList.toggle('on',S.showGrid);
 }
 
-// ═══════════════════════════════════════════════════════════════
-// SERVER-SIDE OPERATIONS
-// ═══════════════════════════════════════════════════════════════
-function opLabel(op) {
-  return {
-    dilate:'Dilate', erode:'Erode', close_gaps:'Close Gaps', open:'Open',
-    clean_noise:'Clean Noise', remove_isolated:'Remove Isolated',
-    invert:'Invert', flip_h:'Flip H', flip_v:'Flip V',
-    rotate_90:'Rotate 90', rotate_180:'Rotate 180', rotate_270:'Rotate 270',
-  }[op] || op;
-}
+// ═══════════════════════════════════════════════════
+// SERVER OPS
+// ═══════════════════════════════════════════════════
+function opName(op){return{dilate:'Dilate',erode:'Erode',close_gaps:'Close Gaps',open:'Open',clean_noise:'Clean Noise',remove_isolated:'Remove Isolated',invert:'Invert',flip_h:'Flip H',flip_v:'Flip V',rotate_90:'Rotate 90°',rotate_180:'Rotate 180°',rotate_270:'Rotate 270°'}[op]||op;}
 
-async function applyOp(op, params={}) {
-  if (!state.pixels) return;
-  setSpinner(true);
+async function runOp(op, params={}) {
+  if (!S.pixels) { toast('No file loaded — upload a BMP first'); return; }
+  setSpin(true);
   try {
-    // Get current BMP as PNG blob
-    const blob = await canvasToPNGBlob();
+    const blob = await pxToBlob();
     const fd = new FormData();
     fd.append('image', blob, 'edit.png');
     fd.append('op', op);
     fd.append('params', JSON.stringify(params));
-    const res  = await fetch('/api/bmp-process', { method:'POST', body:fd });
-    const data = await res.json();
-    if (!data.success) throw new Error(data.error);
-    await applyResultImage(data.image_b64, data.width, data.height, opLabel(op));
-    showToast(`Applied: ${opLabel(op)}`);
-  } catch(err) {
-    showToast('Error: ' + err.message);
-  } finally {
-    setSpinner(false);
-  }
+    const res = await fetch('/api/bmp-process', {method:'POST',body:fd});
+    const d   = await res.json();
+    if (!d.success) throw new Error(d.error);
+    await applyResult(d.image_b64, d.width, d.height, opName(op));
+    toast('Applied: ' + opName(op));
+  } catch(err) { toast('Error: '+err.message); }
+  finally { setSpin(false); }
 }
 
-function applyMorphOp(op) {
-  applyOp(op, { radius: state.params[op], min_size: state.params[op] });
+function runMorph(op) { runOp(op, {radius:S.params[op], min_size:S.params[op]}); }
+
+function adj(op, delta) {
+  S.params[op]=Math.max(1,Math.min(20,(S.params[op]||1)+delta));
+  document.getElementById('pv-'+op).textContent=S.params[op];
 }
 
-function applyCleanNoise() {
-  applyOp('clean_noise', { min_size: state.params.clean_noise });
-}
-
-function changeParam(op, delta) {
-  state.params[op] = Math.max(1, Math.min(20, (state.params[op]||1) + delta));
-  document.getElementById('param-'+op).textContent = state.params[op];
-}
-
-async function canvasToPNGBlob() {
-  return new Promise(resolve => {
-    const off = document.createElement('canvas');
-    off.width = state.width; off.height = state.height;
-    off.getContext('2d').putImageData(new ImageData(state.pixels.slice(), state.width, state.height), 0, 0);
-    off.toBlob(resolve, 'image/png');
+async function pxToBlob() {
+  return new Promise(res=>{
+    const oc=Object.assign(document.createElement('canvas'),{width:S.W,height:S.H});
+    oc.getContext('2d').putImageData(new ImageData(S.pixels.slice(),S.W,S.H),0,0);
+    oc.toBlob(res,'image/png');
   });
 }
 
-async function applyResultImage(b64, w, h, label) {
-  return new Promise(resolve => {
-    const img = new Image();
-    img.onload = () => {
-      const off = document.createElement('canvas');
-      off.width = w; off.height = h;
-      const oc = off.getContext('2d');
-      oc.drawImage(img, 0, 0);
-      const id = oc.getImageData(0, 0, w, h);
-      // Binarise
-      for (let i=0;i<id.data.length;i+=4){
-        const v = id.data[i]<128?0:255;
-        id.data[i]=id.data[i+1]=id.data[i+2]=v; id.data[i+3]=255;
-      }
-      if (w !== state.width || h !== state.height) {
-        initCanvas(w, h);
-        applyZoom();
-      }
-      state.pixels = id.data;
-      pushHistory(label);
-      render(); updateStats(); resolve();
+async function applyResult(b64, w, h, label) {
+  return new Promise(res=>{
+    const img=new Image();
+    img.onload=()=>{
+      const oc=Object.assign(document.createElement('canvas'),{width:w,height:h});
+      const c2=oc.getContext('2d'); c2.drawImage(img,0,0);
+      const id=c2.getImageData(0,0,w,h);
+      for(let i=0;i<id.data.length;i+=4){const v=id.data[i]<128?0:255;id.data[i]=id.data[i+1]=id.data[i+2]=v;id.data[i+3]=255;}
+      if(w!==S.W||h!==S.H){MC.width=OC.width=S.W=w;MC.height=OC.height=S.H=h;applyZoom();}
+      S.pixels=id.data; pushHist(label); render(); updateStats(); res();
     };
-    img.src = 'data:image/png;base64,' + b64;
+    img.src='data:image/png;base64,'+b64;
   });
 }
 
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
 // STATS
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
 function updateStats() {
-  if (!state.pixels) return;
-  let up=0, nonBin=0;
-  for (let i=0;i<state.pixels.length;i+=4){
-    const v=state.pixels[i];
-    if(v===0) up++;
-    else if(v!==255) nonBin++;
-  }
-  const total = state.width*state.height;
-  document.getElementById('stat-size').textContent = `${state.width}×${state.height}`;
-  document.getElementById('stat-up').textContent   = up.toLocaleString();
-  document.getElementById('stat-pct').textContent  = (100*up/total).toFixed(1)+'%';
-  const cleanEl = document.getElementById('stat-clean');
-  cleanEl.textContent = nonBin===0 ? '✓ Clean' : `✗ ${nonBin} grey px`;
-  cleanEl.className   = 'stat-v ' + (nonBin===0?'ok':'bad');
+  if (!S.pixels) return;
+  let up=0,nb=0;
+  for(let i=0;i<S.pixels.length;i+=4){const v=S.pixels[i];if(v===0)up++;else if(v!==255)nb++;}
+  const t=S.W*S.H;
+  document.getElementById('st-size').textContent =`${S.W}×${S.H}`;
+  document.getElementById('st-up').textContent   =up.toLocaleString();
+  document.getElementById('st-pct').textContent  =(100*up/t).toFixed(1)+'%';
+  const el=document.getElementById('st-clean');
+  el.textContent=nb===0?'✓ Clean':`✗ ${nb} grey px`;
+  el.className='sv '+(nb===0?'ok':'bad');
 }
 
-// ═══════════════════════════════════════════════════════════════
-// DOWNLOAD
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
+// DOWNLOAD / SEND BACK
+// ═══════════════════════════════════════════════════
 function downloadBMP() {
-  if (!state.pixels) return;
-  // Build a grayscale PNG (bmp-like) and download as .bmp
-  const off = document.createElement('canvas');
-  off.width=state.width; off.height=state.height;
-  off.getContext('2d').putImageData(new ImageData(state.pixels.slice(),state.width,state.height),0,0);
-  off.toBlob(blob=>{
+  if (!S.pixels) { toast('No file loaded'); return; }
+  const oc=Object.assign(document.createElement('canvas'),{width:S.W,height:S.H});
+  oc.getContext('2d').putImageData(new ImageData(S.pixels.slice(),S.W,S.H),0,0);
+  oc.toBlob(blob=>{
     const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    a.href=url; a.download=state.filename.replace(/\.(bmp|png)$/i,'')+'_edited.bmp';
+    const a=Object.assign(document.createElement('a'),{href:url,download:S.filename.replace(/\.(bmp|png)$/i,'')+'_edited.bmp'});
     a.click(); URL.revokeObjectURL(url);
-    showToast('Downloaded: '+a.download);
+    toast('Downloaded: '+a.download);
   },'image/png');
 }
 
-function sendBackToGenerator() {
-  if (!state.pixels) return;
-  const off=document.createElement('canvas');
-  off.width=state.width; off.height=state.height;
-  off.getContext('2d').putImageData(new ImageData(state.pixels.slice(),state.width,state.height),0,0);
-  off.toBlob(blob=>{
+function sendToGenerator() {
+  if (!S.pixels) { toast('No file loaded'); return; }
+  const oc=Object.assign(document.createElement('canvas'),{width:S.W,height:S.H});
+  oc.getContext('2d').putImageData(new ImageData(S.pixels.slice(),S.W,S.H),0,0);
+  oc.toBlob(blob=>{
     const reader=new FileReader();
     reader.onload=e=>{
       try {
         sessionStorage.setItem('from_editor_b64', e.target.result.split(',')[1]);
-        sessionStorage.setItem('from_editor_filename', state.filename);
-        window.open('/?from_editor=1', '_blank');
-        showToast('Opened in Generator — upload the file there');
-      } catch(err) {
-        downloadBMP();
-        alert('Downloaded the edited BMP. Upload it to the BMP Generator to re-process.');
-      }
+        window.open('/', '_blank');
+        toast('Opened Generator in new tab — upload the BMP there');
+      } catch { downloadBMP(); alert('Downloaded the BMP — upload it to the Generator manually.'); }
     };
     reader.readAsDataURL(blob);
   },'image/png');
 }
 
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
 // UI HELPERS
-// ═══════════════════════════════════════════════════════════════
-function setSpinner(on) {
-  document.getElementById('op-spinner').classList.toggle('show', on);
+// ═══════════════════════════════════════════════════
+function setSpin(on) { document.getElementById('spinner').classList.toggle('show',on); }
+
+let toastT=null;
+function toast(msg) {
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('on');
+  clearTimeout(toastT); toastT=setTimeout(()=>el.classList.remove('on'),2800);
 }
 
-let toastTimer = null;
-function showToast(msg) {
-  const t=document.getElementById('toast');
-  t.textContent=msg; t.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer=setTimeout(()=>t.classList.remove('show'),2500);
-}
-
-// ═══════════════════════════════════════════════════════════════
-// KEYBOARD SHORTCUTS
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
+// KEYBOARD
+// ═══════════════════════════════════════════════════
 document.addEventListener('keydown', e=>{
-  if(e.ctrlKey||e.metaKey){
+  const mod=e.ctrlKey||e.metaKey;
+  if(mod){
     if(e.key==='z'){e.preventDefault();undo();}
     if(e.key==='y'||e.key==='Z'){e.preventDefault();redo();}
     if(e.key==='s'){e.preventDefault();downloadBMP();}
+    return;
   }
-  if(!e.ctrlKey&&!e.metaKey){
-    if(e.key==='p'||e.key==='b') setTool('pencil');
-    if(e.key==='e') setTool('eraser');
-    if(e.key==='f') setTool('fill');
-    if(e.key==='l') setTool('line');
-    if(e.key==='r') setTool('rect');
-    if(e.key==='h') setTool('pan');
-    if(e.key==='g') toggleGrid();
-    if(e.key==='='||e.key==='+') zoom(+1);
-    if(e.key==='-') zoom(-1);
-    if(e.key==='0') fitToWindow();
-    if(e.key==='x'){
-      setDrawColour(state.drawColour==='black'?'white':'black');
-    }
+  switch(e.key){
+    case 'p': case 'b': setTool('pencil'); break;
+    case 'e':           setTool('eraser'); break;
+    case 'f':           setTool('fill');   break;
+    case 'l':           setTool('line');   break;
+    case 'r':           setTool('rect');   break;
+    case 'h':           setTool('pan');    break;
+    case 'g':           toggleGrid();      break;
+    case '0':           fitToWindow();     break;
+    case '+': case '=': zoomStep(+1);      break;
+    case '-':           zoomStep(-1);      break;
+    case 'x':           setCol(S.drawCol==='black'?'white':'black'); break;
   }
 });
 
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
 // INIT
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
-  // Init param display
-  Object.keys(state.params).forEach(k=>{
-    const el=document.getElementById('param-'+k);
-    if(el) el.textContent=state.params[k];
+  Object.keys(S.params).forEach(k=>{
+    const el=document.getElementById('pv-'+k); if(el) el.textContent=S.params[k];
   });
   tryLoadFromGenerator();
 });
