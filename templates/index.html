@@ -2,6 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Jacquard Designer</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
@@ -1495,13 +1498,26 @@ async function detectColors() {
   formData.append('pins', pins);
   formData.append('cards', cardsRaw);
 
+  // Show "taking long?" hint after 8 seconds
+  const slowTimer = setTimeout(() => {
+    const subEl = document.getElementById('loading-sub-text');
+    if (subEl) subEl.textContent = 'Still working... (click overlay to cancel)';
+  }, 8000);
+
   try {
+    // Quick server health check before main request
+    try {
+      await fetch('/api/fill-patterns', { method: 'GET', signal: AbortSignal.timeout(3000) });
+    } catch(pingErr) {
+      throw new Error('Flask server is not responding. Please restart run.py and refresh the page.');
+    }
+
     const detectCtrl = new AbortController();
-    const detectTimer = setTimeout(() => detectCtrl.abort(), 60000);
+    const detectTimer = setTimeout(() => detectCtrl.abort(), 30000);
     const res = await fetch('/api/detect-colors', { method: 'POST', body: formData, signal: detectCtrl.signal });
     clearTimeout(detectTimer);
+    if (!res.ok) throw new Error(`Server error ${res.status}: ${res.statusText}`);
     const data = await res.json();
-
     if (!data.success) throw new Error(data.error);
 
     state.detectedColors = data.colors;
@@ -1522,9 +1538,13 @@ async function detectColors() {
     setStep(2);
 
   } catch (err) {
-    const msg = err.name === 'AbortError' ? 'Detection timed out. Try a smaller image or fewer pins.' : `Error: ${err.message}`;
+    const msg = err.name === 'AbortError'
+      ? 'Detection timed out after 60s. Is Flask running? Try restarting run.py.'
+      : `Detection failed: ${err.message}`;
     showMsg('detect-error', msg);
+    console.error('detectColors error:', err);
   } finally {
+    clearTimeout(slowTimer);
     setLoading(false);
   }
 }
@@ -1932,6 +1952,12 @@ async function generateBMPs() {
   setLoading(true, 'Generating BMP Files', 'Applying weave patterns...');
 
   try {
+    // Quick ping before generate
+    try {
+      await fetch('/api/fill-patterns', { method: 'GET', signal: AbortSignal.timeout(3000) });
+    } catch(pingErr) {
+      throw new Error('Flask server is not responding. Please restart run.py and refresh the page.');
+    }
     const genCtrl  = new AbortController();
     const genTimer = setTimeout(() => genCtrl.abort(), 120000);
     const res = await fetch('/api/generate', {
