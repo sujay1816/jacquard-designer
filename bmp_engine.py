@@ -974,15 +974,45 @@ def generate_bmps(
             extra_solid = np.ones((cards, pins), dtype=np.uint8)
             extra_solid[extra_mask] = 0   # 0 = UP (thread fires)
 
-            # Combine: fire where EITHER plain weave fires OR extra design fires
+            # ── Correct rani combination ─────────────────────────────────────
+            # REFERENCE ANALYSIS of 720_brokt_resham__1_.bmp confirms:
+            #
+            #   rani = (plain_weave AND NOT any_named_shuttle_UP)
+            #          OR extra_design
+            #
+            # The rani/resham thread fires the plain weave base EXCEPT at
+            # positions where a named shuttle (zari, meena1, meena2) is
+            # already weaving.  Where a named thread is UP, the rani is
+            # suppressed — the named thread provides the weft binding there.
+            # This avoids double-firing and matches the loom reference exactly.
+            #
+            # In addition, rani fires for its own design content (extra_mask)
+            # regardless of what the other shuttles are doing.
+
+            # Build union mask of all named-shuttle UP positions
+            named_up = np.zeros((cards, pins), dtype=bool)
+            for _sname in shuttle_names:
+                _sarr = shuttle_arrays.get(_sname)
+                if _sarr is not None:
+                    named_up |= (_sarr == 0)
+
             rani_arr = np.where(
-                (plain_weave == 0) | (extra_solid == 0),
+                ((plain_weave == 0) & ~named_up) | (extra_solid == 0),
                 np.uint8(0),    # UP / fire
                 np.uint8(1)     # DOWN / hold
             ).astype(np.uint8)
         else:
-            # No extra colour — pure plain weave as before
-            rani_arr = plain_weave
+            # No extra colour — plain weave suppressed by named shuttles
+            named_up = np.zeros((cards, pins), dtype=bool)
+            for _sname in shuttle_names:
+                _sarr = shuttle_arrays.get(_sname)
+                if _sarr is not None:
+                    named_up |= (_sarr == 0)
+            rani_arr = np.where(
+                (plain_weave == 0) & ~named_up,
+                np.uint8(0),
+                np.uint8(1)
+            ).astype(np.uint8)
 
         results[f'{design_name}_rani.bmp'] = write_1bit_bmp(rani_arr)
 
