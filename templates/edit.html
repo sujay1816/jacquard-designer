@@ -302,6 +302,7 @@
   <button class="tbtn on" id="tbtn-pencil" onclick="setTool('pencil')" data-tip="Pencil (P)">✏</button>
   <button class="tbtn"    id="tbtn-eraser" onclick="setTool('eraser')" data-tip="Eraser (E)" style="font-size:13px;font-weight:700;color:#aaa">E</button>
   <button class="tbtn"    id="tbtn-fill"   onclick="setTool('fill')"   data-tip="Flood Fill (F)">🪣</button>
+  <button class="tbtn"    id="tbtn-satin"  onclick="setTool('satin')"  data-tip="Satin Brush (W)" style="font-size:11px;font-weight:700;letter-spacing:-0.5px">⬡W</button>
   <button class="tbtn"    id="tbtn-line"   onclick="setTool('line')"   data-tip="Line (L)" style="font-size:11px;font-weight:700">/</button>
   <button class="tbtn"    id="tbtn-rect"   onclick="setTool('rect')"   data-tip="Rectangle (R)" style="font-size:11px">▭</button>
   <div class="tsep"></div>
@@ -431,6 +432,48 @@
   </div>
 
   <div class="psec">
+    <div class="ptitle">Fill Pattern</div>
+    <div style="font-size:9px;color:var(--muted);margin-bottom:8px;line-height:1.6">
+      Select ⬡W in toolbar then <strong style="color:var(--text)">click &amp; drag</strong> to paint the pattern into your design.<br>
+      Or press <strong style="color:var(--text)">Apply All</strong> to fill the entire image at once.
+    </div>
+    <div class="opt-row" style="margin-bottom:6px">
+      <span class="opt-label">Pattern</span>
+      <select id="fp-pattern" style="flex:1;margin-left:8px;padding:3px 5px;background:var(--surface2);
+        border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:10px;
+        font-family:'DM Mono',monospace">
+        <option value="satin">Satin</option>
+        <option value="satin_inv">Satin Inv.</option>
+        <option value="plain_weave">Plain Weave</option>
+        <option value="twill22">Twill 2/2</option>
+        <option value="twill31">Twill 3/1</option>
+        <option value="dots">Dots</option>
+        <option value="diagonal">Diagonal</option>
+        <option value="crosshatch">Cross-hatch</option>
+        <option value="honeycomb">Honeycomb</option>
+        <option value="diamond">Diamond</option>
+        <option value="herringbone">Herringbone</option>
+        <option value="basket">Basket</option>
+        <option value="crepe">Crepe</option>
+        <option value="rib">Rib</option>
+      </select>
+    </div>
+    <div class="opt-row" style="margin-bottom:8px">
+      <span class="opt-label">Density N</span>
+      <input type="range" id="fp-n" min="4" max="16" value="8" style="flex:1;margin:0 6px;accent-color:var(--gold)"
+             oninput="document.getElementById('fp-n-val').textContent=this.value;updateFillPreview()">
+      <span class="opt-val" id="fp-n-val">8</span>
+    </div>
+    <canvas id="fp-preview" width="120" height="40"
+      style="width:100%;border:1px solid var(--border);border-radius:4px;
+             image-rendering:pixelated;margin-bottom:8px;background:#fff"></canvas>
+    <button class="obtn" style="width:100%;justify-content:center;background:rgba(200,169,110,0.12);
+      border-color:var(--gold);color:var(--gold2)" onclick="applyFillPattern()">
+      <span class="oic">⬡</span> Apply to Entire Image
+    </button>
+  </div>
+
+  <div class="psec">
     <div class="ptitle">Statistics</div>
     <div class="srow"><span class="sl">Size</span>       <span class="sv" id="st-size">—</span></div>
     <div class="srow"><span class="sl">UP pixels</span>  <span class="sv" id="st-up">—</span></div>
@@ -459,6 +502,9 @@ const S = {
   showGrid: false,
   history: [], hi: -1,
   params: { dilate:1, erode:1, close_gaps:2, open:1, clean_noise:5 },
+  fillPat: null,       // pre-computed fill pattern array (full canvas size)
+  fillPatName: 'satin',
+  fillPatN: 8,
 };
 
 const MC = document.getElementById('main-canvas');
@@ -477,38 +523,49 @@ function render() {
 
 function applyZoom() {
   const z = S.zoom;
-  MC.style.width  = OC.style.width  = (S.W * z) + 'px';
-  MC.style.height = OC.style.height = (S.H * z) + 'px';
-  document.getElementById('zoom-label').textContent = Math.round(z * 100) + '%';
+  const sw = Math.round(S.W * z), sh = Math.round(S.H * z);
+  MC.style.width  = sw + 'px';
+  MC.style.height = sh + 'px';
+  OC.style.width  = sw + 'px';
+  OC.style.height = sh + 'px';
+  document.getElementById('zoom-label').textContent =
+    z < 1 ? Math.round(z * 100) + '%' : Math.round(z) + (Number.isInteger(z) ? 'x' : '×');
   renderGrid();
-  // Re-center if image fits in canvas area
+  // Center canvas when smaller than viewport
   const area = document.getElementById('canvas-area');
   const wrap = document.getElementById('canvas-wrap');
   if (area && wrap) {
-    const iw = S.W * z, ih = S.H * z;
-    const aw = area.clientWidth,  ah = area.clientHeight;
-    if (iw < aw) wrap.style.marginLeft = Math.max(0, (aw - iw) / 2) + 'px';
-    else         wrap.style.marginLeft = '20px';
-    if (ih < ah) wrap.style.marginTop  = Math.max(0, (ah - ih) / 2) + 'px';
-    else         wrap.style.marginTop  = '20px';
+    const aw = area.clientWidth, ah = area.clientHeight;
+    wrap.style.marginLeft = sw < aw ? Math.max(20, (aw - sw) / 2) + 'px' : '20px';
+    wrap.style.marginTop  = sh < ah ? Math.max(20, (ah - sh) / 2) + 'px' : '20px';
   }
 }
 
 function renderGrid() {
+  // Always clear first
   ox.clearRect(0, 0, OC.width, OC.height);
   if (!S.showGrid || !S.pixels) return;
   const z = S.zoom;
-  if (z < 4) return;   // only show grid at 4x and above
-  ox.save();
-  ox.strokeStyle = z >= 8 ? 'rgba(200,169,110,0.35)' : 'rgba(200,169,110,0.18)';
-  ox.lineWidth = 1 / z;
+  if (z < 4) return;
+  // Resize OC to match screen pixels so 1px lines are sharp
+  const sw = Math.round(S.W * z), sh = Math.round(S.H * z);
+  if (OC.width !== sw || OC.height !== sh) {
+    OC.width  = sw;
+    OC.height = sh;
+  }
+  ox.clearRect(0, 0, sw, sh);
+  ox.strokeStyle = z >= 8 ? 'rgba(200,169,110,0.5)' : 'rgba(200,169,110,0.3)';
+  ox.lineWidth = 1;
+  // Vertical lines
   for (let x = 0; x <= S.W; x++) {
-    ox.beginPath(); ox.moveTo(x, 0); ox.lineTo(x, S.H); ox.stroke();
+    const sx = Math.round(x * z) + 0.5;
+    ox.beginPath(); ox.moveTo(sx, 0); ox.lineTo(sx, sh); ox.stroke();
   }
+  // Horizontal lines
   for (let y = 0; y <= S.H; y++) {
-    ox.beginPath(); ox.moveTo(0, y); ox.lineTo(0 + S.W, y); ox.stroke();
+    const sy = Math.round(y * z) + 0.5;
+    ox.beginPath(); ox.moveTo(0, sy); ox.lineTo(sw, sy); ox.stroke();
   }
-  ox.restore();
 }
 
 function resetZoom() {
@@ -686,7 +743,12 @@ function onMD(e) {
   if (!S.pixels) return;
   const {x,y}=coords(e);
   if (S.tool==='pan') { S.panStart={mx:e.clientX,my:e.clientY,sx:document.getElementById('canvas-area').scrollLeft,sy:document.getElementById('canvas-area').scrollTop}; return; }
-  if (S.tool==='fill') { pushHist(`Fill (${x},${y})`); fill(x,y,dv()); render(); updateStats(); return; }
+  if (S.tool==='fill')  { pushHist(`Fill (${x},${y})`); fill(x,y,dv()); render(); updateStats(); return; }
+  if (S.tool==='satin') {
+    ensureFillPat();
+    S.painting=true; S.lx=x; S.ly=y;
+    paintSatinBrush(x,y); render(); return;
+  }
   if (S.tool==='line') { S.lineStart={x,y}; return; }
   if (S.tool==='rect') { S.rectStart={x,y}; return; }
   S.painting=true; S.lx=x; S.ly=y; brush(x,y); render();
@@ -704,6 +766,7 @@ function onMM(e) {
   }
   if (!S.painting) return;
   if (S.tool==='pencil'||S.tool==='eraser') { line(S.lx,S.ly,x,y); S.lx=x; S.ly=y; render(); }
+  if (S.tool==='satin' && S.painting) { satinLine(S.lx,S.ly,x,y); S.lx=x; S.ly=y; render(); }
 }
 
 function onMU(e) {
@@ -717,7 +780,10 @@ function onMU(e) {
     for(let ry=y0;ry<=y1;ry++) for(let rx=x0;rx<=x1;rx++) spx(rx,ry,dv());
     S.rectStart=null; render(); updateStats(); return;
   }
-  if (S.painting) { pushHist('Draw'); S.painting=false; updateStats(); }
+  if (S.painting) {
+    pushHist(S.tool==='satin' ? 'Satin brush' : 'Draw');
+    S.painting=false; updateStats();
+  }
 }
 
 function onML() { if(S.painting){pushHist('Draw');S.painting=false;updateStats();} }
@@ -768,7 +834,7 @@ function setTool(t) {
   S.tool=t;
   document.querySelectorAll('.tbtn[id^="tbtn-"]').forEach(b=>b.classList.remove('on'));
   const b=document.getElementById('tbtn-'+t); if(b) b.classList.add('on');
-  MC.style.cursor={pencil:'crosshair',eraser:'cell',fill:'default',line:'crosshair',rect:'crosshair',pan:'grab'}[t]||'crosshair';
+  MC.style.cursor={pencil:'crosshair',eraser:'cell',fill:'default',line:'crosshair',rect:'crosshair',pan:'grab',satin:'crosshair'}[t]||'crosshair';
 }
 
 function setCol(c) {
@@ -895,6 +961,145 @@ function toast(msg) {
   el.textContent=msg; el.classList.add('on');
   clearTimeout(toastT); toastT=setTimeout(()=>el.classList.remove('on'),2800);
 }
+
+// ═══════════════════════════════════════════════════
+// SATIN BRUSH
+// ═══════════════════════════════════════════════════
+// Ensures S.fillPat is computed for current canvas size + pattern settings
+function ensureFillPat() {
+  const pat = document.getElementById('fp-pattern')?.value || 'satin';
+  const n   = parseInt(document.getElementById('fp-n')?.value || '8');
+  if (!S.fillPat || S.fillPat.length !== S.W*S.H ||
+      S.fillPatName !== pat || S.fillPatN !== n) {
+    S.fillPat     = generateFillJS(pat, n, S.W, S.H);
+    S.fillPatName = pat;
+    S.fillPatN    = n;
+  }
+}
+
+// Paint satin at a circular brush area centred on (bx,by)
+function paintSatinBrush(bx, by) {
+  if (!S.fillPat) return;
+  const r = Math.max(0, S.brushSz - 1);
+  for (let dy=-r; dy<=r; dy++) {
+    for (let dx=-r; dx<=r; dx++) {
+      if (r>0 && dx*dx+dy*dy > r*r) continue;
+      const px=bx+dx, py=by+dy;
+      if (px<0||px>=S.W||py<0||py>=S.H) continue;
+      // Only paint on UP pixels (design areas)
+      if (gpx(px,py) === 0) {
+        // fillPat: 0=UP, 1=DOWN; place the fill pattern value
+        const fillVal = S.fillPat[py*S.W+px] === 0 ? 0 : 255;
+        spx(px, py, fillVal);
+      }
+    }
+  }
+}
+
+// Bresenham line for satin brush
+function satinLine(x0,y0,x1,y1) {
+  let dx=Math.abs(x1-x0),dy=Math.abs(y1-y0),sx=x0<x1?1:-1,sy=y0<y1?1:-1,e=dx-dy;
+  for(;;){
+    paintSatinBrush(x0,y0);
+    if(x0===x1&&y0===y1) break;
+    const e2=2*e; if(e2>-dy){e-=dy;x0+=sx;} if(e2<dx){e+=dx;y0+=sy;}
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// FILL PATTERN
+// ═══════════════════════════════════════════════════
+// JS mirror of bmp_engine fill patterns for live preview
+function generateFillJS(pat, n, W, H) {
+  const arr = new Uint8Array(W * H); // 0=UP(black) 1=DOWN(white)
+  const idx = (r,c) => r*W+c;
+  if (pat==='satin') {
+    for (let r=0;r<H;r++){const wc=((-r)%n+n)%n;for(let c=0;c<W;c++) arr[idx(r,c)]=(c%n===wc)?1:0;}
+  } else if (pat==='satin_inv') {
+    for (let r=0;r<H;r++){const wc=((-r)%n+n)%n;for(let c=0;c<W;c++) arr[idx(r,c)]=(c%n===wc)?0:1;}
+  } else if (pat==='plain_weave') {
+    for (let r=0;r<H;r++) for(let c=0;c<W;c++) arr[idx(r,c)]=(r+c)%2;
+  } else if (pat==='twill22') {
+    for (let r=0;r<H;r++) for(let c=0;c<W;c++) arr[idx(r,c)]=((r+c)%4<2)?0:1;
+  } else if (pat==='twill31') {
+    for (let r=0;r<H;r++) for(let c=0;c<W;c++) arr[idx(r,c)]=((r+c)%4!==3)?0:1;
+  } else if (pat==='dots') {
+    arr.fill(1); const p=Math.max(4,n);
+    for(let r=0;r<H;r+=p) for(let c=0;c<W;c+=p) if(r<H&&c<W) arr[idx(r,c)]=0;
+  } else if (pat==='diagonal') {
+    const p=Math.max(2,Math.floor(n/2));
+    for(let r=0;r<H;r++) for(let c=0;c<W;c++) arr[idx(r,c)]=((r+c)%p===0)?0:1;
+  } else if (pat==='crosshatch') {
+    const p=Math.max(2,Math.floor(n/2));
+    for(let r=0;r<H;r++) for(let c=0;c<W;c++) arr[idx(r,c)]=(r%p===0||c%p===0)?0:1;
+  } else if (pat==='honeycomb') {
+    arr.fill(1); const hw=Math.max(4,Math.floor(n/2)),hh=Math.max(3,Math.floor(n/3));
+    for(let r=0;r<H;r++) for(let c=0;c<W;c++){const off=(Math.floor(r/hh)%2)*(Math.floor(hw/2));const lc=(c+off)%hw;if(lc===0||r%hh===0) arr[idx(r,c)]=0;}
+  } else if (pat==='diamond') {
+    arr.fill(1); const p=Math.max(4,n),cx2=Math.floor(p/2);
+    for(let r=0;r<H;r++) for(let c=0;c<W;c++){if(Math.abs(r%p-cx2)+Math.abs(c%p-cx2)===cx2-1) arr[idx(r,c)]=0;}
+  } else if (pat==='herringbone') {
+    arr.fill(1); const p=Math.max(4,n);
+    for(let r=0;r<H;r++) for(let c=0;c<W;c++){const ph=(Math.floor(c/p))%2;const pos=ph===0?r%p:(p-1-r%p);if(pos===0) arr[idx(r,c)]=0;}
+  } else if (pat==='basket') {
+    const bs=Math.max(2,Math.floor(n/4));
+    for(let r=0;r<H;r++) for(let c=0;c<W;c++) arr[idx(r,c)]=((Math.floor(r/bs)+Math.floor(c/bs))%2===0)?0:1;
+  } else if (pat==='crepe') {
+    const t=[0,1,1,0,1,0,0,1,1,0,0,1,0,1,1,0,1,0,1,0,0,1,0,1,0,1,0,1,1,0,1,0,0,1,0,1,0,1,1,0,1,0,1,0,1,0,0,1,1,1,0,0,1,0,1,0,0,0,1,1,0,1,0,1];
+    for(let r=0;r<H;r++) for(let c=0;c<W;c++) arr[idx(r,c)]=t[(r%8)*8+c%8];
+  } else if (pat==='rib') {
+    const p=Math.max(2,Math.floor(n/4));
+    for(let r=0;r<H;r++) for(let c=0;c<W;c++) arr[idx(r,c)]=(r%p!==0)?0:1;
+  }
+  return arr;
+}
+
+function updateFillPreview() {
+  const cv = document.getElementById('fp-preview');
+  if (!cv) return;
+  const pat = document.getElementById('fp-pattern').value;
+  const n   = parseInt(document.getElementById('fp-n').value);
+  const W = cv.width, H = cv.height;
+  const ctx2 = cv.getContext('2d');
+  const arr = generateFillJS(pat, n, W, H);
+  const id = ctx2.createImageData(W, H);
+  for (let i=0;i<arr.length;i++) {
+    const v = arr[i]===0 ? 30 : 245;
+    id.data[i*4]=id.data[i*4+1]=id.data[i*4+2]=v; id.data[i*4+3]=255;
+  }
+  ctx2.putImageData(id, 0, 0);
+}
+
+async function applyFillPattern() {
+  if (!S.pixels) { toast('No file loaded'); return; }
+  const pat = document.getElementById('fp-pattern').value;
+  const n   = parseInt(document.getElementById('fp-n').value);
+  setSpin(true);
+  try {
+    const blob = await pxToBlob();
+    const fd = new FormData();
+    fd.append('image', blob, 'edit.png');
+    fd.append('op',     'fill_pattern');
+    fd.append('params', JSON.stringify({ pattern: pat, n, flip: false, min_height: 1 }));
+    const res  = await fetch('/api/bmp-process', { method:'POST', body:fd });
+    const d    = await res.json();
+    if (!d.success) throw new Error(d.error);
+    await applyResult(d.image_b64, d.width, d.height, 'Fill: ' + pat);
+    toast('Applied: ' + pat + ' (N=' + n + ')');
+  } catch(err) { toast('Error: ' + err.message); }
+  finally      { setSpin(false); }
+}
+
+// Init fill preview on load
+document.addEventListener('DOMContentLoaded', () => {
+  updateFillPreview();
+  document.getElementById('fp-pattern')?.addEventListener('change', () => {
+    S.fillPat = null; updateFillPreview();
+  });
+  document.getElementById('fp-n')?.addEventListener('input', () => {
+    S.fillPat = null;
+  });
+});
 
 // ═══════════════════════════════════════════════════
 // KEYBOARD

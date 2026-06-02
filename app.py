@@ -612,6 +612,18 @@ def api_bmp_process():
         elif op == 'rotate_270':
             result_mask = np.rot90(mask, k=3)
 
+        elif op == 'fill_pattern':
+            # Apply a weave fill pattern inside the design (UP) pixels
+            from bmp_engine import generate_fill_pattern
+            pat     = params.get('pattern', 'satin')
+            n_val   = max(4, min(16, int(params.get('n', 8))))
+            flip    = bool(params.get('flip', False))
+            min_h   = max(1, int(params.get('min_height', 1)))
+            fill    = generate_fill_pattern(pat, n_val, W, H, flip=flip)
+            # fill: 0=UP, 1=DOWN  |  mask: True=design pixel
+            # Apply: where mask=True, use fill pattern; where mask=False, keep DOWN
+            result_mask = mask & (fill == 0)
+
         else:
             return _json_error(f'Unknown operation: {op}')
 
