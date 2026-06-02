@@ -912,7 +912,7 @@
 <body>
 
 <!-- Loading overlay -->
-<div id="loading-overlay">
+<div id="loading-overlay" title="Click to cancel" style="cursor:pointer" onclick="setLoading(false)">
   <div class="loading-spinner"></div>
   <div class="loading-text">Processing Design</div>
   <div class="loading-sub" id="loading-sub-text">Detecting colours...</div>
@@ -1028,7 +1028,7 @@
       <div class="field-row">
         <div class="field">
           <label>Pins (Width) *</label>
-          <input type="number" id="pins" placeholder="e.g. 480" min="10" max="9999">
+          <input type="number" id="pins" placeholder="e.g. 480" min="10" max="9999" value="240">
         </div>
         <div class="field">
           <label>Cards (Height)</label>
@@ -1069,7 +1069,7 @@
 
     <!-- Detect Colors Button -->
     <div class="panel-section">
-      <button class="btn btn-primary" id="detect-btn" onclick="detectColors()" disabled>
+      <button class="btn btn-primary" id="detect-btn" onclick="detectColors()">
         <div class="spinner" id="detect-spinner"></div>
         <span id="detect-btn-text">Detect Colours</span>
       </button>
@@ -1438,9 +1438,13 @@ function setShuttles(n) {
 }
 
 function checkDetectReady() {
+  // Never disable the button -- let detectColors() show a clear error message
+  // just update the button style to hint readiness
   const pinsVal = parseInt(document.getElementById('pins').value);
-  const ready = state.imageFile && state.shuttleCount > 0 && pinsVal > 0;
-  document.getElementById('detect-btn').disabled = !ready;
+  const hasImage = !!state.imageFile;
+  const hasPins  = pinsVal > 0;
+  const btn = document.getElementById('detect-btn');
+  btn.style.opacity = (hasImage && hasPins) ? '1' : '0.6';
 }
 
 document.getElementById('pins').addEventListener('input', checkDetectReady);
@@ -1471,6 +1475,11 @@ async function detectColors() {
   // 3-shuttle: nColors=4 (bg + zari + meena + extra → extra into rani).
   // 4-shuttle: nColors=5 (bg + zari + meena1 + meena2 + extra → rani).
   const nColors = state.shuttleCount === 1 ? 2 : state.shuttleCount + 1;
+
+  if (!state.imageFile) {
+    showMsg('detect-error', 'Please upload an image first');
+    return;
+  }
 
   if (!pins || pins < 10) {
     showMsg('detect-error', 'Please enter a valid Pins value (minimum 10)');
@@ -2070,6 +2079,16 @@ function setLoading(show, title = '', sub = '') {
     document.getElementById('loading-sub-text').textContent = sub;
   }
 }
+
+// Escape key clears a stuck loading overlay
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay.classList.contains('show')) {
+      overlay.classList.remove('show');
+    }
+  }
+});
 
   // ── Handle image from Tracing Guide ────────────────────────────────────
   (function() {
