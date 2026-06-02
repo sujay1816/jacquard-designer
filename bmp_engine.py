@@ -285,14 +285,36 @@ def smart_fill(mask: np.ndarray, satin: np.ndarray, n: int,
         return arr
 
     # ── Force-solid mask for full-width running lines ────────────────────────
-    labeled_tmp, _ = ndimage.label(mask)
-    slices_tmp     = ndimage.find_objects(labeled_tmp)
-    force_solid    = np.zeros((cards, pins), dtype=bool)
-    for i, sl in enumerate(slices_tmp):
-        if sl is None:
+    # Identify pixels that belong to a HORIZONTAL run spanning >= 80% of canvas
+    # width. These are structural warp/weft running lines that must stay solid.
+    #
+    # Previous approach (component bounding-box) was too aggressive: a wide
+    # design body (e.g. a diamond motif that touches both sides of the canvas)
+    # would be entirely force-solidified, preventing satin from ever showing.
+    #
+    # Pixel-level horizontal run check is precise:
+    #   - A horizontal thread line (1-3px tall, full-width) -> correctly forced solid
+    #   - A diamond/chevron body that happens to span 80%+ width -> NOT forced solid
+    #     because each individual horizontal run within it is short (< 80% width)
+    force_solid = np.zeros((cards, pins), dtype=bool)
+    h_thresh    = pins * 0.8
+    for r in range(cards):
+        row = mask[r, :]
+        if not row.any():
             continue
-        if (sl[1].stop - sl[1].start) >= pins * 0.8:
-            force_solid[sl][labeled_tmp[sl] == i + 1] = True
+        in_r = False; h_start = 0; h_cur = 0
+        for c in range(pins):
+            if row[c]:
+                if not in_r:
+                    in_r = True; h_start = c; h_cur = 1
+                else:
+                    h_cur += 1
+            else:
+                if in_r and h_cur >= h_thresh:
+                    force_solid[r, h_start:h_start + h_cur] = True
+                in_r = False; h_cur = 0
+        if in_r and h_cur >= h_thresh:
+            force_solid[r, h_start:h_start + h_cur] = True
 
     rows     = np.arange(cards, dtype=np.int32)
     row_grid = rows[:, np.newaxis] * np.ones((1, pins), dtype=np.int32)
