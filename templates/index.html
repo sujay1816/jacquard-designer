@@ -1530,7 +1530,26 @@ function renderSatinSettings() {
   }
 
   if (state.shuttleCount === 1) {
-    saSection.style.display = 'none';
+    // Show a simplified fill threshold slider for 1-shuttle
+    saSection.style.display = 'block';
+    container.innerHTML = `
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px">
+        Controls how fine features are woven. Lower = more satin texture (sharper fine detail).
+        Higher = more solid fill (denser, blockier).
+      </div>
+      <div class="satin-card" style="padding:10px 12px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <span style="font-size:11px;font-weight:600;color:#d4af60;letter-spacing:0.05em">ZARI</span>
+        </div>
+        <label title="Minimum run height before satin is applied. Lower = sharper fine detail. Higher = more solid fill.">Fill threshold</label>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+          <input type="range" id="satin-mh-zari" min="1" max="200" step="1" value="35"
+            style="flex:1"
+            oninput="document.getElementById('satin-mh-val-zari').textContent=this.value+'px'">
+          <span id="satin-mh-val-zari" style="font-size:10px;color:#aaa;width:36px;text-align:right">35px</span>
+        </div>
+      </div>
+    `;
     return;
   }
 
