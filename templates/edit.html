@@ -1051,13 +1051,11 @@ function tryLoadFromGenerator() {
   if (p.get('from_generator') !== '1') return;
   document.getElementById('gen-hint').style.display = 'block';
 
-  // Read from localStorage first (reliable cross-tab), fallback to sessionStorage
   const ls = window.localStorage, ss = window.sessionStorage;
-  const imgData  = ls.getItem('editor_bmp_b64') || ss.getItem('editor_bmp_b64') || '';
+  const bmpData  = ls.getItem('editor_bmp_b64') || ss.getItem('editor_bmp_b64') || '';
   const preview  = ls.getItem('editor_preview')  || ss.getItem('editor_preview')  || '';
   const filename = ls.getItem('editor_filename') || ss.getItem('editor_filename') || 'from_generator.bmp';
 
-  // Helper: clean up both storages
   function cleanup() {
     ['editor_bmp_b64','editor_preview','editor_filename','editor_zip_b64','editor_design'].forEach(k => {
       try { ls.removeItem(k); } catch(_) {}
@@ -1065,41 +1063,52 @@ function tryLoadFromGenerator() {
     });
   }
 
-  // Helper: decode a PNG base64 data URL onto canvas and call initImage
-  function loadDataUrl(dataUrl, label) {
-    const img = new Image();
-    img.onload = () => {
+  if (bmpData) {
+    // Use parseBmpBytes — same path as loadFile(), works in all browsers
+    // No browser PNG/BMP rendering dependency
+    try {
+      const bytes  = Uint8Array.from(atob(bmpData), c => c.charCodeAt(0));
+      const { rgba, width, height } = parseBmpBytes(bytes.buffer);
       cleanup();
-      const oc = Object.assign(document.createElement('canvas'),
-                               {width: img.naturalWidth, height: img.naturalHeight});
-      const c2 = oc.getContext('2d'); c2.drawImage(img, 0, 0);
-      const id = c2.getImageData(0, 0, oc.width, oc.height);
-      for (let i = 0; i < id.data.length; i += 4) {
-        const v = id.data[i] < 128 ? 0 : 255;
-        id.data[i]=id.data[i+1]=id.data[i+2]=v; id.data[i+3]=255;
-      }
-      initImage(id.data, oc.width, oc.height, filename);
-      toast(label);
-    };
-    img.onerror = () => {
-      cleanup();
-      document.getElementById('gen-hint').textContent = 'Could not load BMP from generator — upload file manually';
-    };
-    img.src = dataUrl;
-  }
-
-  if (imgData) {
-    // Primary: full-resolution grayscale PNG stored by generator
-    loadDataUrl('data:image/png;base64,' + imgData,
-                'Loaded from generator: ' + filename);
+      initImage(rgba, width, height, filename);
+      toast('Loaded: ' + filename);
+    } catch(err) {
+      // Fallback: try preview thumbnail via canvas
+      _loadPreviewFallback(preview, filename, cleanup);
+    }
   } else if (preview) {
-    // Fallback: thumbnail PNG (may be scaled for large BMPs)
-    loadDataUrl('data:image/png;base64,' + preview,
-                'Loaded thumbnail from generator. For full-res: download the ZIP and upload the .bmp');
+    _loadPreviewFallback(preview, filename, cleanup);
   } else {
     cleanup();
-    document.getElementById('gen-hint').textContent = 'No data from generator — upload file manually';
+    document.getElementById('gen-hint').textContent = 'No data from generator — upload a BMP file manually';
   }
+}
+
+function _loadPreviewFallback(preview, filename, cleanup) {
+  if (!preview) {
+    if (cleanup) cleanup();
+    document.getElementById('gen-hint').textContent = 'Could not load BMP — upload file manually';
+    return;
+  }
+  const img = new Image();
+  img.onload = () => {
+    if (cleanup) cleanup();
+    const oc = Object.assign(document.createElement('canvas'),
+                             {width: img.naturalWidth, height: img.naturalHeight});
+    const c2 = oc.getContext('2d'); c2.drawImage(img, 0, 0);
+    const id = c2.getImageData(0, 0, oc.width, oc.height);
+    for (let i = 0; i < id.data.length; i += 4) {
+      const v = id.data[i] < 128 ? 0 : 255;
+      id.data[i]=id.data[i+1]=id.data[i+2]=v; id.data[i+3]=255;
+    }
+    initImage(id.data, oc.width, oc.height, filename);
+    toast('Loaded thumbnail — for full-res: download ZIP and upload the .bmp');
+  };
+  img.onerror = () => {
+    if (cleanup) cleanup();
+    document.getElementById('gen-hint').textContent = 'Could not load BMP — upload file manually';
+  };
+  img.src = 'data:image/png;base64,' + preview;
 }
 
 // ═══════════════════════════════════════════════════
@@ -1662,7 +1671,7 @@ function updateFiPreview() {
 }
 
 function fillInteriors() {
-  if (!S.pixels) { toast('No image loaded — upload a BMP file first'); return; }
+  if (!S.pixels || S.W === 0) { toast('No image loaded — upload a BMP file first'); return; }
   const pattern = document.getElementById('fi-pattern')?.value || 'satin';
   const n       = parseInt(document.getElementById('fi-n')?.value || '8');
   const W = S.W, H = S.H;
