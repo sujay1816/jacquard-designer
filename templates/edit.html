@@ -742,8 +742,10 @@
       style="width:100%;border:1px solid var(--border);border-radius:4px;
              image-rendering:pixelated;margin-bottom:10px;background:#fff;display:block"></canvas>
     <div style="font-size:9px;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;gap:6px">
-      <input type="checkbox" id="fi-outline-only" style="accent-color:var(--gold)">
-      <label for="fi-outline-only" style="cursor:pointer">Only fill regions touching design outline</label>
+      <input type="checkbox" id="fi-invert" style="accent-color:var(--gold)">
+      <label for="fi-invert" style="cursor:pointer;color:var(--text)">
+        <strong style="color:var(--gold)">Invert</strong> — swap black↔white in filled pattern
+      </label>
     </div>
     <button onclick="fillInteriors()"
       style="width:100%;padding:7px;background:linear-gradient(135deg,var(--gold),var(--gold2));
@@ -1717,14 +1719,16 @@ function fillInteriors() {
 
   // ── Step 4: generate pattern with generateFillJS (pure client-side) ───
   // Returns flat Uint8Array length W*H: 0 = UP (black), 1 = DOWN (white)
-  const patArr = generateFillJS(pattern, n, W, H);
+  const patArr  = generateFillJS(pattern, n, W, H);
+  const invert  = document.getElementById('fi-invert')?.checked || false;
 
   // ── Step 5: apply pattern only to interior pixels ─────────────────────
-  pushHist('Fill Interiors: ' + pattern);
+  pushHist('Fill Interiors: ' + pattern + (invert ? ' (inverted)' : ''));
   const newPx = S.pixels.slice();
 
   for (const pos of interior) {
-    const v = patArr[pos] === 0 ? 0 : 255;
+    const bit = invert ? (patArr[pos] === 0 ? 1 : 0) : patArr[pos];
+    const v   = bit === 0 ? 0 : 255;
     const i = pos * 4;
     newPx[i] = newPx[i+1] = newPx[i+2] = v;
     newPx[i+3] = 255;
@@ -1734,7 +1738,7 @@ function fillInteriors() {
   render();
   updateStats();
   closePopup('fillint');
-  toast('⬡ Filled ' + interior.length.toLocaleString() + ' interior pixels with ' + pattern + ' (N=' + n + ')');
+  toast('⬡ Filled ' + interior.length.toLocaleString() + ' interior pixels with ' + pattern + (invert ? ' (inverted)' : '') + ' (N=' + n + ')');
 }
 
 
