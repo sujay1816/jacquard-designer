@@ -124,6 +124,7 @@
       pointer-events: none;
       z-index: 9999;
       opacity: 0;
+      display: block;
       transition: opacity .15s;
       box-shadow: 0 3px 10px rgba(0,0,0,0.5);
     }
@@ -1464,7 +1465,7 @@ async function applyResult(b64, w, h, label) {
       const id=c2.getImageData(0,0,w,h);
       for(let i=0;i<id.data.length;i+=4){const v=id.data[i]<128?0:255;id.data[i]=id.data[i+1]=id.data[i+2]=v;id.data[i+3]=255;}
       if(w!==S.W||h!==S.H){MC.width=OC.width=S.W=w;MC.height=OC.height=S.H=h;applyZoom();}
-      S.pixels=id.data; pushHist(label); render(); updateStats(); res();
+      S.pixels=new Uint8ClampedArray(id.data); pushHist(label); render(); updateStats(); res();
     };
     img.src='data:image/png;base64,'+b64;
   });
@@ -1650,14 +1651,13 @@ function updateFiPreview() {
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
   const id  = ctx.createImageData(W, H);
-  const pat = generateFillJS(pattern, n, false);
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      const v   = pat[y % pat.length][x % pat[0].length] ? 0 : 255;
-      const idx = (y * W + x) * 4;
-      id.data[idx] = id.data[idx+1] = id.data[idx+2] = v;
-      id.data[idx+3] = 255;
-    }
+  // generateFillJS returns a flat Uint8Array of size W*H, 0=UP(black), 1=DOWN(white)
+  const pat = generateFillJS(pattern, n, W, H);
+  for (let i = 0; i < W * H; i++) {
+    const v   = pat[i] === 0 ? 0 : 255;   // 0=UP→black, 1=DOWN→white
+    const off = i * 4;
+    id.data[off] = id.data[off+1] = id.data[off+2] = v;
+    id.data[off+3] = 255;
   }
   ctx.putImageData(id, 0, 0);
 }
@@ -1725,16 +1725,15 @@ function fillInteriors() {
   }
 
   // ── Step 3: generate fill pattern ──
-  const patGrid = generateFillJS(pattern, n, false);
-  const PH = patGrid.length, PW = patGrid[0].length;
+  // generateFillJS returns flat Uint8Array of size W*H, 0=UP(black), 1=DOWN(white)
+  const patArr = generateFillJS(pattern, n, W, H);
 
   // ── Step 4: apply pattern to interior pixels ──
   pushHist('Fill Interiors (' + pattern + ')');
   const newPx = S.pixels.slice();
 
   for (const pos of interiorPixels) {
-    const x = pos % W, y = (pos / W) | 0;
-    const v = patGrid[y % PH][x % PW] ? 0 : 255;  // 1→black(UP), 0→white(DOWN)
+    const v = patArr[pos] === 0 ? 0 : 255;  // 0=UP→black, 1=DOWN→white
     const i = pos * 4;
     newPx[i] = newPx[i+1] = newPx[i+2] = v;
     newPx[i+3] = 255;
@@ -2275,39 +2274,33 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 5. Toolbar tooltips — use event delegation on toolbar so new buttons
-  //    added later are also covered without re-registration
-  const tipDiv  = document.getElementById('tb-tooltip');
-  const toolbar = document.getElementById('toolbar');
-  let hideT;
+  // 5. Toolbar tooltips
+  const tipDiv = document.getElementById('tb-tooltip');
+  let tipHideT;
 
-  function showTip(btn) {
-    if (!tipDiv || !btn.dataset.tip) return;
-    clearTimeout(hideT);
+  function _showTip(btn) {
+    if (!tipDiv || !btn || !btn.dataset.tip) return;
+    clearTimeout(tipHideT);
     const r = btn.getBoundingClientRect();
-    tipDiv.textContent = btn.dataset.tip;
-    tipDiv.style.left  = (r.right + 10) + 'px';
-    tipDiv.style.top   = Math.max(4, r.top + r.height / 2 - 14) + 'px';
-    tipDiv.style.opacity = '1';
-    tipDiv.classList.add('show');
+    tipDiv.textContent    = btn.dataset.tip;
+    tipDiv.style.left     = (r.right + 10) + 'px';
+    tipDiv.style.top      = Math.max(4, r.top + r.height / 2 - 14) + 'px';
+    tipDiv.style.display  = 'block';
+    tipDiv.style.opacity  = '1';
   }
 
-  function hideTip() {
-    hideT = setTimeout(() => {
-      if (tipDiv) { tipDiv.classList.remove('show'); tipDiv.style.opacity = '0'; }
-    }, 80);
+  function _hideTip() {
+    tipHideT = setTimeout(() => {
+      if (tipDiv) { tipDiv.style.opacity = '0'; }
+    }, 100);
   }
 
-  if (toolbar) {
-    toolbar.addEventListener('mouseover', e => {
-      const btn = e.target.closest('.tbtn[data-tip]');
-      if (btn) showTip(btn);
-    });
-    toolbar.addEventListener('mouseout', e => {
-      const btn = e.target.closest('.tbtn[data-tip]');
-      if (btn) hideTip();
-    });
-  }
+  // Attach directly to each button (mouseenter/mouseleave don't bubble,
+  // so they fire exactly once per button enter/leave, not for SVG children)
+  document.querySelectorAll('#toolbar .tbtn[data-tip]').forEach(btn => {
+    btn.addEventListener('mouseenter', () => _showTip(btn));
+    btn.addEventListener('mouseleave', _hideTip);
+  });
 
   // 6. Load BMP from generator if redirected here
   tryLoadFromGenerator();
