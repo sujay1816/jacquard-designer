@@ -1240,6 +1240,7 @@ const state = {
   cards: 0,
   zipB64: null,
   zipFilename: null,
+  bmpB64: {},       // full-res BMP bytes per filename, from generate response
 };
 
 const SHUTTLE_CONFIG = {
@@ -2009,6 +2010,7 @@ async function generateBMPs() {
 
     state.zipB64 = data.zip_b64;
     state.zipFilename = data.zip_filename;
+    state.bmpB64 = data.bmp_b64 || {};   // full-res BMP bytes per file, for editor
 
     renderOutputPreviews(data);
     setStep(3);
@@ -2087,12 +2089,15 @@ function openInEditor(fname, previewB64) {
   // Use localStorage (reliable across tabs) instead of sessionStorage
   // sessionStorage is not reliably shared to new tabs in Safari
   try {
+    const bmpData = (state.bmpB64 && state.bmpB64[fname]) || '';
+    localStorage.setItem('editor_bmp_b64',  bmpData);       // full-res BMP for editor
     localStorage.setItem('editor_zip_b64',  state.zipB64 || '');
     localStorage.setItem('editor_filename', fname);
-    localStorage.setItem('editor_preview',  previewB64);
+    localStorage.setItem('editor_preview',  previewB64);    // thumbnail fallback
     localStorage.setItem('editor_design',   fname.replace('.bmp','').replace(/_/g,' '));
     // Also write to sessionStorage as fallback for other browsers
     try {
+      sessionStorage.setItem('editor_bmp_b64',  bmpData);
       sessionStorage.setItem('editor_zip_b64',  state.zipB64 || '');
       sessionStorage.setItem('editor_filename', fname);
       sessionStorage.setItem('editor_preview',  previewB64);
@@ -2116,6 +2121,7 @@ function resetApp() {
   state.colorAssignments = {};
   state.zipB64         = null;
   state.zipFilename    = null;
+  state.bmpB64         = {};
 
   // Reset UI
   document.getElementById('pins').value       = '240';

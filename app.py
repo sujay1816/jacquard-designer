@@ -330,14 +330,18 @@ def api_generate():
                 zf.writestr(fname, bdata)
         zip_b64 = base64.b64encode(zip_buf.getvalue()).decode()
 
-        # ── Thumbnail previews ────────────────────────────────────────────────
+        # ── Thumbnail previews (for display cards) ───────────────────────────
         previews = {}
+        bmp_b64  = {}   # full-res BMP bytes for the editor
         for fname, bdata in bmp_files.items():
+            # Thumbnail: display card preview only (scaled)
             thumb = Image.open(io.BytesIO(bdata)).convert('RGB')
             thumb.thumbnail((300, 300), Image.NEAREST)
             buf = io.BytesIO()
             thumb.save(buf, format='PNG')
             previews[fname] = base64.b64encode(buf.getvalue()).decode()
+            # Full BMP: sent to the editor so it loads at correct resolution
+            bmp_b64[fname]  = base64.b64encode(bdata).decode()
 
         return jsonify({
             'success':      True,
@@ -346,6 +350,7 @@ def api_generate():
             'files':        list(bmp_files.keys()),
             'verification': verification,
             'previews':     previews,
+            'bmp_b64':      bmp_b64,
         })
 
     except ValueError as e:
