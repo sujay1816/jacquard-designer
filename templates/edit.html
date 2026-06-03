@@ -91,6 +91,7 @@
       display: flex; flex-direction: column; align-items: center;
       padding: 8px 0; gap: 2px;
       overflow-y: auto;
+      overflow-x: visible;
       z-index: 90;
       scrollbar-width: none;
     }
@@ -109,15 +110,24 @@
     }
     .tbtn:hover { background:var(--surface2); border-color:var(--border2); color:var(--text); }
     .tbtn.on   { background:rgba(200,169,110,0.15); border-color:var(--gold); color:var(--gold); }
-    .tbtn::after {
-      content: attr(data-tip);
-      position: absolute; left: 42px; top: 50%; transform: translateY(-50%);
-      background: var(--surface2); border: 1px solid var(--border);
-      padding: 3px 8px; border-radius: 4px; font-size: 9px;
-      white-space: nowrap; color: var(--text); z-index: 200;
-      pointer-events: none; opacity: 0; transition: opacity .12s;
+    /* Global tooltip — avoids overflow clipping from toolbar */
+    #tb-tooltip {
+      position: fixed;
+      background: #1e1b17;
+      border: 1px solid #3e3830;
+      color: #e8e0d0;
+      padding: 5px 10px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-family: 'DM Mono', monospace;
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 9999;
+      opacity: 0;
+      transition: opacity .15s;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.5);
     }
-    .tbtn:hover::after { opacity: 1; }
+    #tb-tooltip.show { opacity: 1; }
 
     /* ─── FIXED RIGHT PANEL ─────────────────────────────────── */
     #side-panel {
@@ -140,10 +150,16 @@
     .psec { border-bottom: 1px solid var(--border); padding: 7px 10px; }
     .ptitle {
       font-size: 9px; letter-spacing: .08em; text-transform: uppercase;
-      color: var(--muted); margin-bottom: 6px;
+      color: var(--muted); margin-bottom: 4px;
       display: flex; align-items: center; justify-content: space-between;
-      cursor: default;
+      cursor: pointer;
+      padding: 3px 0;
+      user-select: none;
     }
+    .ptitle:hover { color: var(--text); }
+    .pchev { font-size: 9px; color: var(--border2); transition: color .1s; flex-shrink:0; margin-left:4px; }
+    .ptitle:hover .pchev { color: var(--muted); }
+    .pbody { transition: max-height .2s ease; overflow: hidden; }
     .opt-row {
       display: flex; align-items: center;
       justify-content: space-between; margin-bottom: 6px;
@@ -461,13 +477,15 @@
 <div id="side-panel">
 
   <div class="psec">
-    <div class="ptitle">Brush</div>
+    <div class="ptitle" onclick="togglePsec('brush')">Brush<span class="pchev" id="pchev-brush">▾</span></div>
+    <div class="pbody" id="pbody-brush" style="max-height:2000px;overflow:visible">
     <div class="opt-row">
       <span class="opt-label">Size</span>
       <input type="range" id="brush-size" min="1" max="20" value="1"
              oninput="S.brushSz=+this.value;document.getElementById('bsval').textContent=this.value">
       <span class="opt-val" id="bsval">1</span>
-    </div>
+    </div>    </div>
+  </div>
     <div class="opt-row">
       <span class="opt-label">Colour</span>
       <div style="display:flex;gap:5px;align-items:center">
@@ -494,23 +512,27 @@
   </div>
 
   <div class="psec">
-    <div class="ptitle">Transform</div>
+    <div class="ptitle" onclick="togglePsec('transform')">Transform<span class="pchev" id="pchev-transform">▾</span></div>
+    <div class="pbody" id="pbody-transform" style="max-height:2000px;overflow:visible">
     <button class="obtn" onclick="runOp('flip_h')">  <span class="oic">⇄</span> Flip Horizontal</button>
     <button class="obtn" onclick="runOp('flip_v')">  <span class="oic">⇅</span> Flip Vertical</button>
     <button class="obtn" onclick="runOp('rotate_90')"><span class="oic">↻</span> Rotate 90°</button>
     <button class="obtn" onclick="runOp('rotate_180')"><span class="oic">↺</span> Rotate 180°</button>
     <button class="obtn" onclick="runOp('rotate_270')"><span class="oic">↻</span> Rotate 270°</button>
+  </div>    </div>
   </div>
 
   <div class="psec">
-    <div class="ptitle">Morphological</div>
+    <div class="ptitle" onclick="togglePsec('morphological')">Morphological<span class="pchev" id="pchev-morphological">▾</span></div>
+    <div class="pbody" id="pbody-morphological" style="max-height:2000px;overflow:visible">
     <button class="obtn" onclick="runMorph('dilate')">
       <span class="oic">⊕</span> Dilate
       <div class="pctl">
         <button class="pbtn" onclick="event.stopPropagation();adj('dilate',-1)">−</button>
         <span class="pval" id="pv-dilate">1</span>
         <button class="pbtn" onclick="event.stopPropagation();adj('dilate',+1)">+</button>
-      </div>
+      </div>    </div>
+  </div>
     </button>
     <button class="obtn" onclick="runMorph('erode')">
       <span class="oic">⊖</span> Erode
@@ -539,7 +561,8 @@
   </div>
 
   <div class="psec">
-    <div class="ptitle">Clean-up</div>
+    <div class="ptitle" onclick="togglePsec('cleanup')">Clean-up<span class="pchev" id="pchev-cleanup">▾</span></div>
+    <div class="pbody" id="pbody-cleanup" style="max-height:2000px;overflow:visible">
     <button class="obtn" onclick="runOp('remove_isolated')"><span class="oic">✕</span> Remove Isolated Pixels</button>
     <button class="obtn" onclick="runMorph('clean_noise')">
       <span class="oic">◌</span> Clean Noise
@@ -547,17 +570,20 @@
         <button class="pbtn" onclick="event.stopPropagation();adj('clean_noise',-1)">−</button>
         <span class="pval" id="pv-clean_noise">5</span>
         <button class="pbtn" onclick="event.stopPropagation();adj('clean_noise',+1)">+</button>
-      </div>
+      </div>    </div>
+  </div>
     </button>
     <button class="obtn red" onclick="runOp('invert')"><span class="oic">⬛</span> Invert UP/DOWN</button>
   </div>
 
   <div class="psec">
-    <div class="ptitle">Fill Pattern</div>
+    <div class="ptitle" onclick="togglePsec('fillpattern')">Fill Pattern<span class="pchev" id="pchev-fillpattern">▾</span></div>
+    <div class="pbody" id="pbody-fillpattern" style="max-height:2000px;overflow:visible">
     <div style="font-size:9px;color:var(--muted);margin-bottom:8px;line-height:1.6">
       Select ⬡W in toolbar then <strong style="color:var(--text)">click &amp; drag</strong> to paint the pattern into your design.<br>
       Or press <strong style="color:var(--text)">Apply All</strong> to fill the entire image at once.
-    </div>
+    </div>    </div>
+  </div>
     <div class="opt-row" style="margin-bottom:6px">
       <span class="opt-label">Pattern</span>
       <select id="fp-pattern" style="flex:1;margin-left:8px;padding:3px 5px;background:var(--surface2);
@@ -595,10 +621,12 @@
   </div>
 
   <div class="psec">
-    <div class="ptitle">Canvas Size</div>
+    <div class="ptitle" onclick="togglePsec('canvassize')">Canvas Size<span class="pchev" id="pchev-canvassize">▾</span></div>
+    <div class="pbody" id="pbody-canvassize" style="max-height:2000px;overflow:visible">
     <div style="font-size:9px;color:var(--muted);margin-bottom:8px;line-height:1.5">
       Extend or crop the canvas. Existing pixels stay at top-left. New area fills white.
-    </div>
+    </div>    </div>
+  </div>
     <div class="opt-row" style="margin-bottom:6px">
       <span class="opt-label">Width (pins)</span>
       <input type="number" id="cs-w" min="1" max="9999" placeholder="—"
@@ -622,33 +650,39 @@
   </div>
 
   <div class="psec">
-    <div class="ptitle">Selection</div>
-    <div id="sel-info" style="font-size:9px;color:var(--muted);margin-bottom:8px;line-height:1.6">
-      No selection.<br>Use the ⬚ Select tool to drag a region.
-    </div>
-    <div style="display:flex;gap:4px;flex-wrap:wrap">
-      <button class="obtn" style="flex:1;justify-content:center;font-size:9px" id="btn-copy"
-        onclick="copySelection()" title="Ctrl+C">⎘ Copy</button>
-      <button class="obtn" style="flex:1;justify-content:center;font-size:9px" id="btn-cut"
-        onclick="cutSelection()" title="Ctrl+X">✂ Cut</button>
-      <button class="obtn" style="flex:1;justify-content:center;font-size:9px" id="btn-paste"
-        onclick="startPaste()" title="Ctrl+V">⎘ Paste</button>
-      <button class="obtn" style="flex:1;justify-content:center;font-size:9px" id="btn-clear-sel"
-        onclick="clearSelection()">⬚ Deselect</button>
+    <div class="ptitle" onclick="togglePsec('selection')">Selection<span class="pchev" id="pchev-selection">▾</span></div>
+    <div class="pbody" id="pbody-selection" style="max-height:2000px;overflow:visible">
+      <div id="sel-info" style="font-size:9px;color:var(--muted);margin-bottom:8px;line-height:1.6">
+        No selection.<br>Use the ⬚ Select tool to drag a region.
+      </div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap">
+        <button class="obtn" style="flex:1;justify-content:center;font-size:9px" id="btn-copy"
+          onclick="copySelection()" title="Ctrl+C">⎘ Copy</button>
+        <button class="obtn" style="flex:1;justify-content:center;font-size:9px" id="btn-cut"
+          onclick="cutSelection()" title="Ctrl+X">✂ Cut</button>
+        <button class="obtn" style="flex:1;justify-content:center;font-size:9px" id="btn-paste"
+          onclick="startPaste()" title="Ctrl+V">⎘ Paste</button>
+        <button class="obtn" style="flex:1;justify-content:center;font-size:9px" id="btn-clear-sel"
+          onclick="clearSelection()">⬚ Deselect</button>
+      </div>
     </div>
   </div>
 
   <div class="psec">
-    <div class="ptitle">Statistics</div>
-    <div class="srow"><span class="sl">Size</span>       <span class="sv" id="st-size">—</span></div>
-    <div class="srow"><span class="sl">UP pixels</span>  <span class="sv" id="st-up">—</span></div>
-    <div class="srow"><span class="sl">UP %</span>       <span class="sv" id="st-pct">—</span></div>
-    <div class="srow"><span class="sl">1-bit clean</span><span class="sv ok" id="st-clean">—</span></div>
+    <div class="ptitle" onclick="togglePsec('statistics')">Statistics<span class="pchev" id="pchev-statistics">▾</span></div>
+    <div class="pbody" id="pbody-statistics" style="max-height:2000px;overflow:visible">
+      <div class="srow"><span class="sl">Size</span>       <span class="sv" id="st-size">—</span></div>
+      <div class="srow"><span class="sl">UP pixels</span>  <span class="sv" id="st-up">—</span></div>
+      <div class="srow"><span class="sl">UP %</span>       <span class="sv" id="st-pct">—</span></div>
+      <div class="srow"><span class="sl">1-bit clean</span><span class="sv ok" id="st-clean">—</span></div>
+    </div>
   </div>
 
-  <div class="psec" style="border-bottom:none">
-    <div class="ptitle">History <span style="color:var(--border2);font-size:8px">(click to jump)</span></div>
+  <div class="psec">
+    <div class="ptitle" onclick="togglePsec('history')">History <span style="color:var(--border2);font-size:8px">(click to jump)</span><span class="pchev" id="pchev-history">▾</span></div>
+    <div class="pbody" id="pbody-history" style="max-height:2000px;overflow:visible">
     <div class="hlist" id="hlist"></div>
+    </div>
   </div>
 
 </div>
@@ -1705,6 +1739,52 @@ document.addEventListener('keydown', e=>{
 });
 
 // ═══════════════════════════════════════════════════
+// TOOLBAR TOOLTIP (hover name popup)
+// ═══════════════════════════════════════════════════
+(function setupTooltip() {
+  let tip, hideT;
+  function getOrMakeTip() {
+    if (!tip) tip = document.getElementById('tb-tooltip');
+    return tip;
+  }
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.tbtn[data-tip]').forEach(btn => {
+      btn.addEventListener('mouseenter', () => {
+        clearTimeout(hideT);
+        const t = getOrMakeTip(); if (!t) return;
+        const r = btn.getBoundingClientRect();
+        t.textContent = btn.dataset.tip;
+        t.style.left  = (r.right + 10) + 'px';
+        t.style.top   = (r.top + r.height/2 - 14) + 'px';
+        t.classList.add('show');
+      });
+      btn.addEventListener('mouseleave', () => {
+        hideT = setTimeout(() => { const t=getOrMakeTip(); if(t) t.classList.remove('show'); }, 100);
+      });
+    });
+  });
+})();
+
+// ═══════════════════════════════════════════════════
+// COLLAPSIBLE PANEL SECTIONS
+// ═══════════════════════════════════════════════════
+function togglePsec(slug) {
+  const body = document.getElementById('pbody-' + slug);
+  const chev = document.getElementById('pchev-' + slug);
+  if (!body) return;
+  const isOpen = body.style.maxHeight !== '0px' && body.style.maxHeight !== '';
+  if (isOpen) {
+    body.style.maxHeight = '0px';
+    body.style.overflow  = 'hidden';
+    if (chev) chev.textContent = '▸';
+  } else {
+    body.style.maxHeight = '2000px';
+    body.style.overflow  = 'visible';
+    if (chev) chev.textContent = '▾';
+  }
+}
+
+// ═══════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
@@ -1712,7 +1792,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const el=document.getElementById('pv-'+k); if(el) el.textContent=S.params[k];
   });
   tryLoadFromGenerator();
+  // Init collapsible sections — start all open except some
+  ['transform','fillpattern','canvassize','selection','history'].forEach(slug => {
+    const body = document.getElementById('pbody-' + slug);
+    const chev = document.getElementById('pchev-' + slug);
+    if (body) { body.style.maxHeight='0px'; body.style.overflow='hidden'; }
+    if (chev) chev.textContent = '▸';
+  });
 });
 </script>
+<div id="tb-tooltip"></div>
 </body>
 </html>
