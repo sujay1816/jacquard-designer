@@ -123,12 +123,11 @@
       white-space: nowrap;
       pointer-events: none;
       z-index: 9999;
-      opacity: 0;
+      visibility: hidden;
       display: block;
-      transition: opacity .15s;
       box-shadow: 0 3px 10px rgba(0,0,0,0.5);
     }
-    #tb-tooltip.show { opacity: 1; }
+    #tb-tooltip.show { visibility: visible; }
     #tb-tooltip     { opacity: 0; transition: opacity .12s; }
 
     /* ─── FIXED RIGHT PANEL ─────────────────────────────────── */
@@ -1663,87 +1662,69 @@ function updateFiPreview() {
 }
 
 function fillInteriors() {
-  if (!S.pixels) { toast('No image loaded'); return; }
+  if (!S.pixels) { toast('No image loaded — upload a BMP file first'); return; }
   const pattern = document.getElementById('fi-pattern')?.value || 'satin';
   const n       = parseInt(document.getElementById('fi-n')?.value || '8');
   const W = S.W, H = S.H;
 
-  // ── Step 1: flood-fill from all 4 borders to find background white ──
-  // Use a BFS/queue-based flood fill on white (0=DOWN) pixels from the border.
-  // Any white pixel NOT reachable from the border = interior region.
-
-  const BLACK = 0, WHITE = 255;  // in our pixel space: 0=black(UP), 255=white(DOWN)
-
-  // Build a white-pixel map
+  // ── Step 1: build white-pixel map ────────────────────────────────────
+  // S.pixels: R channel = 0 (UP/black) or 255 (DOWN/white)
   const isWhite = new Uint8Array(W * H);
   for (let i = 0; i < S.pixels.length; i += 4) {
     if (S.pixels[i] > 128) isWhite[i >> 2] = 1;
   }
 
-  // BFS from border white pixels
+  // ── Step 2: BFS from all 4 borders — mark reachable (background) white ──
   const visited = new Uint8Array(W * H);
-  const queue   = [];
+  const queue   = new Int32Array(W * H);  // pre-allocated for performance
+  let qHead = 0, qTail = 0;
 
-  // Seed from all 4 borders
-  for (let x = 0; x < W; x++) {
-    if (isWhite[x])             { visited[x] = 1;           queue.push(x); }
-    if (isWhite[(H-1)*W + x])   { visited[(H-1)*W+x] = 1;  queue.push((H-1)*W+x); }
-  }
-  for (let y = 0; y < H; y++) {
-    if (isWhite[y*W])           { visited[y*W] = 1;         queue.push(y*W); }
-    if (isWhite[y*W + W - 1])   { visited[y*W+W-1] = 1;    queue.push(y*W+W-1); }
+  function seed(pos) {
+    if (isWhite[pos] && !visited[pos]) { visited[pos] = 1; queue[qTail++] = pos; }
   }
 
-  // BFS — 4-connected
-  let qi = 0;
-  while (qi < queue.length) {
-    const pos = queue[qi++];
-    const px  = pos % W, py = (pos / W) | 0;
-    const neighbors = [
-      py > 0     ? pos - W : -1,
-      py < H - 1 ? pos + W : -1,
-      px > 0     ? pos - 1 : -1,
-      px < W - 1 ? pos + 1 : -1,
-    ];
-    for (const nb of neighbors) {
-      if (nb >= 0 && isWhite[nb] && !visited[nb]) {
-        visited[nb] = 1;
-        queue.push(nb);
-      }
-    }
+  for (let x = 0; x < W; x++) { seed(x); seed((H-1)*W + x); }
+  for (let y = 0; y < H; y++) { seed(y*W); seed(y*W + W - 1); }
+
+  while (qHead < qTail) {
+    const pos = queue[qHead++];
+    const px = pos % W, py = (pos / W) | 0;
+    if (py > 0     && isWhite[pos-W] && !visited[pos-W]) { visited[pos-W]=1; queue[qTail++]=pos-W; }
+    if (py < H - 1 && isWhite[pos+W] && !visited[pos+W]) { visited[pos+W]=1; queue[qTail++]=pos+W; }
+    if (px > 0     && isWhite[pos-1] && !visited[pos-1]) { visited[pos-1]=1; queue[qTail++]=pos-1; }
+    if (px < W - 1 && isWhite[pos+1] && !visited[pos+1]) { visited[pos+1]=1; queue[qTail++]=pos+1; }
   }
 
-  // ── Step 2: interior = white AND not visited ──
+  // ── Step 3: collect interior pixels (white AND not background) ────────
   const interiorPixels = [];
   for (let i = 0; i < W * H; i++) {
     if (isWhite[i] && !visited[i]) interiorPixels.push(i);
   }
 
   if (interiorPixels.length === 0) {
-    toast('No enclosed interior regions found');
+    toast('No closed interior regions found. Make sure your design has fully enclosed shapes.');
     return;
   }
 
-  // ── Step 3: generate fill pattern ──
-  // generateFillJS returns flat Uint8Array of size W*H, 0=UP(black), 1=DOWN(white)
+  // ── Step 4: generate fill pattern ─────────────────────────────────────
+  // generateFillJS returns flat Uint8Array: 0=UP(black), 1=DOWN(white)
   const patArr = generateFillJS(pattern, n, W, H);
 
-  // ── Step 4: apply pattern to interior pixels ──
-  pushHist('Fill Interiors (' + pattern + ')');
+  // ── Step 5: apply to interior pixels ──────────────────────────────────
+  pushHist('Fill Interiors: ' + pattern);
   const newPx = S.pixels.slice();
 
   for (const pos of interiorPixels) {
-    const v = patArr[pos] === 0 ? 0 : 255;  // 0=UP→black, 1=DOWN→white
+    const v = patArr[pos] === 0 ? 0 : 255;
     const i = pos * 4;
-    newPx[i] = newPx[i+1] = newPx[i+2] = v;
-    newPx[i+3] = 255;
+    newPx[i] = newPx[i+1] = newPx[i+2] = v; newPx[i+3] = 255;
   }
 
   S.pixels = newPx;
   render();
   updateStats();
   closePopup('fillint');
-  toast('Filled ' + interiorPixels.length + ' interior pixels with ' + pattern);
+  toast('⬡ Filled ' + interiorPixels.length.toLocaleString() + ' pixels with ' + pattern + ' (N=' + n + ')');
 }
 
 async function applyFillPattern() {
@@ -2283,29 +2264,23 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 5. Toolbar tooltips
+  // 5. Toolbar tooltips — instant show/hide, no transition
   const tipDiv = document.getElementById('tb-tooltip');
-  let tipHideT;
 
   function _showTip(btn) {
     if (!tipDiv || !btn || !btn.dataset.tip) return;
-    clearTimeout(tipHideT);
     const r = btn.getBoundingClientRect();
-    tipDiv.textContent    = btn.dataset.tip;
-    tipDiv.style.left     = (r.right + 10) + 'px';
-    tipDiv.style.top      = Math.max(4, r.top + r.height / 2 - 14) + 'px';
-    tipDiv.style.display  = 'block';
-    tipDiv.style.opacity  = '1';
+    tipDiv.textContent = btn.dataset.tip;
+    tipDiv.style.left  = (r.right + 8) + 'px';
+    tipDiv.style.top   = Math.max(4, Math.round(r.top + r.height / 2 - 14)) + 'px';
+    tipDiv.classList.add('show');
   }
 
   function _hideTip() {
-    tipHideT = setTimeout(() => {
-      if (tipDiv) { tipDiv.style.opacity = '0'; }
-    }, 100);
+    if (tipDiv) tipDiv.classList.remove('show');
   }
 
-  // Attach directly to each button (mouseenter/mouseleave don't bubble,
-  // so they fire exactly once per button enter/leave, not for SVG children)
+  // mouseenter/mouseleave fire exactly once per button (don't bubble into SVG children)
   document.querySelectorAll('#toolbar .tbtn[data-tip]').forEach(btn => {
     btn.addEventListener('mouseenter', () => _showTip(btn));
     btn.addEventListener('mouseleave', _hideTip);
