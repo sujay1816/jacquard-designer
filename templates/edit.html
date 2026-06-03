@@ -733,6 +733,43 @@
   </div>
 </div>
 
+<!-- ─── REFERENCE IMAGE PANEL ──────────────────────── -->
+<div id="ref-panel">
+  <div id="ref-panel-titlebar" onmousedown="startRefDrag(event)">
+    <span style="font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">📎 Reference</span>
+    <div style="display:flex;align-items:center;gap:6px">
+      <span style="font-size:9px;color:var(--muted)">opacity</span>
+      <input type="range" id="ref-opacity-slider" min="10" max="100" value="85"
+             style="width:60px;accent-color:var(--gold);cursor:pointer"
+             oninput="setRefOpacity(this.value)" title="Opacity">
+      <button onclick="loadNewRefImage()" title="Load new image"
+        style="background:none;border:1px solid var(--border2);color:var(--muted);
+               border-radius:3px;padding:2px 5px;cursor:pointer;font-size:10px">📂</button>
+      <button onclick="toggleRefPanel()" title="Close (I)"
+        style="background:none;border:none;color:var(--muted);cursor:pointer;
+               font-size:14px;line-height:1;padding:0 2px">✕</button>
+    </div>
+  </div>
+  <div id="ref-img-wrap">
+    <img id="ref-img" src="" alt="" draggable="false">
+    <div id="ref-upload-hint" onclick="document.getElementById('ref-file-input').click()">
+      <div style="font-size:24px;margin-bottom:6px">📎</div>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:4px">Click to load reference image</div>
+      <div style="font-size:9px;color:var(--border2)">or drag &amp; drop here</div>
+      <div style="font-size:9px;color:var(--border2);margin-top:4px">JPG · PNG · BMP · WebP</div>
+    </div>
+    <input type="file" id="ref-file-input" accept="image/*" style="display:none"
+           onchange="loadRefImage(this.files[0])">
+  </div>
+  <div id="ref-panel-footer">
+    <span id="ref-filename" style="font-size:9px;color:var(--muted);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1"></span>
+    <span id="ref-dimensions" style="font-size:9px;color:var(--border2);flex-shrink:0"></span>
+  </div>
+</div>
+
+<div id="tb-tooltip"></div>
+
 <div id="toast"></div>
 
 <script>
@@ -1871,40 +1908,8 @@ document.addEventListener('keydown', e=>{
   }
 });
 
-// ═══════════════════════════════════════════════════
-// TOOLBAR TOOLTIP (hover name popup)
-// ═══════════════════════════════════════════════════
-(function setupTooltip() {
-  let tip, hideT;
-  function getOrMakeTip() {
-    if (!tip) tip = document.getElementById('tb-tooltip');
-    return tip;
-  }
-  ;font-size:10px">📂</button>
-      <button onclick="toggleRefPanel()" title="Close (I)"
-        style="background:none;border:none;color:var(--muted);cursor:pointer;
-               font-size:14px;line-height:1;padding:0 2px">✕</button>
-    </div>
-  </div>
-  <div id="ref-img-wrap">
-    <img id="ref-img" src="" alt="" draggable="false">
-    <div id="ref-upload-hint" onclick="document.getElementById('ref-file-input').click()">
-      <div style="font-size:24px;margin-bottom:6px">📎</div>
-      <div style="font-size:10px;color:var(--muted);margin-bottom:4px">Click to load reference image</div>
-      <div style="font-size:9px;color:var(--border2)">or drag &amp; drop here</div>
-      <div style="font-size:9px;color:var(--border2);margin-top:4px">JPG · PNG · BMP · WebP</div>
-    </div>
-    <input type="file" id="ref-file-input" accept="image/*" style="display:none"
-           onchange="loadRefImage(this.files[0])">
-  </div>
-  <div id="ref-panel-footer">
-    <span id="ref-filename" style="font-size:9px;color:var(--muted);
-      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1"></span>
-    <span id="ref-dimensions" style="font-size:9px;color:var(--border2);flex-shrink:0"></span>
-  </div>
-</div>
+// Tooltips registered in DOMContentLoaded
 
-<div id="tb-tooltip"></div>
 // ═══════════════════════════════════════════════════
 // COLLAPSIBLE PANEL SECTIONS
 // ═══════════════════════════════════════════════════
