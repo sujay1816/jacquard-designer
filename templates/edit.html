@@ -159,7 +159,10 @@
     .ptitle:hover { color: var(--text); }
     .pchev { font-size: 9px; color: var(--border2); transition: color .1s; flex-shrink:0; margin-left:4px; }
     .ptitle:hover .pchev { color: var(--muted); }
-    .pbody { transition: max-height .2s ease; overflow: hidden; }
+    .pbody {
+      transition: max-height .25s ease, overflow .25s;
+      overflow: visible;
+    }
     .opt-row {
       display: flex; align-items: center;
       justify-content: space-between; margin-bottom: 6px;
@@ -189,6 +192,8 @@
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     .obtn:hover { border-color:var(--gold); color:var(--gold); }
+    .obtn.danger { color:var(--danger); }
+    .obtn.danger:hover { border-color:var(--danger); color:var(--danger); }
     .obtn.red   { color:var(--danger); }
     .obtn.red:hover { border-color:var(--danger); }
     .oic { font-size:11px; width:14px; text-align:center; }
@@ -478,7 +483,7 @@
 
   <div class="psec">
     <div class="ptitle" onclick="togglePsec('brush')">Brush<span class="pchev" id="pchev-brush">▾</span></div>
-    <div class="pbody" id="pbody-brush" style="max-height:2000px;overflow:visible">
+    <div class="pbody" id="pbody-brush">
       <div class="opt-row">
         <span class="opt-label">Size</span>
         <input type="range" id="brush-size" min="1" max="20" value="1"
@@ -488,43 +493,38 @@
       <div class="opt-row">
         <span class="opt-label">Colour</span>
         <div style="display:flex;gap:5px;align-items:center">
-          <div class="cbtn on" id="c-black" style="background:#000" onclick="setCol('black')" title="UP (black — press X to swap)"></div>
+          <div class="cbtn on" id="c-black" style="background:#000" onclick="setCol('black')" title="UP (black)"></div>
           <div class="cbtn"    id="c-white" style="background:#fff;border:1px solid #555" onclick="setCol('white')" title="DOWN (white)"></div>
           <span style="font-size:9px;color:var(--muted);margin-left:2px">(X)</span>
         </div>
       </div>
       <div class="opt-row" style="margin-top:5px">
-        <span class="opt-label" style="font-size:9px;line-height:1.4">
-          RMB draws<br>
+        <span class="opt-label" style="font-size:9px;line-height:1.4">RMB draws<br>
           <span id="rmb-label" style="color:var(--gold2)">White ↓</span>
         </span>
-        <div style="display:flex;align-items:center;gap:6px">
-          <button id="swap-btn" onclick="toggleSwapButtons()"
-            style="padding:3px 8px;background:var(--surface2);border:1px solid var(--border2);
-                   color:var(--muted);border-radius:4px;font-size:9px;cursor:pointer;
-                   font-family:'DM Mono',monospace;transition:all .15s"
-            title="Swap left/right click colour">
-            ⇄ Swap
-          </button>
-        </div>
+        <button id="swap-btn" onclick="toggleSwapButtons()"
+          style="padding:3px 8px;background:var(--surface2);border:1px solid var(--border2);
+                 color:var(--muted);border-radius:4px;font-size:9px;cursor:pointer;
+                 font-family:'DM Mono',monospace">⇄ Swap</button>
       </div>
     </div>
   </div>
 
   <div class="psec">
-    <div class="ptitle" onclick="togglePsec('transform')">Transform<span class="pchev" id="pchev-transform">▾</span></div>
-    <div class="pbody" id="pbody-transform" style="max-height:2000px;overflow:visible">
-    <button class="obtn" onclick="runOp('flip_h')">  <span class="oic">⇄</span> Flip Horizontal</button>
-    <button class="obtn" onclick="runOp('flip_v')">  <span class="oic">⇅</span> Flip Vertical</button>
-    <button class="obtn" onclick="runOp('rotate_90')"><span class="oic">↻</span> Rotate 90°</button>
-    <button class="obtn" onclick="runOp('rotate_180')"><span class="oic">↺</span> Rotate 180°</button>
-    <button class="obtn" onclick="runOp('rotate_270')"><span class="oic">↻</span> Rotate 270°</button>
-  </div>    </div>
+    <div class="ptitle" onclick="togglePsec('transform')">Transform<span class="pchev" id="pchev-transform">▸</span></div>
+    <div class="pbody" id="pbody-transform" style="max-height:0;overflow:hidden">
+      <button class="obtn" onclick="runOp('flip_h')">  <span class="oic">⇄</span> Flip Horizontal</button>
+      <button class="obtn" onclick="runOp('flip_v')">  <span class="oic">⇅</span> Flip Vertical</button>
+      <button class="obtn" onclick="runOp('rotate_90')"><span class="oic">↻</span> Rotate 90°</button>
+      <button class="obtn" onclick="runOp('rotate_180')"><span class="oic">↺</span> Rotate 180°</button>
+      <button class="obtn" onclick="runOp('rotate_270')"><span class="oic">↻</span> Rotate 270°</button>
+      <button class="obtn danger" onclick="invertCanvas()"><span class="oic">⬛</span> Invert Black↔White</button>
+    </div>
   </div>
 
   <div class="psec">
     <div class="ptitle" onclick="togglePsec('morphological')">Morphological<span class="pchev" id="pchev-morphological">▾</span></div>
-    <div class="pbody" id="pbody-morphological" style="max-height:2000px;overflow:visible">
+    <div class="pbody" id="pbody-morphological">
       <button class="obtn" onclick="runMorph('dilate')">
         <span class="oic">⊕</span> Dilate
         <div class="pctl">
@@ -562,7 +562,7 @@
 
   <div class="psec">
     <div class="ptitle" onclick="togglePsec('cleanup')">Clean-up<span class="pchev" id="pchev-cleanup">▾</span></div>
-    <div class="pbody" id="pbody-cleanup" style="max-height:2000px;overflow:visible">
+    <div class="pbody" id="pbody-cleanup">
       <button class="obtn" onclick="runOp('remove_isolated')"><span class="oic">✕</span> Remove Isolated</button>
       <button class="obtn" onclick="runMorph('clean_noise')">
         <span class="oic">◌</span> Clean Noise
@@ -577,81 +577,78 @@
   </div>
 
   <div class="psec">
-    <div class="ptitle" onclick="togglePsec('fillpattern')">Fill Pattern<span class="pchev" id="pchev-fillpattern">▾</span></div>
-    <div class="pbody" id="pbody-fillpattern" style="max-height:2000px;overflow:visible">
-    <div style="font-size:9px;color:var(--muted);margin-bottom:8px;line-height:1.6">
-      Select ⬡W in toolbar then <strong style="color:var(--text)">click &amp; drag</strong> to paint the pattern into your design.<br>
-      Or press <strong style="color:var(--text)">Apply All</strong> to fill the entire image at once.
-    </div>    </div>
-  </div>
-    <div class="opt-row" style="margin-bottom:6px">
-      <span class="opt-label">Pattern</span>
-      <select id="fp-pattern" style="flex:1;margin-left:8px;padding:3px 5px;background:var(--surface2);
-        border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:10px;
-        font-family:'DM Mono',monospace">
-        <option value="satin">Satin</option>
-        <option value="satin_inv">Satin Inv.</option>
-        <option value="plain_weave">Plain Weave</option>
-        <option value="twill22">Twill 2/2</option>
-        <option value="twill31">Twill 3/1</option>
-        <option value="dots">Dots</option>
-        <option value="diagonal">Diagonal</option>
-        <option value="crosshatch">Cross-hatch</option>
-        <option value="honeycomb">Honeycomb</option>
-        <option value="diamond">Diamond</option>
-        <option value="herringbone">Herringbone</option>
-        <option value="basket">Basket</option>
-        <option value="crepe">Crepe</option>
-        <option value="rib">Rib</option>
-      </select>
-    </div>
-    <div class="opt-row" style="margin-bottom:8px">
-      <span class="opt-label">Density N</span>
-      <input type="range" id="fp-n" min="4" max="16" value="8" style="flex:1;margin:0 6px;accent-color:var(--gold)"
-             oninput="document.getElementById('fp-n-val').textContent=this.value;updateFillPreview()">
-      <span class="opt-val" id="fp-n-val">8</span>
-    </div>
-    <canvas id="fp-preview" width="120" height="40"
-      style="width:100%;border:1px solid var(--border);border-radius:4px;
-             image-rendering:pixelated;margin-bottom:8px;background:#fff"></canvas>
-    <button class="obtn" style="width:100%;justify-content:center;background:rgba(200,169,110,0.12);
-      border-color:var(--gold);color:var(--gold2)" onclick="applyFillPattern()">
-      <span class="oic">⬡</span> Apply to Entire Image
-    </button>
-  </div>
-
-  <div class="psec">
-    <div class="ptitle" onclick="togglePsec('canvassize')">Canvas Size<span class="pchev" id="pchev-canvassize">▾</span></div>
-    <div class="pbody" id="pbody-canvassize" style="max-height:2000px;overflow:visible">
-    <div style="font-size:9px;color:var(--muted);margin-bottom:8px;line-height:1.5">
-      Extend or crop the canvas. Existing pixels stay at top-left. New area fills white.
-    </div>    </div>
-  </div>
-    <div class="opt-row" style="margin-bottom:6px">
-      <span class="opt-label">Width (pins)</span>
-      <input type="number" id="cs-w" min="1" max="9999" placeholder="—"
-        style="width:60px;padding:3px 5px;background:var(--surface2);border:1px solid var(--border);
-               color:var(--text);border-radius:4px;font-size:10px;font-family:'DM Mono',monospace">
-    </div>
-    <div class="opt-row" style="margin-bottom:8px">
-      <span class="opt-label">Height (cards)</span>
-      <input type="number" id="cs-h" min="1" max="9999" placeholder="—"
-        style="width:60px;padding:3px 5px;background:var(--surface2);border:1px solid var(--border);
-               color:var(--text);border-radius:4px;font-size:10px;font-family:'DM Mono',monospace">
-    </div>
-    <div style="display:flex;gap:4px">
-      <button class="obtn" style="flex:1;justify-content:center;font-size:9px" onclick="applyCanvasSize()">
-        Apply
-      </button>
-      <button class="obtn" style="flex:1;justify-content:center;font-size:9px" onclick="setCSSFromCurrent()">
-        Current
+    <div class="ptitle" onclick="togglePsec('fillpattern')">Fill Pattern<span class="pchev" id="pchev-fillpattern">▸</span></div>
+    <div class="pbody" id="pbody-fillpattern" style="max-height:0;overflow:hidden">
+      <div style="font-size:9px;color:var(--muted);margin-bottom:8px;line-height:1.6">
+        Select ⬡W then <strong style="color:var(--text)">click &amp; drag</strong> to paint.<br>
+        Paints on <strong style="color:var(--text)">all pixels</strong> — use brush to limit area.
+      </div>
+      <div class="opt-row" style="margin-bottom:6px">
+        <span class="opt-label">Pattern</span>
+        <select id="fp-pattern" style="flex:1;margin-left:8px;padding:3px 5px;background:var(--surface2);
+          border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:10px;
+          font-family:'DM Mono',monospace">
+          <option value="satin">Satin</option>
+          <option value="satin_inv">Satin Inv.</option>
+          <option value="plain_weave">Plain Weave</option>
+          <option value="twill22">Twill 2/2</option>
+          <option value="twill31">Twill 3/1</option>
+          <option value="dots">Dots</option>
+          <option value="diagonal">Diagonal</option>
+          <option value="crosshatch">Cross-hatch</option>
+          <option value="honeycomb">Honeycomb</option>
+          <option value="diamond">Diamond</option>
+          <option value="herringbone">Herringbone</option>
+          <option value="basket">Basket</option>
+          <option value="crepe">Crepe</option>
+          <option value="rib">Rib</option>
+        </select>
+      </div>
+      <div class="opt-row" style="margin-bottom:8px">
+        <span class="opt-label">Density N</span>
+        <input type="range" id="fp-n" min="4" max="16" value="8"
+               style="flex:1;margin:0 6px;accent-color:var(--gold)"
+               oninput="document.getElementById('fp-n-val').textContent=this.value;S.fillPat=null;updateFillPreview()">
+        <span class="opt-val" id="fp-n-val">8</span>
+      </div>
+      <canvas id="fp-preview" width="120" height="40"
+        style="width:100%;border:1px solid var(--border);border-radius:4px;
+               image-rendering:pixelated;margin-bottom:8px;background:#fff"></canvas>
+      <button class="obtn" style="justify-content:center;background:rgba(200,169,110,0.12);
+        border-color:var(--gold);color:var(--gold2)" onclick="applyFillPattern()">
+        <span class="oic">⬡</span> Apply to Entire Image
       </button>
     </div>
   </div>
 
   <div class="psec">
-    <div class="ptitle" onclick="togglePsec('selection')">Selection<span class="pchev" id="pchev-selection">▾</span></div>
-    <div class="pbody" id="pbody-selection" style="max-height:2000px;overflow:visible">
+    <div class="ptitle" onclick="togglePsec('canvassize')">Canvas Size<span class="pchev" id="pchev-canvassize">▸</span></div>
+    <div class="pbody" id="pbody-canvassize" style="max-height:0;overflow:hidden">
+      <div style="font-size:9px;color:var(--muted);margin-bottom:8px;line-height:1.5">
+        Extend or crop. Existing pixels stay top-left. New area fills white.
+      </div>
+      <div class="opt-row" style="margin-bottom:6px">
+        <span class="opt-label">Width (pins)</span>
+        <input type="number" id="cs-w" min="1" max="9999" placeholder="—"
+          style="width:60px;padding:3px 5px;background:var(--surface2);border:1px solid var(--border);
+                 color:var(--text);border-radius:4px;font-size:10px;font-family:'DM Mono',monospace">
+      </div>
+      <div class="opt-row" style="margin-bottom:8px">
+        <span class="opt-label">Height (cards)</span>
+        <input type="number" id="cs-h" min="1" max="9999" placeholder="—"
+          style="width:60px;padding:3px 5px;background:var(--surface2);border:1px solid var(--border);
+                 color:var(--text);border-radius:4px;font-size:10px;font-family:'DM Mono',monospace">
+      </div>
+      <div style="display:flex;gap:4px">
+        <button class="obtn" style="flex:1;justify-content:center;font-size:9px" onclick="applyCanvasSize()">Apply</button>
+        <button class="obtn" style="flex:1;justify-content:center;font-size:9px" onclick="setCSSFromCurrent()">Current</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="psec">
+    <div class="ptitle" onclick="togglePsec('selection')">Selection<span class="pchev" id="pchev-selection">▸</span></div>
+    <div class="pbody" id="pbody-selection" style="max-height:0;overflow:hidden">
       <div id="sel-info" style="font-size:9px;color:var(--muted);margin-bottom:8px;line-height:1.6">
         No selection.<br>Use the ⬚ Select tool to drag a region.
       </div>
@@ -670,18 +667,18 @@
 
   <div class="psec">
     <div class="ptitle" onclick="togglePsec('statistics')">Statistics<span class="pchev" id="pchev-statistics">▾</span></div>
-    <div class="pbody" id="pbody-statistics" style="max-height:2000px;overflow:visible">
-      <div class="srow"><span class="sl">Size</span>       <span class="sv" id="st-size">—</span></div>
-      <div class="srow"><span class="sl">UP pixels</span>  <span class="sv" id="st-up">—</span></div>
-      <div class="srow"><span class="sl">UP %</span>       <span class="sv" id="st-pct">—</span></div>
-      <div class="srow"><span class="sl">1-bit clean</span><span class="sv ok" id="st-clean">—</span></div>
+    <div class="pbody" id="pbody-statistics">
+      <div class="srow"><span class="sl">Size</span>        <span class="sv" id="st-size">—</span></div>
+      <div class="srow"><span class="sl">UP pixels</span>   <span class="sv" id="st-up">—</span></div>
+      <div class="srow"><span class="sl">UP %</span>        <span class="sv" id="st-pct">—</span></div>
+      <div class="srow"><span class="sl">1-bit clean</span> <span class="sv ok" id="st-clean">—</span></div>
     </div>
   </div>
 
-  <div class="psec">
-    <div class="ptitle" onclick="togglePsec('history')">History <span style="color:var(--border2);font-size:8px">(click to jump)</span><span class="pchev" id="pchev-history">▾</span></div>
-    <div class="pbody" id="pbody-history" style="max-height:2000px;overflow:visible">
-    <div class="hlist" id="hlist"></div>
+  <div class="psec" style="border-bottom:none">
+    <div class="ptitle" onclick="togglePsec('history')">History <span style="color:var(--border2);font-size:8px">(click to jump)</span><span class="pchev" id="pchev-history">▸</span></div>
+    <div class="pbody" id="pbody-history" style="max-height:0;overflow:hidden">
+      <div class="hlist" id="hlist"></div>
     </div>
   </div>
 
@@ -1162,6 +1159,19 @@ async function runOp(op, params={}) {
 
 function runMorph(op) { runOp(op, {radius:S.params[op], min_size:S.params[op]}); }
 
+// Invert: swap every black<->white pixel directly in JS (no server round-trip)
+function invertCanvas() {
+  if (!S.pixels) { toast('No file loaded'); return; }
+  pushHist('Invert Black↔White');
+  for (let i = 0; i < S.pixels.length; i += 4) {
+    const v = S.pixels[i] < 128 ? 255 : 0;
+    S.pixels[i] = S.pixels[i+1] = S.pixels[i+2] = v;
+    S.pixels[i+3] = 255;
+  }
+  render(); updateStats();
+  toast('Inverted: black ↔ white');
+}
+
 function adj(op, delta) {
   S.params[op]=Math.max(1,Math.min(20,(S.params[op]||1)+delta));
   document.getElementById('pv-'+op).textContent=S.params[op];
@@ -1274,12 +1284,10 @@ function paintSatinBrush(bx, by) {
       if (r>0 && dx*dx+dy*dy > r*r) continue;
       const px=bx+dx, py=by+dy;
       if (px<0||px>=S.W||py<0||py>=S.H) continue;
-      // Only paint on UP pixels (design areas)
-      if (gpx(px,py) === 0) {
-        // fillPat: 0=UP, 1=DOWN; place the fill pattern value
-        const fillVal = S.fillPat[py*S.W+px] === 0 ? 0 : 255;
-        spx(px, py, fillVal);
-      }
+      // Paint fill pattern on ALL pixels the brush touches
+      // fillPat: 0=UP(black), 1=DOWN(white)
+      const fillVal = S.fillPat[py*S.W+px] === 0 ? 0 : 255;
+      spx(px, py, fillVal);
     }
   }
 }
