@@ -1218,6 +1218,16 @@ async function assessImageQuality(file) {
   } catch(e) { console.warn('Quality assessment error:', e); }
 }
 
+function autoCalcCards() {
+  const previewImg = document.getElementById('preview-img');
+  if (!previewImg || !previewImg.naturalWidth) return;
+  const pins  = parseInt(document.getElementById('pins').value) || 0;
+  const cards = document.getElementById('cards');
+  if (!pins || cards.value) return;   // don't overwrite manual entry
+  const ratio = previewImg.naturalHeight / previewImg.naturalWidth;
+  cards.placeholder = Math.max(10, Math.round(pins * ratio)).toString();
+}
+
 const state = {
   imageFile: null,
   imageB64: null,
@@ -1432,10 +1442,12 @@ function handleFile(file) {
   const reader = new FileReader();
   reader.onload = e => {
     state.imageB64 = e.target.result.split(',')[1];
-    document.getElementById('preview-img').src = e.target.result;
-      document.getElementById('preview-img').onload = autoCalcCards;
+    // Show container BEFORE setting src so browser renders into a visible element
     uploadZone.style.display = 'none';
     document.getElementById('upload-preview').style.display = 'block';
+    // Set onload BEFORE src to avoid race on fast (data URL) loads
+    document.getElementById('preview-img').onload = autoCalcCards;
+    document.getElementById('preview-img').src = e.target.result;
     checkDetectReady();
     setStep(1);
   };
@@ -2072,12 +2084,20 @@ function renderOutputPreviews(data) {
 // Open BMP in Editor
 // =====================================================================
 function openInEditor(fname, previewB64) {
-  // Store the current zip and filename in sessionStorage for editor to pick up
+  // Use localStorage (reliable across tabs) instead of sessionStorage
+  // sessionStorage is not reliably shared to new tabs in Safari
   try {
-    sessionStorage.setItem('editor_zip_b64',   state.zipB64 || '');
-    sessionStorage.setItem('editor_filename',  fname);
-    sessionStorage.setItem('editor_preview',   previewB64);
-    sessionStorage.setItem('editor_design',    fname.replace('.bmp','').replace(/_/g,' '));
+    localStorage.setItem('editor_zip_b64',  state.zipB64 || '');
+    localStorage.setItem('editor_filename', fname);
+    localStorage.setItem('editor_preview',  previewB64);
+    localStorage.setItem('editor_design',   fname.replace('.bmp','').replace(/_/g,' '));
+    // Also write to sessionStorage as fallback for other browsers
+    try {
+      sessionStorage.setItem('editor_zip_b64',  state.zipB64 || '');
+      sessionStorage.setItem('editor_filename', fname);
+      sessionStorage.setItem('editor_preview',  previewB64);
+      sessionStorage.setItem('editor_design',   fname.replace('.bmp','').replace(/_/g,' '));
+    } catch(_) {}
     window.open('/edit?from_generator=1&file=' + encodeURIComponent(fname), '_blank');
   } catch(e) {
     window.open('/edit', '_blank');

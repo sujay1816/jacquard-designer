@@ -921,8 +921,10 @@ function tryLoadFromGenerator() {
   const p = new URLSearchParams(window.location.search);
   if (p.get('from_generator') !== '1') return;
   document.getElementById('gen-hint').style.display = 'block';
-  const preview  = sessionStorage.getItem('editor_preview')   || '';
-  const filename = sessionStorage.getItem('editor_filename')  || 'from_generator.bmp';
+  // Read from localStorage first (reliable cross-tab), fallback to sessionStorage
+  const ls = window.localStorage, ss = window.sessionStorage;
+  const preview  = ls.getItem('editor_preview')  || ss.getItem('editor_preview')  || '';
+  const filename = ls.getItem('editor_filename') || ss.getItem('editor_filename') || 'from_generator.bmp';
   if (!preview) {
     document.getElementById('gen-hint').textContent = 'No data from generator — upload file manually';
     return;
@@ -938,8 +940,15 @@ function tryLoadFromGenerator() {
       id.data[i]=id.data[i+1]=id.data[i+2]=v; id.data[i+3]=255;
     }
     initImage(id.data, oc.width, oc.height, filename);
-    toast('Loaded from generator (thumbnail). For full-res: download ZIP → upload the .bmp');
-    ['editor_preview','editor_filename','editor_zip_b64','editor_design'].forEach(k => sessionStorage.removeItem(k));
+    toast('Loaded from generator. For full-res editing: download the ZIP and upload the .bmp file.');
+    // Clean up both storages
+    ['editor_preview','editor_filename','editor_zip_b64','editor_design'].forEach(k => {
+      try { ls.removeItem(k); } catch(_) {}
+      try { ss.removeItem(k); } catch(_) {}
+    });
+  };
+  img.onerror = () => {
+    document.getElementById('gen-hint').textContent = 'Could not load BMP from generator — upload file manually';
   };
   img.src = 'data:image/png;base64,' + preview;
 }
