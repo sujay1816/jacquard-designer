@@ -1676,82 +1676,65 @@ function updateFiPreview() {
 
 function fillInteriors() {
   if (!S.pixels || S.W === 0) { toast('No image loaded'); return; }
+
   const pattern = document.getElementById('fi-pattern')?.value || 'satin';
   const n       = parseInt(document.getElementById('fi-n')?.value || '8');
   const W = S.W, H = S.H;
 
-  // Find enclosed interior pixels via BFS from borders
+  // ── Step 1: map white (DOWN) pixels ───────────────────────────────────
   const isWhite = new Uint8Array(W * H);
-  for (let i=0; i<S.pixels.length; i+=4) if (S.pixels[i]>128) isWhite[i>>2]=1;
+  for (let i = 0; i < S.pixels.length; i += 4)
+    if (S.pixels[i] > 128) isWhite[i >> 2] = 1;
 
+  // ── Step 2: BFS from all 4 borders to find background white ───────────
   const visited = new Uint8Array(W * H);
   const queue   = new Int32Array(W * H);
-  let qHead=0, qTail=0;
-  function seed(p) { if(isWhite[p]&&!visited[p]){visited[p]=1;queue[qTail++]=p;} }
-  for (let x=0;x<W;x++){seed(x);seed((H-1)*W+x);}
-  for (let y=0;y<H;y++){seed(y*W);seed(y*W+W-1);}
-  while (qHead<qTail) {
-    const p=queue[qHead++], px=p%W, py=(p/W)|0;
-    if(py>0   &&isWhite[p-W]&&!visited[p-W]){visited[p-W]=1;queue[qTail++]=p-W;}
-    if(py<H-1 &&isWhite[p+W]&&!visited[p+W]){visited[p+W]=1;queue[qTail++]=p+W;}
-    if(px>0   &&isWhite[p-1]&&!visited[p-1]){visited[p-1]=1;queue[qTail++]=p-1;}
-    if(px<W-1 &&isWhite[p+1]&&!visited[p+1]){visited[p+1]=1;queue[qTail++]=p+1;}
+  let qHead = 0, qTail = 0;
+
+  function seed(p) {
+    if (isWhite[p] && !visited[p]) { visited[p] = 1; queue[qTail++] = p; }
+  }
+  for (let x = 0; x < W; x++) { seed(x); seed((H-1)*W + x); }
+  for (let y = 0; y < H; y++) { seed(y*W); seed(y*W + W - 1); }
+
+  while (qHead < qTail) {
+    const p = queue[qHead++], px = p % W, py = (p / W) | 0;
+    if (py > 0   && isWhite[p-W] && !visited[p-W]) { visited[p-W]=1; queue[qTail++]=p-W; }
+    if (py < H-1 && isWhite[p+W] && !visited[p+W]) { visited[p+W]=1; queue[qTail++]=p+W; }
+    if (px > 0   && isWhite[p-1] && !visited[p-1]) { visited[p-1]=1; queue[qTail++]=p-1; }
+    if (px < W-1 && isWhite[p+1] && !visited[p+1]) { visited[p+1]=1; queue[qTail++]=p+1; }
   }
 
+  // ── Step 3: interior = white AND not reachable from border ────────────
   const interior = [];
-  for (let i=0;i<W*H;i++) if(isWhite[i]&&!visited[i]) interior.push(i);
+  for (let i = 0; i < W * H; i++)
+    if (isWhite[i] && !visited[i]) interior.push(i);
 
-  if (interior.length===0) {
+  if (interior.length === 0) {
     toast('No enclosed regions found — outlines must be fully closed (no gaps)');
     return;
   }
 
-  // Apply via server (same proven path as Apply All button)
-  _fillInteriorsViaServer(pattern, n, interior);
-}
+  // ── Step 4: generate pattern with generateFillJS (pure client-side) ───
+  // Returns flat Uint8Array length W*H: 0 = UP (black), 1 = DOWN (white)
+  const patArr = generateFillJS(pattern, n, W, H);
 
-async function _fillInteriorsViaServer(pattern, n, interiorPixels) {
-  setSpin(true);
-  try {
-    const blob = await pxToBlob();
-    const fd   = new FormData();
-    fd.append('image',  blob, 'edit.png');
-    fd.append('op',     'fill_pattern');
-    fd.append('params', JSON.stringify({pattern, n, flip:false, min_height:1}));
-    const res = await fetch('/api/bmp-process', {method:'POST', body:fd});
-    const d   = await res.json();
-    if (!d.success) throw new Error(d.error);
+  // ── Step 5: apply pattern only to interior pixels ─────────────────────
+  pushHist('Fill Interiors: ' + pattern);
+  const newPx = S.pixels.slice();
 
-    // Get filled pixel values from server result
-    const filled = await new Promise(resolve => {
-      const img = new Image();
-      img.onload = () => {
-        const oc=Object.assign(document.createElement('canvas'),{width:S.W,height:S.H});
-        const c2=oc.getContext('2d'); c2.drawImage(img,0,0);
-        const id=c2.getImageData(0,0,S.W,S.H);
-        const fp=new Uint8Array(S.W*S.H);
-        for (let i=0;i<id.data.length;i+=4) fp[i>>2]=id.data[i]<128?0:1;
-        resolve(fp);
-      };
-      img.src='data:image/png;base64,'+d.image_b64;
-    });
-
-    // Apply ONLY to interior pixels
-    pushHist('Fill Interiors: '+pattern);
-    const newPx=S.pixels.slice();
-    for (const pos of interiorPixels) {
-      const v=filled[pos]===0?0:255, i=pos*4;
-      newPx[i]=newPx[i+1]=newPx[i+2]=v; newPx[i+3]=255;
-    }
-    S.pixels=newPx;
-    render(); updateStats();
-    closePopup('fillint');
-    toast('⬡ Filled '+interiorPixels.length.toLocaleString()+' pixels with '+pattern);
-  } catch(err) {
-    toast('Fill error: '+err.message);
-  } finally {
-    setSpin(false);
+  for (const pos of interior) {
+    const v = patArr[pos] === 0 ? 0 : 255;
+    const i = pos * 4;
+    newPx[i] = newPx[i+1] = newPx[i+2] = v;
+    newPx[i+3] = 255;
   }
+
+  S.pixels = newPx;
+  render();
+  updateStats();
+  closePopup('fillint');
+  toast('⬡ Filled ' + interior.length.toLocaleString() + ' interior pixels with ' + pattern + ' (N=' + n + ')');
 }
 
 
