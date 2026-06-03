@@ -994,7 +994,7 @@ def generate_bmps(
     # 2. Label map
     if label_map is None:
         n_detect = shuttle_count + 1
-        _, _, label_map = detect_colors(resized, n_detect)
+        _, _, label_map, _ = detect_colors(resized, n_detect)
 
     # 3. Shape validation
     if label_map.shape != (cards, pins):

@@ -28,7 +28,7 @@ Upload a cropped design image (Butta motif, running lines, etc.), set your loom'
 
 **2. Install dependencies**
 ```bash
-pip install flask pillow numpy scikit-learn scipy
+pip install flask pillow numpy scikit-learn scipy scikit-image
 ```
 
 **3. Run**
