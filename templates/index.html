@@ -203,41 +203,27 @@
     border-radius: var(--radius);
     display: none;
     position: relative;
-    overflow: hidden;
-    border: 1px solid var(--border);
-    background: #000;
-    min-height: 120px;
   }
-
-  .preview-overlay {
-    position: absolute;
-    bottom: 0; left: 0; right: 0;
-    padding: 6px 8px;
-    background: linear-gradient(transparent, rgba(0,0,0,0.7));
-    opacity: 0;
-    transition: opacity 0.2s;
-    display: flex; justify-content: flex-end;
-  }
-  .upload-preview:hover .preview-overlay { opacity: 1; }
 
   .upload-preview img {
     width: 100%;
     border-radius: var(--radius);
     display: block;
-    object-fit: cover;
-    max-height: 200px;
     max-height: 200px;
     object-fit: cover;
   }
 
   .upload-preview .change-btn {
+    position: absolute;
+    top: 8px; right: 8px;
+    background: rgba(0,0,0,0.7);
+    border: 1px solid var(--border2);
+    color: var(--text);
     padding: 4px 10px;
-    background: rgba(200,169,110,0.9);
-    color: #1a1510;
-    border: none; border-radius: 4px;
-    font-size: 10px; font-weight: 600;
-    cursor: pointer; font-family: 'DM Mono', monospace;
-    transition: all 0.15s;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
   }
 
   /* Form fields */
@@ -984,22 +970,12 @@
 
     <!-- Upload -->
     <div class="panel-section">
-      <div class="section-label" style="display:flex;align-items:center;justify-content:space-between">Design Image <span id="img-status" style="font-size:9px;color:var(--success);font-weight:normal"></span></div>
+      <div class="section-label">Design Image</div>
       <div class="upload-zone" id="upload-zone">
         <input type="file" id="file-input" accept="image/*">
         <div class="upload-icon">🖼</div>
         <h3>Drop design image here</h3>
         <p>Upload a cropped saree design photo<br>JPG, PNG, BMP supported</p>
-      </div>
-
-      <!-- Preview sits right below upload zone, always visible -->
-      <div class="upload-preview" id="upload-preview">
-        <div id="preview-filename" style="font-size:9px;color:var(--muted);padding:5px 8px 0;
-          white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
-        <img id="preview-img" src="" alt="Design preview">
-        <div class="preview-overlay">
-          <button class="change-btn" id="change-img-btn" onclick="document.getElementById('file-input').click()">✎ Change Image</button>
-        </div>
       </div>
 
       <div id="embossRow" class="emboss-row">
@@ -1023,13 +999,7 @@
       </div>
 
       <div id="qualityPanel" class="quality-panel">
-        <div class="quality-title" id="quality-title-btn"
-  style="cursor:pointer;display:flex;align-items:center;justify-content:space-between"
-  onclick="toggleQualityPanel()">
-  <span>📊 Image Quality</span>
-  <span id="quality-chevron" style="font-size:10px;color:var(--muted);transition:transform 0.2s">▾</span>
-</div>
-<div id="quality-body">
+        <div class="quality-title">📊 Image Quality</div>
         <div class="quality-meters">
           <div class="quality-meter">
             <div class="quality-meter-label"><span>Sharpness</span><span id="qBlur">—</span></div>
@@ -1050,6 +1020,9 @@
         </div>
         <div id="qualitySuggestions" class="quality-suggestions"></div>
       </div>
+      <div class="upload-preview" id="upload-preview">
+        <img id="preview-img" src="" alt="Design preview">
+        <button class="change-btn" id="change-img-btn">Change</button>
       </div>
     </div>
 
@@ -1153,11 +1126,11 @@
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
         <div>
           <div style="font-size:10px;color:var(--muted);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px">Original (resized)</div>
-          <img id="orig-preview" style="width:100%;border-radius:8px;display:block;max-height:260px;object-fit:contain;background:#1a1a1a;padding:4px">
+          <img id="orig-preview" style="width:100%;border-radius:8px;display:block;max-height:200px;object-fit:cover">
         </div>
         <div>
           <div style="font-size:10px;color:var(--muted);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px">Colour Map</div>
-          <img id="color-map-preview" style="width:100%;border-radius:8px;display:block;max-height:260px;object-fit:contain;background:#1a1a1a;padding:4px">
+          <img id="color-map-preview" style="width:100%;border-radius:8px;display:block;max-height:200px;object-fit:cover">
         </div>
       </div>
 
@@ -1460,15 +1433,11 @@ function handleFile(file) {
   reader.onload = e => {
     state.imageB64 = e.target.result.split(',')[1];
     document.getElementById('preview-img').src = e.target.result;
-    const fn = document.getElementById('preview-filename');
-    if (fn) fn.textContent = file.name + '  (' + (file.size/1024).toFixed(0) + ' KB)';
       document.getElementById('preview-img').onload = autoCalcCards;
     uploadZone.style.display = 'none';
     document.getElementById('upload-preview').style.display = 'block';
     checkDetectReady();
     setStep(1);
-    const st = document.getElementById('img-status');
-    if (st) st.textContent = '✓ Loaded';
   };
   reader.readAsDataURL(file);
 }

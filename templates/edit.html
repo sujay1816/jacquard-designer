@@ -123,17 +123,26 @@
     #side-panel {
       position: fixed;
       top: 48px; right: 0;
-      width: 220px;
+      width: 230px;
       bottom: 0;
       background: var(--surface);
       border-left: 1px solid var(--border);
       overflow-y: auto;
+      overflow-x: hidden;
       z-index: 90;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border2) transparent;
     }
-    .psec { border-bottom: 1px solid var(--border); padding: 8px 10px; }
+    #side-panel::-webkit-scrollbar { width: 4px; }
+    #side-panel::-webkit-scrollbar-track { background: transparent; }
+    #side-panel::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+    #side-panel::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+    .psec { border-bottom: 1px solid var(--border); padding: 7px 10px; }
     .ptitle {
       font-size: 9px; letter-spacing: .08em; text-transform: uppercase;
       color: var(--muted); margin-bottom: 6px;
+      display: flex; align-items: center; justify-content: space-between;
+      cursor: default;
     }
     .opt-row {
       display: flex; align-items: center;
@@ -150,34 +159,47 @@
 
     /* Op buttons */
     .obtn {
-      width: 100%; padding: 6px 8px;
+      width: 100%; padding: 5px 8px;
       background: var(--surface2); border: 1px solid var(--border);
       color: var(--text); border-radius: 5px; cursor: pointer;
       font-family: 'DM Mono',monospace; font-size: 10px;
       text-align: left; margin-bottom: 4px;
-      display: flex; align-items: center; gap: 5px;
+      display: flex; align-items: center; gap: 4px;
       transition: all .15s;
-      min-width: 0; overflow: hidden;
+      box-sizing: border-box;
+    }
+    .obtn span:not(.oic):not(.pval) {
+      flex: 1; min-width: 0;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     .obtn:hover { border-color:var(--gold); color:var(--gold); }
     .obtn.red   { color:var(--danger); }
     .obtn.red:hover { border-color:var(--danger); }
     .oic { font-size:11px; width:14px; text-align:center; }
     .pctl {
-      margin-left:auto; display:flex; align-items:center; gap:2px; flex-shrink:0;
+      margin-left: auto;
+      display: flex; align-items: center; gap: 3px;
+      flex-shrink: 0;
+      background: var(--surface);
+      border-radius: 4px;
+      padding: 1px 2px;
     }
     .pbtn {
-      width:16px; height:16px;
-      background:var(--surface); border:1px solid var(--border);
-      border-radius:3px; color:var(--muted); cursor:pointer;
-      font-size:9px; display:flex; align-items:center; justify-content:center;
+      width: 18px; height: 18px;
+      background: var(--bg); border: 1px solid var(--border2);
+      border-radius: 3px; color: var(--muted); cursor: pointer;
+      font-size: 11px; font-weight: 600;
+      display: flex; align-items: center; justify-content: center;
+      line-height: 1; flex-shrink: 0;
+      transition: all .1s;
     }
+    .pbtn:hover { border-color:var(--gold); color:var(--gold); }
     .pbtn:hover { border-color:var(--gold); color:var(--gold); }
     .pval { font-size:10px; color:var(--gold2); min-width:12px; text-align:center; }
 
     /* Stats */
-    .srow { display:flex; justify-content:space-between; margin-bottom:3px; }
-    .sl   { font-size:10px; color:var(--muted); }
+    .srow { display:flex; justify-content:space-between; margin-bottom:2px; align-items:center; }
+    .sl   { font-size:10px; color:var(--muted); flex:1; }
     .sv   { font-size:10px; color:var(--gold2); }
     .sv.ok  { color:var(--success); }
     .sv.bad { color:var(--danger); }
@@ -197,7 +219,7 @@
     /* ─── CANVAS AREA (fills remaining space) ──────────────── */
     #canvas-area {
       position: fixed;
-      top: 48px; left: 52px; right: 220px; bottom: 0;
+      top: 48px; left: 52px; right: 230px; bottom: 0;
       background: #0a0a0a;
       overflow: auto;
       display: flex; align-items: center; justify-content: center;
@@ -300,16 +322,16 @@
 <!-- ─── LEFT TOOLBAR ────────────────────────────────────────── -->
 <div id="toolbar">
   <button class="tbtn on" id="tbtn-pencil" onclick="setTool('pencil')" data-tip="Pencil — draw UP pixels (P)">✏</button>
-  <button class="tbtn"    id="tbtn-eraser" onclick="setTool('eraser')" data-tip="Eraser — draw DOWN pixels (E)" style="font-size:13px;font-weight:700;color:#aaa">E</button>
+  <button class="tbtn"    id="tbtn-eraser" onclick="setTool('eraser')" data-tip="Eraser — draw DOWN pixels (E)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12 L7 4 L13 8 L8 12 Z"/><line x1="2" y1="12" x2="13" y2="12"/><line x1="8" y1="12" x2="8" y2="14"/></svg></button>
   <button class="tbtn"    id="tbtn-fill"   onclick="setTool('fill')"   data-tip="Flood Fill — fills connected region (F)">🪣</button>
-  <button class="tbtn"    id="tbtn-satin"  onclick="setTool('satin')"  data-tip="Satin Brush (W) — paints inside UP pixels only" style="font-size:11px;font-weight:700;letter-spacing:-0.5px">⬡W</button>
-  <button class="tbtn"    id="tbtn-line"   onclick="setTool('line')"   data-tip="Straight line (L)" style="font-size:11px;font-weight:700">/</button>
-  <button class="tbtn"    id="tbtn-rect"   onclick="setTool('rect')"   data-tip="Filled rectangle (R)" style="font-size:11px">▭</button>
+  <button class="tbtn"    id="tbtn-satin"  onclick="setTool('satin')"  data-tip="Satin Brush (W) — paints inside UP pixels only"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><polygon points="8,2 13,5 13,11 8,14 3,11 3,5" stroke-width="1.2"/><line x1="8" y1="5" x2="8" y2="11"/><line x1="5" y1="6.5" x2="11" y2="6.5"/><line x1="5" y1="9.5" x2="11" y2="9.5"/></svg></button>
+  <button class="tbtn"    id="tbtn-line"   onclick="setTool('line')"   data-tip="Straight line (L)"><svg width="16" height="16" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.8"><line x1="3" y1="13" x2="13" y2="3"/></svg></button>
+  <button class="tbtn"    id="tbtn-rect"   onclick="setTool('rect')"   data-tip="Filled rectangle (R)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="10" height="8" rx="1"/></svg></button>
   <div class="tsep"></div>
   <button class="tbtn"    id="tbtn-pan"    onclick="setTool('pan')"    data-tip="Pan / scroll canvas (H)">✋</button>
   <div class="tsep"></div>
   <button class="tbtn"    id="tbtn-grid"   onclick="toggleGrid()"      data-tip="Toggle pixel grid — visible at 4x+ (G)">⊞</button>
-  <button class="tbtn"                     onclick="fitToWindow()"     data-tip="Fit entire image in view (0)" style="font-size:12px;font-weight:600">[ ]</button>
+  <button class="tbtn"                     onclick="fitToWindow()"     data-tip="Fit entire image in view (0)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 6V3h3M10 3h3v3M13 10v3h-3M6 13H3v-3"/></svg></button>
   <div class="tsep"></div>
   <button class="tbtn"                     onclick="document.getElementById('file-input2').click()" data-tip="Upload BMP or PNG from disk">📂</button>
   <input type="file" id="file-input2" accept=".bmp,.png" style="display:none" onchange="loadFile(this.files[0])">
