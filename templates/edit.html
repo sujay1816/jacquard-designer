@@ -334,6 +334,39 @@
       opacity:0.85;
     }
 
+    /* Shared toolbar popup */
+    .tb-popup {
+      display: none;
+      position: fixed;
+      z-index: 500;
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      padding: 0;
+      width: 240px;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.55);
+      max-height: calc(100vh - 60px);
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border2) transparent;
+    }
+    .tb-popup.show { display: block; }
+    .tb-popup-header {
+      padding: 8px 12px;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 9px; letter-spacing: .08em; text-transform: uppercase;
+      color: var(--muted); font-family: 'DM Mono', monospace;
+      position: sticky; top: 0; z-index: 1;
+    }
+    .tb-popup-header button {
+      background: none; border: none; color: var(--muted);
+      cursor: pointer; font-size: 14px; line-height: 1; padding: 0 2px;
+    }
+    .tb-popup-header button:hover { color: var(--danger); }
+    .tb-popup-body { padding: 10px 12px; }
+
     /* Zoom bar */
     #zoom-bar {
       position: absolute; bottom: 14px; right: 14px;
@@ -406,6 +439,8 @@
   <button class="tbtn"    id="tbtn-line"   onclick="setTool('line')"   data-tip="Straight line (L)"><svg width="16" height="16" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.8"><line x1="3" y1="13" x2="13" y2="3"/></svg></button>
   <button class="tbtn"    id="tbtn-rect"   onclick="setTool('rect')"   data-tip="Filled rectangle (R)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="10" height="8" rx="1"/></svg></button>
   <button class="tbtn"    id="tbtn-select" onclick="setTool('select')" data-tip="Select rectangle — drag to select, then Copy (Ctrl+C) (S)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2,1.5"><rect x="2" y="2" width="12" height="12" rx="1"/></svg></button>
+  <button class="tbtn" id="tbtn-morph" onclick="openPopup('morph',this)" data-tip="Morphological tools — Dilate, Erode, Close Gaps, Clean Noise"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><circle cx="8" cy="8" r="6" stroke-dasharray="2,2"/></svg></button>
+  <button class="tbtn" id="tbtn-weave" onclick="openPopup('weave',this)" data-tip="Weave / Fill Pattern — paint satin, twill, honeycomb and more"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="3" height="3" rx=".4"/><rect x="6" y="1" width="3" height="3" rx=".4" opacity=".4"/><rect x="11" y="1" width="3" height="3" rx=".4"/><rect x="1" y="6" width="3" height="3" rx=".4" opacity=".4"/><rect x="6" y="6" width="3" height="3" rx=".4"/><rect x="11" y="6" width="3" height="3" rx=".4" opacity=".4"/><rect x="1" y="11" width="3" height="3" rx=".4"/><rect x="6" y="11" width="3" height="3" rx=".4" opacity=".4"/><rect x="11" y="11" width="3" height="3" rx=".4"/></svg></button>
   <div class="tsep"></div>
   <button class="tbtn"    id="tbtn-pan"    onclick="setTool('pan')"    data-tip="Pan / scroll canvas (H)">✋</button>
   <div class="tsep"></div>
@@ -494,9 +529,9 @@
       <div class="opt-row">
         <span class="opt-label">Colour</span>
         <div style="display:flex;gap:5px;align-items:center">
-          <div class="cbtn on" id="c-black" style="background:#000" onclick="setCol('black')" title="UP (black)"></div>
+          <div class="cbtn on" id="c-black" style="background:#000" onclick="setCol('black')" title="UP (black — X to swap)"></div>
           <div class="cbtn"    id="c-white" style="background:#fff;border:1px solid #555" onclick="setCol('white')" title="DOWN (white)"></div>
-          <span style="font-size:9px;color:var(--muted);margin-left:2px">(X)</span>
+          <span style="font-size:9px;color:var(--muted)">(X)</span>
         </div>
       </div>
       <div class="opt-row" style="margin-top:5px">
@@ -514,111 +549,12 @@
   <div class="psec">
     <div class="ptitle" onclick="togglePsec('transform')">Transform<span class="pchev" id="pchev-transform">▸</span></div>
     <div class="pbody" id="pbody-transform" style="max-height:0;overflow:hidden">
-      <button class="obtn" onclick="runOp('flip_h')">  <span class="oic">⇄</span> Flip Horizontal</button>
-      <button class="obtn" onclick="runOp('flip_v')">  <span class="oic">⇅</span> Flip Vertical</button>
+      <button class="obtn" onclick="runOp('flip_h')"><span class="oic">⇄</span> Flip Horizontal</button>
+      <button class="obtn" onclick="runOp('flip_v')"><span class="oic">⇅</span> Flip Vertical</button>
       <button class="obtn" onclick="runOp('rotate_90')"><span class="oic">↻</span> Rotate 90°</button>
       <button class="obtn" onclick="runOp('rotate_180')"><span class="oic">↺</span> Rotate 180°</button>
       <button class="obtn" onclick="runOp('rotate_270')"><span class="oic">↻</span> Rotate 270°</button>
       <button class="obtn danger" onclick="invertCanvas()"><span class="oic">⬛</span> Invert Black↔White</button>
-    </div>
-  </div>
-
-  <div class="psec">
-    <div class="ptitle" onclick="togglePsec('morphological')">Morphological<span class="pchev" id="pchev-morphological">▾</span></div>
-    <div class="pbody" id="pbody-morphological" style="max-height:2000px;overflow:visible">
-      <button class="obtn" onclick="runMorph('dilate')">
-        <span class="oic">⊕</span> Dilate
-        <div class="pctl">
-          <button class="pbtn" onclick="event.stopPropagation();adj('dilate',-1)">−</button>
-          <span class="pval" id="pv-dilate">1</span>
-          <button class="pbtn" onclick="event.stopPropagation();adj('dilate',+1)">+</button>
-        </div>
-      </button>
-      <button class="obtn" onclick="runMorph('erode')">
-        <span class="oic">⊖</span> Erode
-        <div class="pctl">
-          <button class="pbtn" onclick="event.stopPropagation();adj('erode',-1)">−</button>
-          <span class="pval" id="pv-erode">1</span>
-          <button class="pbtn" onclick="event.stopPropagation();adj('erode',+1)">+</button>
-        </div>
-      </button>
-      <button class="obtn" onclick="runMorph('close_gaps')">
-        <span class="oic">⬡</span> Close Gaps
-        <div class="pctl">
-          <button class="pbtn" onclick="event.stopPropagation();adj('close_gaps',-1)">−</button>
-          <span class="pval" id="pv-close_gaps">2</span>
-          <button class="pbtn" onclick="event.stopPropagation();adj('close_gaps',+1)">+</button>
-        </div>
-      </button>
-      <button class="obtn" onclick="runMorph('open')">
-        <span class="oic">◎</span> Open (smooth)
-        <div class="pctl">
-          <button class="pbtn" onclick="event.stopPropagation();adj('open',-1)">−</button>
-          <span class="pval" id="pv-open">1</span>
-          <button class="pbtn" onclick="event.stopPropagation();adj('open',+1)">+</button>
-        </div>
-      </button>
-    </div>
-  </div>
-
-  <div class="psec">
-    <div class="ptitle" onclick="togglePsec('cleanup')">Clean-up<span class="pchev" id="pchev-cleanup">▾</span></div>
-    <div class="pbody" id="pbody-cleanup" style="max-height:2000px;overflow:visible">
-      <button class="obtn" onclick="runOp('remove_isolated')"><span class="oic">✕</span> Remove Isolated</button>
-      <button class="obtn" onclick="runMorph('clean_noise')">
-        <span class="oic">◌</span> Clean Noise
-        <div class="pctl">
-          <button class="pbtn" onclick="event.stopPropagation();adj('clean_noise',-1)">−</button>
-          <span class="pval" id="pv-clean_noise">5</span>
-          <button class="pbtn" onclick="event.stopPropagation();adj('clean_noise',+1)">+</button>
-        </div>
-      </button>
-      <button class="obtn red" onclick="runOp('invert')"><span class="oic">⬛</span> Invert UP/DOWN</button>
-    </div>
-  </div>
-
-  <div class="psec">
-    <div class="ptitle" onclick="togglePsec('fillpattern')">Fill Pattern<span class="pchev" id="pchev-fillpattern">▾</span></div>
-    <div class="pbody" id="pbody-fillpattern" style="max-height:2000px;overflow:visible">
-      <div style="font-size:9px;color:var(--muted);margin-bottom:8px;line-height:1.6">
-        Select ⬡W then <strong style="color:var(--text)">click &amp; drag</strong> to paint.<br>
-        Paints on <strong style="color:var(--text)">all pixels</strong> — use brush to limit area.
-      </div>
-      <div class="opt-row" style="margin-bottom:6px">
-        <span class="opt-label">Pattern</span>
-        <select id="fp-pattern" style="flex:1;margin-left:8px;padding:3px 5px;background:var(--surface2);
-          border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:10px;
-          font-family:'DM Mono',monospace">
-          <option value="satin">Satin</option>
-          <option value="satin_inv">Satin Inv.</option>
-          <option value="plain_weave">Plain Weave</option>
-          <option value="twill22">Twill 2/2</option>
-          <option value="twill31">Twill 3/1</option>
-          <option value="dots">Dots</option>
-          <option value="diagonal">Diagonal</option>
-          <option value="crosshatch">Cross-hatch</option>
-          <option value="honeycomb">Honeycomb</option>
-          <option value="diamond">Diamond</option>
-          <option value="herringbone">Herringbone</option>
-          <option value="basket">Basket</option>
-          <option value="crepe">Crepe</option>
-          <option value="rib">Rib</option>
-        </select>
-      </div>
-      <div class="opt-row" style="margin-bottom:8px">
-        <span class="opt-label">Density N</span>
-        <input type="range" id="fp-n" min="4" max="16" value="8"
-               style="flex:1;margin:0 6px;accent-color:var(--gold)"
-               oninput="document.getElementById('fp-n-val').textContent=this.value;S.fillPat=null;updateFillPreview()">
-        <span class="opt-val" id="fp-n-val">8</span>
-      </div>
-      <canvas id="fp-preview" width="120" height="40"
-        style="width:100%;border:1px solid var(--border);border-radius:4px;
-               image-rendering:pixelated;margin-bottom:8px;background:#fff"></canvas>
-      <button class="obtn" style="justify-content:center;background:rgba(200,169,110,0.12);
-        border-color:var(--gold);color:var(--gold2)" onclick="applyFillPattern()">
-        <span class="oic">⬡</span> Apply to Entire Image
-      </button>
     </div>
   </div>
 
@@ -629,14 +565,10 @@
         No selection.<br>Use the ⬚ Select tool to drag a region.
       </div>
       <div style="display:flex;gap:4px;flex-wrap:wrap">
-        <button class="obtn" style="flex:1;justify-content:center;font-size:9px" id="btn-copy"
-          onclick="copySelection()" title="Ctrl+C">⎘ Copy</button>
-        <button class="obtn" style="flex:1;justify-content:center;font-size:9px" id="btn-cut"
-          onclick="cutSelection()" title="Ctrl+X">✂ Cut</button>
-        <button class="obtn" style="flex:1;justify-content:center;font-size:9px" id="btn-paste"
-          onclick="startPaste()" title="Ctrl+V">⎘ Paste</button>
-        <button class="obtn" style="flex:1;justify-content:center;font-size:9px" id="btn-clear-sel"
-          onclick="clearSelection()">⬚ Deselect</button>
+        <button class="obtn" style="flex:1;justify-content:center;font-size:9px" id="btn-copy" onclick="copySelection()" title="Ctrl+C">⎘ Copy</button>
+        <button class="obtn" style="flex:1;justify-content:center;font-size:9px" id="btn-cut"  onclick="cutSelection()"  title="Ctrl+X">✂ Cut</button>
+        <button class="obtn" style="flex:1;justify-content:center;font-size:9px" id="btn-paste" onclick="startPaste()"  title="Ctrl+V">⎘ Paste</button>
+        <button class="obtn" style="flex:1;justify-content:center;font-size:9px" id="btn-clear-sel" onclick="clearSelection()">⬚ Desel</button>
       </div>
     </div>
   </div>
@@ -660,6 +592,113 @@
 
 </div>
 
+<div id="popup-morph" class="tb-popup">
+  <div class="tb-popup-header">
+    <span>⊕ Morphological</span>
+    <button onclick="closePopup('morph')" title="Close">✕</button>
+  </div>
+  <div class="tb-popup-body">
+    <div style="font-size:9px;color:var(--muted);margin-bottom:8px;line-height:1.5">Adjust radius then click to apply.</div>
+    <button class="obtn" onclick="runMorph('dilate')">
+      <span class="oic">⊕</span> Dilate
+      <div class="pctl">
+        <button class="pbtn" onclick="event.stopPropagation();adj('dilate',-1)">−</button>
+        <span class="pval" id="pv-dilate">1</span>
+        <button class="pbtn" onclick="event.stopPropagation();adj('dilate',+1)">+</button>
+      </div>
+    </button>
+    <button class="obtn" onclick="runMorph('erode')">
+      <span class="oic">⊖</span> Erode
+      <div class="pctl">
+        <button class="pbtn" onclick="event.stopPropagation();adj('erode',-1)">−</button>
+        <span class="pval" id="pv-erode">1</span>
+        <button class="pbtn" onclick="event.stopPropagation();adj('erode',+1)">+</button>
+      </div>
+    </button>
+    <button class="obtn" onclick="runMorph('close_gaps')">
+      <span class="oic">⬡</span> Close Gaps
+      <div class="pctl">
+        <button class="pbtn" onclick="event.stopPropagation();adj('close_gaps',-1)">−</button>
+        <span class="pval" id="pv-close_gaps">2</span>
+        <button class="pbtn" onclick="event.stopPropagation();adj('close_gaps',+1)">+</button>
+      </div>
+    </button>
+    <button class="obtn" onclick="runMorph('open')">
+      <span class="oic">◎</span> Open (smooth)
+      <div class="pctl">
+        <button class="pbtn" onclick="event.stopPropagation();adj('open',-1)">−</button>
+        <span class="pval" id="pv-open">1</span>
+        <button class="pbtn" onclick="event.stopPropagation();adj('open',+1)">+</button>
+      </div>
+    </button>
+    <div style="border-top:1px solid var(--border);margin:8px 0 6px"></div>
+    <button class="obtn" onclick="runOp('remove_isolated')"><span class="oic">✕</span> Remove Isolated</button>
+    <button class="obtn" onclick="runMorph('clean_noise')">
+      <span class="oic">◌</span> Clean Noise
+      <div class="pctl">
+        <button class="pbtn" onclick="event.stopPropagation();adj('clean_noise',-1)">−</button>
+        <span class="pval" id="pv-clean_noise">5</span>
+        <button class="pbtn" onclick="event.stopPropagation();adj('clean_noise',+1)">+</button>
+      </div>
+    </button>
+    <button class="obtn red" onclick="runOp('invert')"><span class="oic">⬛</span> Invert UP/DOWN</button>
+  </div>
+</div>
+
+<div id="popup-weave" class="tb-popup">
+  <div class="tb-popup-header">
+    <span>⬡ Weave / Fill Pattern</span>
+    <button onclick="closePopup('weave')" title="Close">✕</button>
+  </div>
+  <div class="tb-popup-body">
+    <div style="font-size:9px;color:var(--muted);margin-bottom:8px;line-height:1.5">
+      Select ⬡W brush then drag on canvas, or apply to entire image.
+    </div>
+    <div class="opt-row" style="margin-bottom:6px">
+      <span class="opt-label">Pattern</span>
+      <select id="fp-pattern" style="flex:1;margin-left:8px;padding:3px 5px;background:var(--surface2);
+        border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:10px;
+        font-family:'DM Mono',monospace">
+        <option value="satin">Satin</option>
+        <option value="satin_inv">Satin Inverted</option>
+        <option value="plain_weave">Plain Weave</option>
+        <option value="twill22">Twill 2/2</option>
+        <option value="twill31">Twill 3/1</option>
+        <option value="dots">Dots</option>
+        <option value="diagonal">Diagonal</option>
+        <option value="crosshatch">Cross-hatch</option>
+        <option value="honeycomb">Honeycomb</option>
+        <option value="diamond">Diamond</option>
+        <option value="herringbone">Herringbone</option>
+        <option value="basket">Basket Weave</option>
+        <option value="crepe">Crepe</option>
+        <option value="rib">Rib Weave</option>
+      </select>
+    </div>
+    <div class="opt-row" style="margin-bottom:8px">
+      <span class="opt-label">Density N</span>
+      <input type="range" id="fp-n" min="4" max="16" value="8"
+             style="flex:1;margin:0 6px;accent-color:var(--gold)"
+             oninput="document.getElementById('fp-n-val').textContent=this.value;S.fillPat=null;updateFillPreview()">
+      <span class="opt-val" id="fp-n-val">8</span>
+    </div>
+    <canvas id="fp-preview" width="200" height="50"
+      style="width:100%;border:1px solid var(--border);border-radius:4px;
+             image-rendering:pixelated;margin-bottom:10px;background:#fff;display:block"></canvas>
+    <div style="display:flex;gap:6px">
+      <button class="obtn" style="flex:1;justify-content:center;font-size:10px;
+        background:rgba(200,169,110,0.12);border-color:var(--gold);color:var(--gold2)"
+        onclick="setTool('satin');closePopup('weave')">
+        <span class="oic">⬡</span> Use Brush
+      </button>
+      <button class="obtn" style="flex:1;justify-content:center;font-size:10px"
+        onclick="applyFillPattern()">
+        <span class="oic">⊞</span> Apply All
+      </button>
+    </div>
+  </div>
+</div>
+
 <div id="cs-popup" style="
   display:none; position:fixed; z-index:500;
   background:var(--surface); border:1px solid var(--border2);
@@ -670,9 +709,7 @@
     <button onclick="document.getElementById('cs-popup').style.display='none'"
       style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;line-height:1">✕</button>
   </div>
-  <div style="font-size:9px;color:var(--muted);margin-bottom:10px;line-height:1.5">
-    Extend or crop. Existing pixels stay top-left.
-  </div>
+  <div style="font-size:9px;color:var(--muted);margin-bottom:10px;line-height:1.5">Extend or crop. Existing pixels stay top-left.</div>
   <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 8px;align-items:center;margin-bottom:10px">
     <span style="font-size:10px;color:var(--muted)">Width (pins)</span>
     <input type="number" id="cs-w" min="1" max="9999" placeholder="current"
@@ -697,6 +734,7 @@
     </button>
   </div>
 </div>
+
 <div id="toast"></div>
 
 <script>
@@ -1673,6 +1711,57 @@ document.addEventListener('keydown', ev => {
 });
 
 // ── Canvas Size ───────────────────────────────────
+// ── Generic toolbar popup manager ──────────────────
+let _activePopup = null;
+
+function openPopup(name, btn) {
+  const popup = document.getElementById('popup-' + name);
+  if (!popup) return;
+  // Toggle if clicking same popup button again
+  if (_activePopup === name) { closePopup(name); return; }
+  // Close any open popup
+  if (_activePopup) closePopup(_activePopup);
+  // Position to the right of the toolbar button
+  const r = btn.getBoundingClientRect();
+  popup.style.left = (r.right + 10) + 'px';
+  popup.style.top  = Math.min(r.top, window.innerHeight - 420) + 'px';
+  popup.classList.add('show');
+  _activePopup = name;
+  // Highlight the toolbar button
+  btn.classList.add('on');
+  // Re-init fill preview if opening weave popup
+  if (name === 'weave') { updateFillPreview(); }
+  // Sync pval displays
+  if (name === 'morph') {
+    Object.keys(S.params).forEach(k => {
+      const el = document.getElementById('pv-' + k);
+      if (el) el.textContent = S.params[k];
+    });
+  }
+}
+
+function closePopup(name) {
+  const popup = document.getElementById('popup-' + name);
+  if (popup) popup.classList.remove('show');
+  // Un-highlight button
+  const btn = document.getElementById('tbtn-' + name);
+  if (btn) btn.classList.remove('on');
+  if (_activePopup === name) _activePopup = null;
+}
+
+// Close popup on Escape or click outside
+document.addEventListener('keydown', ev => {
+  if (ev.key === 'Escape' && _activePopup) closePopup(_activePopup);
+});
+document.addEventListener('mousedown', ev => {
+  if (!_activePopup) return;
+  const popup = document.getElementById('popup-' + _activePopup);
+  const btn   = document.getElementById('tbtn-' + _activePopup);
+  if (popup && !popup.contains(ev.target) && btn && !btn.contains(ev.target)) {
+    closePopup(_activePopup);
+  }
+});
+
 function openCanvasSizePopup(e) {
   const popup = document.getElementById('cs-popup');
   if (!popup) return;
@@ -1772,6 +1861,8 @@ document.addEventListener('keydown', e=>{
     case '-':           zoomStep(-1);      break;
     case 'x':           setCol(S.drawCol==='black'?'white':'black'); break;
     case 'w': case 'W': setTool('satin'); break;
+    case 'm': case 'M': { const b=document.getElementById('tbtn-morph'); if(b) openPopup('morph',b); } break;
+    case 'q': case 'Q': { const b=document.getElementById('tbtn-weave'); if(b) openPopup('weave',b); } break;
     case 'i': case 'I': toggleRefPanel(); break;
     case 'v': case 'V': toggleSwapButtons(); break;
     case 'Escape':
@@ -1842,14 +1933,14 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   tryLoadFromGenerator();
   // Init collapsible sections — start all open except some
-  ['transform','canvassize','selection','history'].forEach(slug => {
+  ['transform','selection','history'].forEach(slug => {
     const body = document.getElementById('pbody-' + slug);
     const chev = document.getElementById('pchev-' + slug);
     if (body) { body.style.maxHeight='0px'; body.style.overflow='hidden'; body.dataset.open='false'; }
     if (chev) chev.textContent = '▸';
   });
   // Mark open sections
-  ['brush','morphological','cleanup','fillpattern','statistics'].forEach(slug => {
+  ['brush','statistics'].forEach(slug => {
     const body = document.getElementById('pbody-' + slug);
     if (body) body.dataset.open = 'true';
   });
