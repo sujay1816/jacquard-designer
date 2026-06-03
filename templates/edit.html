@@ -114,8 +114,8 @@
     #tb-tooltip {
       position: fixed;
       background: #2a2520;
-      border: 1px solid #c8a96e;
-      color: #f0e8d8;
+      border: 2px solid #c8a96e;
+      color: #f5edd8;
       padding: 6px 12px;
       border-radius: 5px;
       font-size: 11px;
@@ -124,10 +124,10 @@
       pointer-events: none;
       z-index: 99999;
       display: none;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.7);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.8);
       font-weight: 500;
     }
-    /* tooltip shown via display:block inline style */
+    /* tooltip shown via display:block */
     #tb-tooltip     { opacity: 0; transition: opacity .12s; }
 
     /* ─── FIXED RIGHT PANEL ─────────────────────────────────── */
@@ -830,7 +830,6 @@
 <div id="toast"></div>
 
 <script>
-// Session data injected by server (from generator transfer)
 const _SESSION_BMP_B64  = {{ editor_bmp_b64  | tojson }};
 const _SESSION_FILENAME = {{ editor_filename | tojson }};
 const _SESSION_PREVIEW  = {{ editor_preview  | tojson }};
@@ -1058,25 +1057,21 @@ function tryLoadFromGenerator() {
   if (p.get('from_generator') !== '1') return;
   document.getElementById('gen-hint').style.display = 'block';
 
-  // PRIMARY: server-injected session data (100% reliable, no cross-tab issues)
-  const bmpData  = (_SESSION_BMP_B64  && _SESSION_BMP_B64  !== 'null' && _SESSION_BMP_B64  !== '') ? _SESSION_BMP_B64  : '';
-  const filename = (_SESSION_FILENAME && _SESSION_FILENAME !== 'null' && _SESSION_FILENAME !== '') ? _SESSION_FILENAME : '';
-  const preview  = (_SESSION_PREVIEW  && _SESSION_PREVIEW  !== 'null' && _SESSION_PREVIEW  !== '') ? _SESSION_PREVIEW  : '';
+  // Primary: server-injected data (100% reliable, no cross-tab timing issues)
+  const bmpData  = (_SESSION_BMP_B64  && _SESSION_BMP_B64  !== 'null') ? _SESSION_BMP_B64  : '';
+  const filename = (_SESSION_FILENAME && _SESSION_FILENAME !== 'null') ? _SESSION_FILENAME : '';
+  const preview  = (_SESSION_PREVIEW  && _SESSION_PREVIEW  !== 'null') ? _SESSION_PREVIEW  : '';
 
-  // FALLBACK: localStorage/sessionStorage (older path)
+  // Fallback: localStorage/sessionStorage
   const ls = window.localStorage, ss = window.sessionStorage;
-  const fallbackBmp  = ls.getItem('editor_bmp_b64')  || ss.getItem('editor_bmp_b64')  || '';
-  const fallbackFile = ls.getItem('editor_filename')  || ss.getItem('editor_filename')  || 'from_generator.bmp';
-  const fallbackPrev = ls.getItem('editor_preview')   || ss.getItem('editor_preview')   || '';
+  const useBmp  = bmpData  || ls.getItem('editor_bmp_b64')  || ss.getItem('editor_bmp_b64')  || '';
+  const useFile = filename || ls.getItem('editor_filename')  || ss.getItem('editor_filename')  || 'design.bmp';
+  const usePrev = preview  || ls.getItem('editor_preview')   || ss.getItem('editor_preview')   || '';
 
   // Clean up localStorage
   ['editor_bmp_b64','editor_preview','editor_filename','editor_zip_b64','editor_design'].forEach(k => {
     try { ls.removeItem(k); ss.removeItem(k); } catch(_) {}
   });
-
-  const useBmp  = bmpData  || fallbackBmp;
-  const useFile = filename || fallbackFile;
-  const usePrev = preview  || fallbackPrev;
 
   if (useBmp) {
     try {
@@ -1090,24 +1085,22 @@ function tryLoadFromGenerator() {
   } else if (usePrev) {
     _loadPreviewFallback(usePrev, useFile);
   } else {
-    document.getElementById('gen-hint').textContent = 'No data from generator — upload a BMP file manually';
+    document.getElementById('gen-hint').textContent = 'No data — upload a BMP file manually';
   }
 }
 
-function _loadPreviewFallback(preview, filename, cleanup) {
+function _loadPreviewFallback(preview, filename) {
   if (!preview) {
-    if (cleanup) cleanup();
-    document.getElementById('gen-hint').textContent = 'Could not load BMP — upload file manually';
+    document.getElementById('gen-hint').textContent = 'Could not load — upload a BMP file manually';
     return;
   }
   const img = new Image();
   img.onload = () => {
-    if (cleanup) cleanup();
     const oc = Object.assign(document.createElement('canvas'),
                              {width: img.naturalWidth, height: img.naturalHeight});
-    const c2 = oc.getContext('2d'); c2.drawImage(img, 0, 0);
-    const id = c2.getImageData(0, 0, oc.width, oc.height);
-    for (let i = 0; i < id.data.length; i += 4) {
+    oc.getContext('2d').drawImage(img, 0, 0);
+    const id = oc.getContext('2d').getImageData(0, 0, oc.width, oc.height);
+    for (let i=0; i<id.data.length; i+=4) {
       const v = id.data[i] < 128 ? 0 : 255;
       id.data[i]=id.data[i+1]=id.data[i+2]=v; id.data[i+3]=255;
     }
@@ -1115,11 +1108,12 @@ function _loadPreviewFallback(preview, filename, cleanup) {
     toast('Loaded thumbnail — for full-res: download ZIP and upload the .bmp');
   };
   img.onerror = () => {
-    if (cleanup) cleanup();
-    document.getElementById('gen-hint').textContent = 'Could not load BMP — upload file manually';
+    document.getElementById('gen-hint').textContent = 'Could not load — upload a BMP file manually';
   };
   img.src = 'data:image/png;base64,' + preview;
 }
+
+
 
 // ═══════════════════════════════════════════════════
 // HISTORY
@@ -1681,103 +1675,85 @@ function updateFiPreview() {
 }
 
 function fillInteriors() {
-  if (!S.pixels || S.W === 0) { toast('No image loaded — upload a BMP file first'); return; }
+  if (!S.pixels || S.W === 0) { toast('No image loaded'); return; }
   const pattern = document.getElementById('fi-pattern')?.value || 'satin';
   const n       = parseInt(document.getElementById('fi-n')?.value || '8');
   const W = S.W, H = S.H;
 
-  // ── Build white-pixel map ──────────────────────────────────────────────
+  // Find enclosed interior pixels via BFS from borders
   const isWhite = new Uint8Array(W * H);
-  for (let i = 0; i < S.pixels.length; i += 4) {
-    if (S.pixels[i] > 128) isWhite[i >> 2] = 1;
-  }
+  for (let i=0; i<S.pixels.length; i+=4) if (S.pixels[i]>128) isWhite[i>>2]=1;
 
-  // ── BFS from all 4 borders to find background ──────────────────────────
   const visited = new Uint8Array(W * H);
   const queue   = new Int32Array(W * H);
-  let qHead = 0, qTail = 0;
-
-  function seed(pos) {
-    if (isWhite[pos] && !visited[pos]) { visited[pos]=1; queue[qTail++]=pos; }
-  }
-  for (let x = 0; x < W; x++) { seed(x); seed((H-1)*W+x); }
-  for (let y = 0; y < H; y++) { seed(y*W); seed(y*W+W-1); }
-
-  while (qHead < qTail) {
-    const pos = queue[qHead++];
-    const px = pos%W, py = (pos/W)|0;
-    if (py>0     && isWhite[pos-W] && !visited[pos-W]) { visited[pos-W]=1; queue[qTail++]=pos-W; }
-    if (py<H-1   && isWhite[pos+W] && !visited[pos+W]) { visited[pos+W]=1; queue[qTail++]=pos+W; }
-    if (px>0     && isWhite[pos-1] && !visited[pos-1]) { visited[pos-1]=1; queue[qTail++]=pos-1; }
-    if (px<W-1   && isWhite[pos+1] && !visited[pos+1]) { visited[pos+1]=1; queue[qTail++]=pos+1; }
+  let qHead=0, qTail=0;
+  function seed(p) { if(isWhite[p]&&!visited[p]){visited[p]=1;queue[qTail++]=p;} }
+  for (let x=0;x<W;x++){seed(x);seed((H-1)*W+x);}
+  for (let y=0;y<H;y++){seed(y*W);seed(y*W+W-1);}
+  while (qHead<qTail) {
+    const p=queue[qHead++], px=p%W, py=(p/W)|0;
+    if(py>0   &&isWhite[p-W]&&!visited[p-W]){visited[p-W]=1;queue[qTail++]=p-W;}
+    if(py<H-1 &&isWhite[p+W]&&!visited[p+W]){visited[p+W]=1;queue[qTail++]=p+W;}
+    if(px>0   &&isWhite[p-1]&&!visited[p-1]){visited[p-1]=1;queue[qTail++]=p-1;}
+    if(px<W-1 &&isWhite[p+1]&&!visited[p+1]){visited[p+1]=1;queue[qTail++]=p+1;}
   }
 
-  // ── Collect interior pixels ────────────────────────────────────────────
-  const interiorPixels = [];
-  for (let i = 0; i < W*H; i++) {
-    if (isWhite[i] && !visited[i]) interiorPixels.push(i);
-  }
+  const interior = [];
+  for (let i=0;i<W*H;i++) if(isWhite[i]&&!visited[i]) interior.push(i);
 
-  if (interiorPixels.length === 0) {
-    toast('No enclosed regions found — design needs fully closed shapes (no gaps in outlines).');
+  if (interior.length===0) {
+    toast('No enclosed regions found — outlines must be fully closed (no gaps)');
     return;
   }
 
-  // ── Apply pattern via server (same reliable path as Apply All button) ──
-  // This guarantees correct output on all browsers
-  _fillInteriorsViaServer(pattern, n, interiorPixels, W, H);
+  // Apply via server (same proven path as Apply All button)
+  _fillInteriorsViaServer(pattern, n, interior);
 }
 
-async function _fillInteriorsViaServer(pattern, n, interiorPixels, W, H) {
+async function _fillInteriorsViaServer(pattern, n, interiorPixels) {
   setSpin(true);
   try {
-    // Create a copy of pixels with interior areas blanked to white
-    // Then let the server apply the fill pattern, then we mask back to interior only
     const blob = await pxToBlob();
-    const fd = new FormData();
+    const fd   = new FormData();
     fd.append('image',  blob, 'edit.png');
     fd.append('op',     'fill_pattern');
-    fd.append('params', JSON.stringify({ pattern, n, flip: false, min_height: 1 }));
-    const res = await fetch('/api/bmp-process', { method:'POST', body:fd });
+    fd.append('params', JSON.stringify({pattern, n, flip:false, min_height:1}));
+    const res = await fetch('/api/bmp-process', {method:'POST', body:fd});
     const d   = await res.json();
     if (!d.success) throw new Error(d.error);
 
-    // Server applied fill to ENTIRE image — we mask it to interior pixels only
+    // Get filled pixel values from server result
     const filled = await new Promise(resolve => {
       const img = new Image();
       img.onload = () => {
-        const oc = Object.assign(document.createElement('canvas'), {width:W, height:H});
-        const c2 = oc.getContext('2d'); c2.drawImage(img, 0, 0);
-        const id = c2.getImageData(0, 0, W, H);
-        // Binarise filled image
-        const fp = new Uint8Array(W*H);
-        for (let i=0; i<id.data.length; i+=4) {
-          fp[i>>2] = id.data[i] < 128 ? 0 : 1;  // 0=black(UP), 1=white(DOWN)
-        }
+        const oc=Object.assign(document.createElement('canvas'),{width:S.W,height:S.H});
+        const c2=oc.getContext('2d'); c2.drawImage(img,0,0);
+        const id=c2.getImageData(0,0,S.W,S.H);
+        const fp=new Uint8Array(S.W*S.H);
+        for (let i=0;i<id.data.length;i+=4) fp[i>>2]=id.data[i]<128?0:1;
         resolve(fp);
       };
-      img.src = 'data:image/png;base64,' + d.image_b64;
+      img.src='data:image/png;base64,'+d.image_b64;
     });
 
-    // Apply filled values ONLY to interior pixels
-    pushHist('Fill Interiors: ' + pattern);
-    const newPx = S.pixels.slice();
+    // Apply ONLY to interior pixels
+    pushHist('Fill Interiors: '+pattern);
+    const newPx=S.pixels.slice();
     for (const pos of interiorPixels) {
-      const v = filled[pos] === 0 ? 0 : 255;
-      const i = pos * 4;
+      const v=filled[pos]===0?0:255, i=pos*4;
       newPx[i]=newPx[i+1]=newPx[i+2]=v; newPx[i+3]=255;
     }
-    S.pixels = newPx;
-    render();
-    updateStats();
+    S.pixels=newPx;
+    render(); updateStats();
     closePopup('fillint');
-    toast('⬡ Filled ' + interiorPixels.length.toLocaleString() + ' interior pixels with ' + pattern);
+    toast('⬡ Filled '+interiorPixels.length.toLocaleString()+' pixels with '+pattern);
   } catch(err) {
-    toast('Fill error: ' + err.message);
+    toast('Fill error: '+err.message);
   } finally {
     setSpin(false);
   }
 }
+
 
 async function applyFillPattern() {
   if (!S.pixels) { toast('No file loaded'); return; }
@@ -2319,22 +2295,18 @@ document.addEventListener('DOMContentLoaded', () => {
   // 5. Toolbar tooltips
   const tipDiv = document.getElementById('tb-tooltip');
 
-  function _showTip(btn) {
-    if (!tipDiv || !btn || !btn.dataset.tip) return;
-    const r = btn.getBoundingClientRect();
-    tipDiv.textContent    = btn.dataset.tip;
-    tipDiv.style.left     = (r.right + 12) + 'px';
-    tipDiv.style.top      = Math.max(8, Math.round(r.top + r.height / 2 - 15)) + 'px';
-    tipDiv.style.display  = 'block';
-  }
-
-  function _hideTip() {
-    if (tipDiv) tipDiv.style.display = 'none';
-  }
-
   document.querySelectorAll('#toolbar .tbtn[data-tip]').forEach(btn => {
-    btn.addEventListener('mouseenter', () => _showTip(btn));
-    btn.addEventListener('mouseleave', _hideTip);
+    btn.addEventListener('mouseenter', () => {
+      if (!tipDiv || !btn.dataset.tip) return;
+      const r = btn.getBoundingClientRect();
+      tipDiv.textContent = btn.dataset.tip;
+      tipDiv.style.left  = (r.right + 12) + 'px';
+      tipDiv.style.top   = Math.max(8, Math.round(r.top + r.height/2 - 15)) + 'px';
+      tipDiv.style.display = 'block';
+    });
+    btn.addEventListener('mouseleave', () => {
+      if (tipDiv) tipDiv.style.display = 'none';
+    });
   });
 
   // 6. Load BMP from generator if redirected here

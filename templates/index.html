@@ -2090,30 +2090,17 @@ function openInEditor(fname, previewB64) {
   fetch('/api/store-bmp', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ bmp_b64: bmpData, filename: fname, preview: previewB64 })
+    body: JSON.stringify({bmp_b64: bmpData, filename: fname, preview: previewB64})
   })
   .then(r => r.json())
   .then(d => {
     if (d.success && d.token) {
       window.open('/edit?from_generator=1&token=' + d.token, '_blank');
     } else {
-      // Fallback: localStorage
-      try {
-        localStorage.setItem('editor_bmp_b64',  bmpData);
-        localStorage.setItem('editor_filename', fname);
-        localStorage.setItem('editor_preview',  previewB64);
-      } catch(_) {}
       window.open('/edit?from_generator=1', '_blank');
     }
   })
-  .catch(() => {
-    try {
-      localStorage.setItem('editor_bmp_b64',  bmpData);
-      localStorage.setItem('editor_filename', fname);
-      localStorage.setItem('editor_preview',  previewB64);
-    } catch(_) {}
-    window.open('/edit?from_generator=1', '_blank');
-  });
+  .catch(() => window.open('/edit?from_generator=1', '_blank'));
 }
 
 // =====================================================================
