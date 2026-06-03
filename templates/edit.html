@@ -809,6 +809,7 @@ function render() {
   if (!S.pixels) return;
   cx.putImageData(new ImageData(S.pixels.slice(), S.W, S.H), 0, 0);
   renderGrid();
+  if (S.selActive) drawSelectionRect();
 }
 
 function applyZoom() {
@@ -1976,12 +1977,7 @@ function applyCanvasSize() {
   const p=document.getElementById('cs-popup'); if(p) p.style.display='none';
 }
 
-// ── Override render() to also redraw selection ────
-const _origRender = render;
-function render() {
-  _origRender();
-  if (S.selActive) drawSelectionRect();
-}
+// Selection is drawn by render() above
 
 // ═══════════════════════════════════════════════════
 // KEYBOARD
