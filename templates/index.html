@@ -2086,27 +2086,34 @@ function renderOutputPreviews(data) {
 // Open BMP in Editor
 // =====================================================================
 function openInEditor(fname, previewB64) {
-  // Use localStorage (reliable across tabs) instead of sessionStorage
-  // sessionStorage is not reliably shared to new tabs in Safari
-  try {
-    const bmpData = (state.bmpB64 && state.bmpB64[fname]) || '';
-    localStorage.setItem('editor_bmp_b64',  bmpData);       // full-res BMP for editor
-    localStorage.setItem('editor_zip_b64',  state.zipB64 || '');
-    localStorage.setItem('editor_filename', fname);
-    localStorage.setItem('editor_preview',  previewB64);    // thumbnail fallback
-    localStorage.setItem('editor_design',   fname.replace('.bmp','').replace(/_/g,' '));
-    // Also write to sessionStorage as fallback for other browsers
+  const bmpData = (state.bmpB64 && state.bmpB64[fname]) || '';
+  fetch('/api/store-bmp', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ bmp_b64: bmpData, filename: fname, preview: previewB64 })
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.success && d.token) {
+      window.open('/edit?from_generator=1&token=' + d.token, '_blank');
+    } else {
+      // Fallback: localStorage
+      try {
+        localStorage.setItem('editor_bmp_b64',  bmpData);
+        localStorage.setItem('editor_filename', fname);
+        localStorage.setItem('editor_preview',  previewB64);
+      } catch(_) {}
+      window.open('/edit?from_generator=1', '_blank');
+    }
+  })
+  .catch(() => {
     try {
-      sessionStorage.setItem('editor_bmp_b64',  bmpData);
-      sessionStorage.setItem('editor_zip_b64',  state.zipB64 || '');
-      sessionStorage.setItem('editor_filename', fname);
-      sessionStorage.setItem('editor_preview',  previewB64);
-      sessionStorage.setItem('editor_design',   fname.replace('.bmp','').replace(/_/g,' '));
+      localStorage.setItem('editor_bmp_b64',  bmpData);
+      localStorage.setItem('editor_filename', fname);
+      localStorage.setItem('editor_preview',  previewB64);
     } catch(_) {}
-    window.open('/edit?from_generator=1&file=' + encodeURIComponent(fname), '_blank');
-  } catch(e) {
-    window.open('/edit', '_blank');
-  }
+    window.open('/edit?from_generator=1', '_blank');
+  });
 }
 
 // =====================================================================

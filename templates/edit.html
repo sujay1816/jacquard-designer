@@ -113,21 +113,21 @@
     /* Global tooltip — avoids overflow clipping from toolbar */
     #tb-tooltip {
       position: fixed;
-      background: #1e1b17;
-      border: 1px solid #3e3830;
-      color: #e8e0d0;
-      padding: 5px 10px;
-      border-radius: 6px;
-      font-size: 10px;
+      background: #2a2520;
+      border: 1px solid #c8a96e;
+      color: #f0e8d8;
+      padding: 6px 12px;
+      border-radius: 5px;
+      font-size: 11px;
       font-family: 'DM Mono', monospace;
       white-space: nowrap;
       pointer-events: none;
-      z-index: 9999;
-      visibility: hidden;
-      display: block;
-      box-shadow: 0 3px 10px rgba(0,0,0,0.5);
+      z-index: 99999;
+      display: none;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.7);
+      font-weight: 500;
     }
-    #tb-tooltip.show { visibility: visible; }
+    /* tooltip shown via display:block inline style */
     #tb-tooltip     { opacity: 0; transition: opacity .12s; }
 
     /* ─── FIXED RIGHT PANEL ─────────────────────────────────── */
@@ -830,6 +830,13 @@
 <div id="toast"></div>
 
 <script>
+// Session data injected by server (from generator transfer)
+const _SESSION_BMP_B64  = {{ editor_bmp_b64  | tojson }};
+const _SESSION_FILENAME = {{ editor_filename | tojson }};
+const _SESSION_PREVIEW  = {{ editor_preview  | tojson }};
+</script>
+
+<script>
 // ═══════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════
@@ -1051,35 +1058,38 @@ function tryLoadFromGenerator() {
   if (p.get('from_generator') !== '1') return;
   document.getElementById('gen-hint').style.display = 'block';
 
+  // PRIMARY: server-injected session data (100% reliable, no cross-tab issues)
+  const bmpData  = (_SESSION_BMP_B64  && _SESSION_BMP_B64  !== 'null' && _SESSION_BMP_B64  !== '') ? _SESSION_BMP_B64  : '';
+  const filename = (_SESSION_FILENAME && _SESSION_FILENAME !== 'null' && _SESSION_FILENAME !== '') ? _SESSION_FILENAME : '';
+  const preview  = (_SESSION_PREVIEW  && _SESSION_PREVIEW  !== 'null' && _SESSION_PREVIEW  !== '') ? _SESSION_PREVIEW  : '';
+
+  // FALLBACK: localStorage/sessionStorage (older path)
   const ls = window.localStorage, ss = window.sessionStorage;
-  const bmpData  = ls.getItem('editor_bmp_b64') || ss.getItem('editor_bmp_b64') || '';
-  const preview  = ls.getItem('editor_preview')  || ss.getItem('editor_preview')  || '';
-  const filename = ls.getItem('editor_filename') || ss.getItem('editor_filename') || 'from_generator.bmp';
+  const fallbackBmp  = ls.getItem('editor_bmp_b64')  || ss.getItem('editor_bmp_b64')  || '';
+  const fallbackFile = ls.getItem('editor_filename')  || ss.getItem('editor_filename')  || 'from_generator.bmp';
+  const fallbackPrev = ls.getItem('editor_preview')   || ss.getItem('editor_preview')   || '';
 
-  function cleanup() {
-    ['editor_bmp_b64','editor_preview','editor_filename','editor_zip_b64','editor_design'].forEach(k => {
-      try { ls.removeItem(k); } catch(_) {}
-      try { ss.removeItem(k); } catch(_) {}
-    });
-  }
+  // Clean up localStorage
+  ['editor_bmp_b64','editor_preview','editor_filename','editor_zip_b64','editor_design'].forEach(k => {
+    try { ls.removeItem(k); ss.removeItem(k); } catch(_) {}
+  });
 
-  if (bmpData) {
-    // Use parseBmpBytes — same path as loadFile(), works in all browsers
-    // No browser PNG/BMP rendering dependency
+  const useBmp  = bmpData  || fallbackBmp;
+  const useFile = filename || fallbackFile;
+  const usePrev = preview  || fallbackPrev;
+
+  if (useBmp) {
     try {
-      const bytes  = Uint8Array.from(atob(bmpData), c => c.charCodeAt(0));
+      const bytes = Uint8Array.from(atob(useBmp), c => c.charCodeAt(0));
       const { rgba, width, height } = parseBmpBytes(bytes.buffer);
-      cleanup();
-      initImage(rgba, width, height, filename);
-      toast('Loaded: ' + filename);
+      initImage(rgba, width, height, useFile);
+      toast('Loaded: ' + useFile);
     } catch(err) {
-      // Fallback: try preview thumbnail via canvas
-      _loadPreviewFallback(preview, filename, cleanup);
+      _loadPreviewFallback(usePrev, useFile);
     }
-  } else if (preview) {
-    _loadPreviewFallback(preview, filename, cleanup);
+  } else if (usePrev) {
+    _loadPreviewFallback(usePrev, useFile);
   } else {
-    cleanup();
     document.getElementById('gen-hint').textContent = 'No data from generator — upload a BMP file manually';
   }
 }
@@ -1676,64 +1686,97 @@ function fillInteriors() {
   const n       = parseInt(document.getElementById('fi-n')?.value || '8');
   const W = S.W, H = S.H;
 
-  // ── Step 1: build white-pixel map ────────────────────────────────────
-  // S.pixels: R channel = 0 (UP/black) or 255 (DOWN/white)
+  // ── Build white-pixel map ──────────────────────────────────────────────
   const isWhite = new Uint8Array(W * H);
   for (let i = 0; i < S.pixels.length; i += 4) {
     if (S.pixels[i] > 128) isWhite[i >> 2] = 1;
   }
 
-  // ── Step 2: BFS from all 4 borders — mark reachable (background) white ──
+  // ── BFS from all 4 borders to find background ──────────────────────────
   const visited = new Uint8Array(W * H);
-  const queue   = new Int32Array(W * H);  // pre-allocated for performance
+  const queue   = new Int32Array(W * H);
   let qHead = 0, qTail = 0;
 
   function seed(pos) {
-    if (isWhite[pos] && !visited[pos]) { visited[pos] = 1; queue[qTail++] = pos; }
+    if (isWhite[pos] && !visited[pos]) { visited[pos]=1; queue[qTail++]=pos; }
   }
-
-  for (let x = 0; x < W; x++) { seed(x); seed((H-1)*W + x); }
-  for (let y = 0; y < H; y++) { seed(y*W); seed(y*W + W - 1); }
+  for (let x = 0; x < W; x++) { seed(x); seed((H-1)*W+x); }
+  for (let y = 0; y < H; y++) { seed(y*W); seed(y*W+W-1); }
 
   while (qHead < qTail) {
     const pos = queue[qHead++];
-    const px = pos % W, py = (pos / W) | 0;
-    if (py > 0     && isWhite[pos-W] && !visited[pos-W]) { visited[pos-W]=1; queue[qTail++]=pos-W; }
-    if (py < H - 1 && isWhite[pos+W] && !visited[pos+W]) { visited[pos+W]=1; queue[qTail++]=pos+W; }
-    if (px > 0     && isWhite[pos-1] && !visited[pos-1]) { visited[pos-1]=1; queue[qTail++]=pos-1; }
-    if (px < W - 1 && isWhite[pos+1] && !visited[pos+1]) { visited[pos+1]=1; queue[qTail++]=pos+1; }
+    const px = pos%W, py = (pos/W)|0;
+    if (py>0     && isWhite[pos-W] && !visited[pos-W]) { visited[pos-W]=1; queue[qTail++]=pos-W; }
+    if (py<H-1   && isWhite[pos+W] && !visited[pos+W]) { visited[pos+W]=1; queue[qTail++]=pos+W; }
+    if (px>0     && isWhite[pos-1] && !visited[pos-1]) { visited[pos-1]=1; queue[qTail++]=pos-1; }
+    if (px<W-1   && isWhite[pos+1] && !visited[pos+1]) { visited[pos+1]=1; queue[qTail++]=pos+1; }
   }
 
-  // ── Step 3: collect interior pixels (white AND not background) ────────
+  // ── Collect interior pixels ────────────────────────────────────────────
   const interiorPixels = [];
-  for (let i = 0; i < W * H; i++) {
+  for (let i = 0; i < W*H; i++) {
     if (isWhite[i] && !visited[i]) interiorPixels.push(i);
   }
 
   if (interiorPixels.length === 0) {
-    toast('No closed interior regions found. Make sure your design has fully enclosed shapes.');
+    toast('No enclosed regions found — design needs fully closed shapes (no gaps in outlines).');
     return;
   }
 
-  // ── Step 4: generate fill pattern ─────────────────────────────────────
-  // generateFillJS returns flat Uint8Array: 0=UP(black), 1=DOWN(white)
-  const patArr = generateFillJS(pattern, n, W, H);
+  // ── Apply pattern via server (same reliable path as Apply All button) ──
+  // This guarantees correct output on all browsers
+  _fillInteriorsViaServer(pattern, n, interiorPixels, W, H);
+}
 
-  // ── Step 5: apply to interior pixels ──────────────────────────────────
-  pushHist('Fill Interiors: ' + pattern);
-  const newPx = S.pixels.slice();
+async function _fillInteriorsViaServer(pattern, n, interiorPixels, W, H) {
+  setSpin(true);
+  try {
+    // Create a copy of pixels with interior areas blanked to white
+    // Then let the server apply the fill pattern, then we mask back to interior only
+    const blob = await pxToBlob();
+    const fd = new FormData();
+    fd.append('image',  blob, 'edit.png');
+    fd.append('op',     'fill_pattern');
+    fd.append('params', JSON.stringify({ pattern, n, flip: false, min_height: 1 }));
+    const res = await fetch('/api/bmp-process', { method:'POST', body:fd });
+    const d   = await res.json();
+    if (!d.success) throw new Error(d.error);
 
-  for (const pos of interiorPixels) {
-    const v = patArr[pos] === 0 ? 0 : 255;
-    const i = pos * 4;
-    newPx[i] = newPx[i+1] = newPx[i+2] = v; newPx[i+3] = 255;
+    // Server applied fill to ENTIRE image — we mask it to interior pixels only
+    const filled = await new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => {
+        const oc = Object.assign(document.createElement('canvas'), {width:W, height:H});
+        const c2 = oc.getContext('2d'); c2.drawImage(img, 0, 0);
+        const id = c2.getImageData(0, 0, W, H);
+        // Binarise filled image
+        const fp = new Uint8Array(W*H);
+        for (let i=0; i<id.data.length; i+=4) {
+          fp[i>>2] = id.data[i] < 128 ? 0 : 1;  // 0=black(UP), 1=white(DOWN)
+        }
+        resolve(fp);
+      };
+      img.src = 'data:image/png;base64,' + d.image_b64;
+    });
+
+    // Apply filled values ONLY to interior pixels
+    pushHist('Fill Interiors: ' + pattern);
+    const newPx = S.pixels.slice();
+    for (const pos of interiorPixels) {
+      const v = filled[pos] === 0 ? 0 : 255;
+      const i = pos * 4;
+      newPx[i]=newPx[i+1]=newPx[i+2]=v; newPx[i+3]=255;
+    }
+    S.pixels = newPx;
+    render();
+    updateStats();
+    closePopup('fillint');
+    toast('⬡ Filled ' + interiorPixels.length.toLocaleString() + ' interior pixels with ' + pattern);
+  } catch(err) {
+    toast('Fill error: ' + err.message);
+  } finally {
+    setSpin(false);
   }
-
-  S.pixels = newPx;
-  render();
-  updateStats();
-  closePopup('fillint');
-  toast('⬡ Filled ' + interiorPixels.length.toLocaleString() + ' pixels with ' + pattern + ' (N=' + n + ')');
 }
 
 async function applyFillPattern() {
@@ -2273,23 +2316,22 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 5. Toolbar tooltips — instant show/hide, no transition
+  // 5. Toolbar tooltips
   const tipDiv = document.getElementById('tb-tooltip');
 
   function _showTip(btn) {
     if (!tipDiv || !btn || !btn.dataset.tip) return;
     const r = btn.getBoundingClientRect();
-    tipDiv.textContent = btn.dataset.tip;
-    tipDiv.style.left  = (r.right + 8) + 'px';
-    tipDiv.style.top   = Math.max(4, Math.round(r.top + r.height / 2 - 14)) + 'px';
-    tipDiv.classList.add('show');
+    tipDiv.textContent    = btn.dataset.tip;
+    tipDiv.style.left     = (r.right + 12) + 'px';
+    tipDiv.style.top      = Math.max(8, Math.round(r.top + r.height / 2 - 15)) + 'px';
+    tipDiv.style.display  = 'block';
   }
 
   function _hideTip() {
-    if (tipDiv) tipDiv.classList.remove('show');
+    if (tipDiv) tipDiv.style.display = 'none';
   }
 
-  // mouseenter/mouseleave fire exactly once per button (don't bubble into SVG children)
   document.querySelectorAll('#toolbar .tbtn[data-tip]').forEach(btn => {
     btn.addEventListener('mouseenter', () => _showTip(btn));
     btn.addEventListener('mouseleave', _hideTip);

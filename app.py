@@ -2,7 +2,7 @@
 Jacquard Designer App — Flask Backend
 """
 
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, session
 from PIL import Image, ImageOps, UnidentifiedImageError
 import numpy as np
 import io, os, zipfile, base64
@@ -11,6 +11,7 @@ from bmp_engine import (detect_colors, generate_bmps, verify_bmp, enhance_image,
                         generate_fill_pattern, FILL_PATTERNS)
 
 app = Flask(__name__)
+app.secret_key = 'jacquard-designer-2024-secret'
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024   # 50 MB upload cap
 
 ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.webp', '.heic', '.heif'}
@@ -46,10 +47,43 @@ def trace_page_redirect():
     return resp
 
 
+
+# In-memory BMP transfer store (no cookie size limits)
+_bmp_transfer_store = {}
+
+@app.route('/api/store-bmp', methods=['POST'])
+def api_store_bmp():
+    """Store BMP data server-side and return a token for the editor to retrieve."""
+    try:
+        import uuid as _uuid
+        data   = request.get_json()
+        token  = str(_uuid.uuid4())
+        _bmp_transfer_store[token] = {
+            'bmp_b64':  data.get('bmp_b64', ''),
+            'filename': data.get('filename', 'design.bmp'),
+            'preview':  data.get('preview', ''),
+        }
+        # Clean up old entries (keep last 20 only)
+        if len(_bmp_transfer_store) > 20:
+            oldest = list(_bmp_transfer_store.keys())[0]
+            del _bmp_transfer_store[oldest]
+        return jsonify({'success': True, 'token': token})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/edit')
 def edit_page_redirect():
     from flask import make_response
-    resp = make_response(render_template('edit.html'))
+    # Read BMP transfer data via token (no cookie size limits)
+    token    = request.args.get('token', '')
+    entry    = _bmp_transfer_store.pop(token, {}) if token else {}
+    bmp_b64  = entry.get('bmp_b64', '')
+    filename = entry.get('filename', '')
+    preview  = entry.get('preview', '')
+    resp = make_response(render_template('edit.html',
+                                         editor_bmp_b64=bmp_b64,
+                                         editor_filename=filename,
+                                         editor_preview=preview))
     resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     resp.headers['Pragma']        = 'no-cache'
     return resp
