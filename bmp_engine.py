@@ -248,7 +248,7 @@ def remove_noise(mask: np.ndarray, min_size: int = 2) -> np.ndarray:
 # thin chevron leaves, grid lines, and motif outlines stay crisp and solid.
 # Large genuine fills (spiral bodies, Butta interiors, h >= 35) get satin.
 # Overridable via the satin_min_height parameter in smart_fill().
-_SATIN_MIN_HEIGHT = 35
+_SATIN_MIN_HEIGHT = 9999  # solid fill: all design pixels black, no white gaps inside shapes
 
 
 def smart_fill(mask: np.ndarray, satin: np.ndarray, n: int,
@@ -948,7 +948,7 @@ def _supersample_to_bmp(image: Image.Image,
     s      = satin_settings.get('zari', {'n': 8, 'flip': False})
     satin  = generate_fill_pattern(s.get('pattern', 'satin'), s['n'], pins, cards, flip=s.get('flip', False))
     result = smart_fill(mask_pooled, satin, s['n'],
-                        satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
+                        satin_min_height=9999)  # solid fill: all design pixels black, no white gaps
     return result
 
 
@@ -1045,10 +1045,10 @@ def generate_bmps(
                     label_map, noise_min_size)
                 arr = _ss_arr if _ss_arr is not None else smart_fill(
                     zari_mask, satin, s['n'],
-                    satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
+                    satin_min_height=9999)  # solid fill: all design pixels black, no white gaps
             else:
                 arr = smart_fill(zari_mask, satin, s['n'],
-                                 satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
+                                 satin_min_height=9999)  # solid fill: all design pixels black, no white gaps
             results[f'{design_name}_zari.bmp'] = write_1bit_bmp(arr)
 
         else:
@@ -1060,7 +1060,7 @@ def generate_bmps(
 
             # zari = fill interior only
             zari_arr = smart_fill(fill_mask, satin, s['n'],
-                                  satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
+                                  satin_min_height=9999)  # solid fill: all design pixels black, no white gaps
             results[f'{design_name}_zari.bmp'] = write_1bit_bmp(zari_arr)
 
             # rani = outline pixels (solid, always thin) + plain weave base
@@ -1111,10 +1111,10 @@ def generate_bmps(
                     label_map, noise_min_size)
                 arr = _ss_arr if _ss_arr is not None else smart_fill(
                     mask, satin, s['n'],
-                    satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
+                    satin_min_height=9999)  # solid fill: all design pixels black, no white gaps
             else:
                 arr = smart_fill(mask, satin, s['n'],
-                                 satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
+                                 satin_min_height=9999)  # solid fill: all design pixels black, no white gaps
 
             shuttle_arrays[sname] = arr
             results[f'{design_name}_{sname}.bmp'] = write_1bit_bmp(arr)
