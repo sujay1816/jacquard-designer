@@ -217,6 +217,58 @@
     .hitem.cur .hdot { background:var(--gold); }
 
     /* ─── CANVAS AREA (fills remaining space) ──────────────── */
+    /* Reference image panel */
+    #ref-panel {
+      position: absolute;
+      top: 10px; right: 10px;
+      width: 280px;
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      z-index: 30;
+      display: none;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      resize: both;
+      overflow: hidden;
+      min-width: 120px; min-height: 80px;
+      user-select: none;
+    }
+    #ref-panel.show { display: block; }
+    #ref-panel-header {
+      padding: 5px 10px;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      cursor: move;
+      font-size: 9px; letter-spacing: .06em; text-transform: uppercase;
+      color: var(--muted);
+    }
+    #ref-panel-header:hover { color: var(--text); }
+    #ref-panel-controls { display: flex; align-items: center; gap: 6px; }
+    #ref-opacity-slider {
+      width: 60px; accent-color: var(--gold); cursor: pointer;
+    }
+    #ref-close-btn {
+      background: none; border: none; color: var(--muted);
+      cursor: pointer; font-size: 13px; line-height: 1; padding: 0 2px;
+    }
+    #ref-close-btn:hover { color: var(--danger); }
+    #ref-img-wrap {
+      width: 100%; overflow: hidden;
+      background: repeating-conic-gradient(#333 0% 25%, #444 0% 50%) 0 0/12px 12px;
+    }
+    #ref-img {
+      width: 100%; display: block;
+      opacity: 0.85;
+      image-rendering: auto;
+    }
+    #ref-upload-hint {
+      padding: 20px; text-align: center;
+      font-size: 10px; color: var(--muted); cursor: pointer;
+    }
+    #ref-upload-hint:hover { color: var(--gold); }
+
+    /* Canvas area */
     #canvas-area {
       position: fixed;
       top: 48px; left: 52px; right: 230px; bottom: 0;
@@ -331,6 +383,7 @@
   <button class="tbtn"    id="tbtn-pan"    onclick="setTool('pan')"    data-tip="Pan / scroll canvas (H)">✋</button>
   <div class="tsep"></div>
   <button class="tbtn"    id="tbtn-grid"   onclick="toggleGrid()"      data-tip="Toggle pixel grid — visible at 4x+ (G)">⊞</button>
+  <button class="tbtn" id="tbtn-ref" onclick="toggleRefPanel()" data-tip="Reference image (Blender-style overlay) (I)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M2 8 Q5 5 8 8 Q11 11 14 8" stroke-width="1.2"/><circle cx="11" cy="6" r="1.5" fill="currentColor" stroke="none"/></svg></button>
   <button class="tbtn"                     onclick="fitToWindow()"     data-tip="Fit entire image in view (0)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 6V3h3M10 3h3v3M13 10v3h-3M6 13H3v-3"/></svg></button>
   <div class="tsep"></div>
   <button class="tbtn"                     onclick="document.getElementById('file-input2').click()" data-tip="Upload BMP or PNG from disk">📂</button>
@@ -361,9 +414,32 @@
        onmousemove="onMM(event)"
        onmouseup="onMU(event)"
        onmouseleave="onML(event)"
-       onwheel="onWheel(event)">
+       onwheel="onWheel(event)"
+       oncontextmenu="event.preventDefault()">
     <canvas id="main-canvas"></canvas>
     <canvas id="ov-canvas"></canvas>
+  </div>
+
+  <!-- Reference image panel -->
+  <div id="ref-panel">
+    <div id="ref-panel-header" onmousedown="startRefDrag(event)">
+      <span>📎 Reference Image</span>
+      <div id="ref-panel-controls">
+        <span style="font-size:9px;color:var(--muted)">opacity</span>
+        <input type="range" id="ref-opacity-slider" min="10" max="100" value="85"
+               oninput="setRefOpacity(this.value)" title="Adjust opacity">
+        <button id="ref-close-btn" onclick="toggleRefPanel()" title="Close">✕</button>
+      </div>
+    </div>
+    <div id="ref-img-wrap">
+      <img id="ref-img" src="" alt="" style="display:none">
+      <div id="ref-upload-hint" onclick="document.getElementById('ref-file-input').click()">
+        📁 Click to load reference image<br>
+        <span style="font-size:9px">(JPG, PNG, BMP)</span>
+      </div>
+      <input type="file" id="ref-file-input" accept="image/*" style="display:none"
+             onchange="loadRefImage(this.files[0])">
+    </div>
   </div>
 
   <div id="zoom-bar">
@@ -387,9 +463,25 @@
     </div>
     <div class="opt-row">
       <span class="opt-label">Colour</span>
-      <div style="display:flex;gap:5px">
-        <div class="cbtn on" id="c-black" style="background:#000" onclick="setCol('black')" title="UP (black)"></div>
+      <div style="display:flex;gap:5px;align-items:center">
+        <div class="cbtn on" id="c-black" style="background:#000" onclick="setCol('black')" title="UP (black — press X to swap)"></div>
         <div class="cbtn"    id="c-white" style="background:#fff;border:1px solid #555" onclick="setCol('white')" title="DOWN (white)"></div>
+        <span style="font-size:9px;color:var(--muted);margin-left:2px">(X)</span>
+      </div>
+    </div>
+    <div class="opt-row" style="margin-top:5px">
+      <span class="opt-label" style="font-size:9px;line-height:1.4">
+        RMB draws<br>
+        <span id="rmb-label" style="color:var(--gold2)">White ↓</span>
+      </span>
+      <div style="display:flex;align-items:center;gap:6px">
+        <button id="swap-btn" onclick="toggleSwapButtons()"
+          style="padding:3px 8px;background:var(--surface2);border:1px solid var(--border2);
+                 color:var(--muted);border-radius:4px;font-size:9px;cursor:pointer;
+                 font-family:'DM Mono',monospace;transition:all .15s"
+          title="Swap left/right click colour">
+          ⇄ Swap
+        </button>
       </div>
     </div>
   </div>
@@ -519,11 +611,12 @@
 const S = {
   pixels: null, W: 0, H: 0, filename: '',
   zoom: 2, tool: 'pencil', drawCol: 'black', brushSz: 1,
-  painting: false, lx: -1, ly: -1,
+  painting: false, lx: -1, ly: -1, _btn: 0,
   lineStart: null, rectStart: null, panStart: null,
   showGrid: false,
   history: [], hi: -1,
   params: { dilate:1, erode:1, close_gaps:2, open:1, clean_noise:5 },
+  swapButtons: false,   // if true: LMB=white(erase), RMB=black(draw)
   fillPat: null,       // pre-computed fill pattern array (full canvas size)
   fillPatName: 'satin',
   fillPatN: 8,
@@ -723,16 +816,27 @@ function spx(x,y,v) {
   const i=(y*S.W+x)*4;
   S.pixels[i]=S.pixels[i+1]=S.pixels[i+2]=v; S.pixels[i+3]=255;
 }
-function dv() { return S.drawCol==='black' ? 0 : 255; }
+function dv(btn) {
+  // btn: 0=left, 2=right
+  const isRight = (btn === 2);
+  const wantsBlack = S.swapButtons ? isRight : !isRight;
+  // Also respect the colour toggle (X key) for LMB
+  if (btn === undefined || btn === 0) {
+    return S.swapButtons
+      ? 255    // LMB = white when swapped
+      : (S.drawCol === 'black' ? 0 : 255);
+  }
+  return wantsBlack ? 0 : 255;
+}
 
-function brush(bx,by) {
-  const v=dv(), r=Math.floor(S.brushSz/2);
+function brush(bx,by,btn) {
+  const v=dv(btn!==undefined?btn:S._btn), r=Math.floor(S.brushSz/2);
   for (let dy=-r;dy<=r;dy++)
     for (let dx=-r;dx<=r;dx++)
       if (S.brushSz===1||dx*dx+dy*dy<=r*r) spx(bx+dx,by+dy,v);
 }
 
-function line(x0,y0,x1,y1) {
+function line(x0,y0,x1,y1,btn) {
   let dx=Math.abs(x1-x0),dy=Math.abs(y1-y0),sx=x0<x1?1:-1,sy=y0<y1?1:-1,e=dx-dy;
   for(;;){brush(x0,y0);if(x0===x1&&y0===y1)break;const e2=2*e;if(e2>-dy){e-=dy;x0+=sx;}if(e2<dx){e+=dx;y0+=sy;}}
 }
@@ -763,9 +867,12 @@ function coords(e) {
 // ═══════════════════════════════════════════════════
 function onMD(e) {
   if (!S.pixels) return;
+  // Right-click on pan tool = no-op
+  if (e.button === 2 && S.tool === 'pan') return;
   const {x,y}=coords(e);
+  S._btn = e.button;   // store button for dv() usage during stroke
   if (S.tool==='pan') { S.panStart={mx:e.clientX,my:e.clientY,sx:document.getElementById('canvas-area').scrollLeft,sy:document.getElementById('canvas-area').scrollTop}; return; }
-  if (S.tool==='fill')  { pushHist(`Fill (${x},${y})`); fill(x,y,dv()); render(); updateStats(); return; }
+  if (S.tool==='fill')  { pushHist(`Fill (${x},${y})`); fill(x,y,dv(e.button)); render(); updateStats(); return; }
   if (S.tool==='satin') {
     ensureFillPat();
     S.painting=true; S.lx=x; S.ly=y;
@@ -773,7 +880,7 @@ function onMD(e) {
   }
   if (S.tool==='line') { S.lineStart={x,y}; return; }
   if (S.tool==='rect') { S.rectStart={x,y}; return; }
-  S.painting=true; S.lx=x; S.ly=y; brush(x,y); render();
+  S.painting=true; S.lx=x; S.ly=y; brush(x,y,e.button); render();
 }
 
 function onMM(e) {
@@ -787,8 +894,8 @@ function onMM(e) {
     return;
   }
   if (!S.painting) return;
-  if (S.tool==='pencil'||S.tool==='eraser') { line(S.lx,S.ly,x,y); S.lx=x; S.ly=y; render(); }
-  if (S.tool==='satin' && S.painting) { satinLine(S.lx,S.ly,x,y); S.lx=x; S.ly=y; render(); }
+  if (S.tool==='pencil'||S.tool==='eraser') { line(S.lx,S.ly,x,y,S._btn); S.lx=x; S.ly=y; render(); }
+  if (S.tool==='satin' && S.painting) { satinLine(S.lx,S.ly,x,y,S._btn); S.lx=x; S.ly=y; render(); }
 }
 
 function onMU(e) {
@@ -799,7 +906,7 @@ function onMU(e) {
   if (S.tool==='rect'&&S.rectStart) {
     pushHist('Rectangle');
     const x0=Math.min(S.rectStart.x,x),x1=Math.max(S.rectStart.x,x),y0=Math.min(S.rectStart.y,y),y1=Math.max(S.rectStart.y,y);
-    for(let ry=y0;ry<=y1;ry++) for(let rx=x0;rx<=x1;rx++) spx(rx,ry,dv());
+    for(let ry=y0;ry<=y1;ry++) for(let rx=x0;rx<=x1;rx++) spx(rx,ry,dv(S._btn));
     S.rectStart=null; render(); updateStats(); return;
   }
   if (S.painting) {
@@ -1022,7 +1129,7 @@ function paintSatinBrush(bx, by) {
 }
 
 // Bresenham line for satin brush
-function satinLine(x0,y0,x1,y1) {
+function satinLine(x0,y0,x1,y1,btn) {
   let dx=Math.abs(x1-x0),dy=Math.abs(y1-y0),sx=x0<x1?1:-1,sy=y0<y1?1:-1,e=dx-dy;
   for(;;){
     paintSatinBrush(x0,y0);
@@ -1127,6 +1234,102 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ═══════════════════════════════════════════════════
+// REFERENCE PANEL
+// ═══════════════════════════════════════════════════
+function toggleRefPanel() {
+  const p = document.getElementById('ref-panel');
+  p.classList.toggle('show');
+  document.getElementById('tbtn-ref')?.classList.toggle('on', p.classList.contains('show'));
+}
+
+function loadRefImage(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = document.getElementById('ref-img');
+    const hint = document.getElementById('ref-upload-hint');
+    img.src = e.target.result;
+    img.style.display = 'block';
+    hint.style.display = 'none';
+    document.getElementById('ref-panel').classList.add('show');
+    document.getElementById('tbtn-ref')?.classList.add('on');
+  };
+  reader.readAsDataURL(file);
+}
+
+function setRefOpacity(val) {
+  const img = document.getElementById('ref-img');
+  if (img) img.style.opacity = val / 100;
+}
+
+// Make reference panel draggable
+let _refDrag = null;
+function startRefDrag(e) {
+  const panel = document.getElementById('ref-panel');
+  const area  = document.getElementById('canvas-area');
+  const aRect = area.getBoundingClientRect();
+  const pRect = panel.getBoundingClientRect();
+  _refDrag = {
+    dx: e.clientX - pRect.left + aRect.left - area.scrollLeft,
+    dy: e.clientY - pRect.top  + aRect.top  - area.scrollTop,
+  };
+  document.addEventListener('mousemove', onRefDrag);
+  document.addEventListener('mouseup',   stopRefDrag);
+}
+function onRefDrag(e) {
+  if (!_refDrag) return;
+  const area  = document.getElementById('canvas-area');
+  const panel = document.getElementById('ref-panel');
+  const aRect = area.getBoundingClientRect();
+  let nx = e.clientX - aRect.left + area.scrollLeft - _refDrag.dx;
+  let ny = e.clientY - aRect.top  + area.scrollTop  - _refDrag.dy;
+  nx = Math.max(0, nx); ny = Math.max(0, ny);
+  panel.style.left = nx + 'px';
+  panel.style.top  = ny + 'px';
+  panel.style.right = 'auto';
+}
+function stopRefDrag() {
+  _refDrag = null;
+  document.removeEventListener('mousemove', onRefDrag);
+  document.removeEventListener('mouseup',   stopRefDrag);
+}
+
+// Drop image directly onto reference panel
+document.addEventListener('DOMContentLoaded', () => {
+  const panel = document.getElementById('ref-panel');
+  if (panel) {
+    panel.addEventListener('dragover', e => e.preventDefault());
+    panel.addEventListener('drop', e => {
+      e.preventDefault(); e.stopPropagation();
+      const f = e.dataTransfer.files[0];
+      if (f && f.type.startsWith('image/')) loadRefImage(f);
+    });
+  }
+});
+
+// ═══════════════════════════════════════════════════
+// SWAP LMB / RMB
+// ═══════════════════════════════════════════════════
+function toggleSwapButtons() {
+  S.swapButtons = !S.swapButtons;
+  const lbl = document.getElementById('rmb-label');
+  const btn = document.getElementById('swap-btn');
+  if (S.swapButtons) {
+    lbl.textContent = 'Black ↑ (swapped)';
+    lbl.style.color = 'var(--gold)';
+    btn.style.borderColor = 'var(--gold)';
+    btn.style.color = 'var(--gold)';
+    toast('RMB = Black (draw),  LMB = White (erase)');
+  } else {
+    lbl.textContent = 'White ↓';
+    lbl.style.color = 'var(--gold2)';
+    btn.style.borderColor = 'var(--border2)';
+    btn.style.color = 'var(--muted)';
+    toast('LMB = Black (draw),  RMB = White (erase)');
+  }
+}
+
+// ═══════════════════════════════════════════════════
 // KEYBOARD
 // ═══════════════════════════════════════════════════
 document.addEventListener('keydown', e=>{
@@ -1150,6 +1353,8 @@ document.addEventListener('keydown', e=>{
     case '-':           zoomStep(-1);      break;
     case 'x':           setCol(S.drawCol==='black'?'white':'black'); break;
     case 'w': case 'W': setTool('satin'); break;
+    case 'i': case 'I': toggleRefPanel(); break;
+    case 'v': case 'V': toggleSwapButtons(); break;
   }
 });
 
