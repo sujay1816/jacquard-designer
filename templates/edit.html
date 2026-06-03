@@ -340,7 +340,7 @@
 
     /* Canvas wrap */
     #canvas-wrap {
-      position: relative; position:relative; display:none; cursor:crosshair; }
+      position: relative; display:none; cursor:crosshair; }
     #main-canvas { display:block; image-rendering:pixelated; }
     #ov-canvas   {
       position:absolute; top:0; left:0;
@@ -582,8 +582,8 @@
   </div>
 
   <div class="psec" style="border-bottom:none">
-    <div class="ptitle" onclick="togglePsec('history')">History <span style="color:var(--border2);font-size:8px">(click to jump)</span><span class="pchev" id="pchev-history">▸</span></div>
-    <div class="pbody" id="pbody-history" data-open="false" style="max-height:0;overflow:hidden">
+    <div class="ptitle" onclick="togglePsec('history')">History <span style="color:var(--border2);font-size:8px">(click to jump)</span><span class="pchev" id="pchev-history">▾</span></div>
+    <div class="pbody" id="pbody-history" data-open="true"  style="max-height:2000px;overflow:visible">
       <div class="hlist" id="hlist"></div>
     </div>
   </div>
@@ -882,6 +882,7 @@ function initImage(pixels, w, h, name) {
   setTimeout(fitToWindow, 50); // after DOM reflow
   render();
   updateStats();
+  updateUndoRedoBtns();
 }
 
 function loadFile(file) {
@@ -948,22 +949,47 @@ function tryLoadFromGenerator() {
 // ═══════════════════════════════════════════════════
 function pushHist(label) {
   S.history = S.history.slice(0, S.hi + 1);
-  if (S.history.length >= 50) S.history.shift();
+  if (S.history.length >= 50) {
+    S.history.shift();
+    S.hi = Math.max(-1, S.hi - 1);  // keep pointer valid after shift
+  }
   S.history.push({ p: S.pixels.slice(), label });
   S.hi = S.history.length - 1;
   renderHist();
+  updateUndoRedoBtns();
 }
 
 function undo() {
   if (S.hi <= 0) return;
+  cancelPaste();
+  clearSelection();
   S.pixels = S.history[--S.hi].p.slice();
   render(); updateStats(); renderHist();
+  updateUndoRedoBtns();
 }
 
 function redo() {
   if (S.hi >= S.history.length - 1) return;
+  cancelPaste();
+  clearSelection();
   S.pixels = S.history[++S.hi].p.slice();
   render(); updateStats(); renderHist();
+  updateUndoRedoBtns();
+}
+
+function updateUndoRedoBtns() {
+  const undoBtn = document.querySelector('.hbtn[onclick="undo()"]');
+  const redoBtn = document.querySelector('.hbtn[onclick="redo()"]');
+  if (undoBtn) {
+    const can = S.pixels && S.hi > 0;
+    undoBtn.style.opacity = can ? '1' : '0.35';
+    undoBtn.style.cursor  = can ? 'pointer' : 'not-allowed';
+  }
+  if (redoBtn) {
+    const can = S.pixels && S.hi < S.history.length - 1;
+    redoBtn.style.opacity = can ? '1' : '0.35';
+    redoBtn.style.cursor  = can ? 'pointer' : 'not-allowed';
+  }
 }
 
 function renderHist() {
@@ -1853,10 +1879,8 @@ function applyCanvasSize() {
 // ── Override render() to also redraw selection ────
 const _origRender = render;
 function render() {
-  if (!S.pixels) return;
-  cx.putImageData(new ImageData(S.pixels.slice(), S.W, S.H), 0, 0);
+  _origRender();
   if (S.selActive) drawSelectionRect();
-  else { renderGrid(); }
 }
 
 // ═══════════════════════════════════════════════════
@@ -1943,7 +1967,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // 2. Collapsible section states
-  ['transform','selection','history'].forEach(slug => {
+  ['transform','selection'].forEach(slug => {
     const body = document.getElementById('pbody-' + slug);
     const chev = document.getElementById('pchev-' + slug);
     if (body) { body.style.maxHeight='0px'; body.style.overflow='hidden'; body.dataset.open='false'; }
@@ -2001,6 +2025,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 6. Load BMP from generator if redirected here
   tryLoadFromGenerator();
+
+  // 7. Initial button states
+  updateUndoRedoBtns();
 });
 </script>
 
