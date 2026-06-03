@@ -2036,6 +2036,7 @@ function cancelPaste() {
   S.pastePos=null; S.pasteDrag=null;
   const PC=document.getElementById('paste-canvas');
   if (PC) { PC.style.display='none'; PC.width=1; }
+  updateSelInfo();
 }
 
 // Enter for paste handled in main keyboard handler
@@ -2043,6 +2044,7 @@ function cancelPaste() {
 // ── Canvas Size ───────────────────────────────────
 // ── Generic toolbar popup manager ──────────────────
 let _activePopup = null;
+let _activePopupBtn = null;  // button element that opened the popup
 
 function openPopup(name, btn) {
   const popup = document.getElementById('popup-' + name);
@@ -2056,7 +2058,8 @@ function openPopup(name, btn) {
   popup.style.left = (r.right + 10) + 'px';
   popup.style.top  = Math.min(r.top, window.innerHeight - 420) + 'px';
   popup.classList.add('show');
-  _activePopup = name;
+  _activePopup    = name;
+  _activePopupBtn = btn;   // remember the button for closePopup
   // Highlight the toolbar button
   btn.classList.add('on');
   // Re-init fill preview if opening weave popup
@@ -2074,9 +2077,15 @@ function openPopup(name, btn) {
 function closePopup(name) {
   const popup = document.getElementById('popup-' + name);
   if (popup) popup.classList.remove('show');
-  // Un-highlight button
-  const btn = document.getElementById('tbtn-' + name);
-  if (btn) btn.classList.remove('on');
+  // Un-highlight button — use stored reference (handles ids like tbtn-fill-int)
+  if (_activePopupBtn && _activePopup === name) {
+    _activePopupBtn.classList.remove('on');
+    _activePopupBtn = null;
+  } else {
+    // Fallback: try by convention 'tbtn-' + name
+    const btn = document.getElementById('tbtn-' + name);
+    if (btn) btn.classList.remove('on');
+  }
   if (_activePopup === name) _activePopup = null;
 }
 
