@@ -910,7 +910,14 @@
       }
       .weave-pill.on  .weave-pill-btn.on-btn  { background: #3a7a3a; color: #9eff9e; }
       .weave-pill.off .weave-pill-btn.off-btn { background: #7a3a3a; color: #ffb0b0; }
-    </style>
+    #lightbox { display:none; position:fixed; inset:0; z-index:2000;
+    background:rgba(0,0,0,0.88); align-items:center; justify-content:center; cursor:zoom-out; }
+  #lightbox.show { display:flex; }
+  #lightbox img  { max-width:90vw; max-height:90vh; image-rendering:pixelated;
+    border:2px solid var(--border2); border-radius:4px; }
+  #lightbox-label { position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+    color:var(--muted); font-size:11px; pointer-events:none; }
+  </style>
 </head>
 <body>
 
@@ -1031,7 +1038,7 @@
       <div class="field-row">
         <div class="field">
           <label>Pins (Width) *</label>
-          <input type="number" id="pins" placeholder="e.g. 480" min="10" max="9999" value="240">
+          <input type="number" id="pins" placeholder="e.g. 480" min="10" max="9999" value="240" oninput="autoCalcCards()">
         </div>
         <div class="field">
           <label>Cards (Height)</label>
@@ -1072,7 +1079,12 @@
 
     <!-- Detect Colors Button -->
     <div class="panel-section">
-      <button class="btn btn-primary" id="detect-btn" onclick="detectColors()">
+      <button class="btn btn-secondary" id="reset-btn" onclick="resetApp()"
+  style="background:transparent;border:1px solid var(--border2);color:var(--muted);
+  margin-bottom:8px;width:100%;padding:8px" title="Clear and start over">
+  ↺ Start Over
+</button>
+<button class="btn btn-primary" id="detect-btn" onclick="detectColors()">
         <div class="spinner" id="detect-spinner"></div>
         <span id="detect-btn-text">Detect Colours</span>
       </button>
@@ -1421,6 +1433,7 @@ function handleFile(file) {
   reader.onload = e => {
     state.imageB64 = e.target.result.split(',')[1];
     document.getElementById('preview-img').src = e.target.result;
+      document.getElementById('preview-img').onload = autoCalcCards;
     uploadZone.style.display = 'none';
     document.getElementById('upload-preview').style.display = 'block';
     checkDetectReady();
@@ -2026,7 +2039,10 @@ function renderOutputPreviews(data) {
         </div>
       </div>
       <div class="preview-img-wrap">
-        <img src="data:image/png;base64,${preview}" alt="${fname}">
+        <img src="data:image/png;base64,${preview}" alt="${fname}"
+          style="cursor:zoom-in;transition:transform 0.15s"
+          onclick="openLightbox(this.src,'${fname}')"
+          title="Click to enlarge">
       </div>
       <div class="${v.is_clean ? 'verify-ok' : 'verify-fail'}">
         ${v.is_clean
@@ -2066,6 +2082,37 @@ function openInEditor(fname, previewB64) {
   } catch(e) {
     window.open('/edit', '_blank');
   }
+}
+
+// =====================================================================
+// Reset / Start Over
+// =====================================================================
+function resetApp() {
+  // Clear state
+  state.imageFile      = null;
+  state.imageB64       = null;
+  state.fullImageB64   = null;
+  state.detectedColors = [];
+  state.colorAssignments = {};
+  state.zipB64         = null;
+  state.zipFilename    = null;
+
+  // Reset UI
+  document.getElementById('pins').value       = '240';
+  document.getElementById('cards').value      = '';
+  document.getElementById('cards').placeholder= 'Auto';
+  document.getElementById('design-name').value= '';
+  document.getElementById('upload-preview').style.display  = 'none';
+  document.getElementById('upload-zone').style.display     = '';
+  document.getElementById('empty-state').style.display     = '';
+  document.getElementById('color-assignment').style.display= 'none';
+  document.getElementById('output-section').style.display  = 'none';
+
+  const errEl = document.getElementById('detect-error');
+  if (errEl) errEl.style.display = 'none';
+
+  setStep(1);
+  checkDetectReady();
 }
 
 // =====================================================================
@@ -2115,6 +2162,20 @@ document.addEventListener('keydown', function(e) {
   }
 });
 
+  // ── Lightbox ────────────────────────────────────────────────────────────
+  function openLightbox(src, label) {
+    const lb = document.getElementById('lightbox');
+    document.getElementById('lightbox-img').src = src;
+    document.getElementById('lightbox-label').textContent = label + ' — click or Esc to close';
+    lb.classList.add('show');
+  }
+  function closeLightbox() {
+    document.getElementById('lightbox').classList.remove('show');
+  }
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeLightbox();
+  });
+
   // ── Handle image from Tracing Guide ────────────────────────────────────
   (function() {
     const params = new URLSearchParams(window.location.search);
@@ -2134,5 +2195,12 @@ document.addEventListener('keydown', function(e) {
     }
   })();
 </script>
+
+<!-- Lightbox -->
+<div id="lightbox" onclick="closeLightbox()">
+  <img id="lightbox-img" src="" alt="">
+  <div id="lightbox-label">Click or press Escape to close</div>
+</div>
+
 </body>
 </html>

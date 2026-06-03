@@ -286,7 +286,7 @@
     <div id="header-title">BMP Editor</div>
     <div id="header-sub">Jacquard Designer</div>
   </div>
-  <div id="header-file">No file loaded</div>
+  <div id="header-file" style="cursor:pointer" onclick="document.getElementById('file-input2').click()" title="Click to load a different file">No file loaded</div>
   <div class="h-spacer"></div>
   <div id="spinner"></div>
   <button class="hbtn" onclick="undo()">↩ Undo</button>
@@ -299,19 +299,19 @@
 
 <!-- ─── LEFT TOOLBAR ────────────────────────────────────────── -->
 <div id="toolbar">
-  <button class="tbtn on" id="tbtn-pencil" onclick="setTool('pencil')" data-tip="Pencil (P)">✏</button>
-  <button class="tbtn"    id="tbtn-eraser" onclick="setTool('eraser')" data-tip="Eraser (E)" style="font-size:13px;font-weight:700;color:#aaa">E</button>
-  <button class="tbtn"    id="tbtn-fill"   onclick="setTool('fill')"   data-tip="Flood Fill (F)">🪣</button>
-  <button class="tbtn"    id="tbtn-satin"  onclick="setTool('satin')"  data-tip="Satin Brush (W)" style="font-size:11px;font-weight:700;letter-spacing:-0.5px">⬡W</button>
-  <button class="tbtn"    id="tbtn-line"   onclick="setTool('line')"   data-tip="Line (L)" style="font-size:11px;font-weight:700">/</button>
-  <button class="tbtn"    id="tbtn-rect"   onclick="setTool('rect')"   data-tip="Rectangle (R)" style="font-size:11px">▭</button>
+  <button class="tbtn on" id="tbtn-pencil" onclick="setTool('pencil')" data-tip="Pencil — draw UP pixels (P)">✏</button>
+  <button class="tbtn"    id="tbtn-eraser" onclick="setTool('eraser')" data-tip="Eraser — draw DOWN pixels (E)" style="font-size:13px;font-weight:700;color:#aaa">E</button>
+  <button class="tbtn"    id="tbtn-fill"   onclick="setTool('fill')"   data-tip="Flood Fill — fills connected region (F)">🪣</button>
+  <button class="tbtn"    id="tbtn-satin"  onclick="setTool('satin')"  data-tip="Satin Brush (W) — paints inside UP pixels only" style="font-size:11px;font-weight:700;letter-spacing:-0.5px">⬡W</button>
+  <button class="tbtn"    id="tbtn-line"   onclick="setTool('line')"   data-tip="Straight line (L)" style="font-size:11px;font-weight:700">/</button>
+  <button class="tbtn"    id="tbtn-rect"   onclick="setTool('rect')"   data-tip="Filled rectangle (R)" style="font-size:11px">▭</button>
   <div class="tsep"></div>
-  <button class="tbtn"    id="tbtn-pan"    onclick="setTool('pan')"    data-tip="Pan (H)">✋</button>
+  <button class="tbtn"    id="tbtn-pan"    onclick="setTool('pan')"    data-tip="Pan / scroll canvas (H)">✋</button>
   <div class="tsep"></div>
-  <button class="tbtn"    id="tbtn-grid"   onclick="toggleGrid()"      data-tip="Grid (G)">⊞</button>
-  <button class="tbtn"                     onclick="fitToWindow()"     data-tip="Fit (0)" style="font-size:12px;font-weight:600">[ ]</button>
+  <button class="tbtn"    id="tbtn-grid"   onclick="toggleGrid()"      data-tip="Toggle pixel grid — visible at 4x+ (G)">⊞</button>
+  <button class="tbtn"                     onclick="fitToWindow()"     data-tip="Fit entire image in view (0)" style="font-size:12px;font-weight:600">[ ]</button>
   <div class="tsep"></div>
-  <button class="tbtn"                     onclick="document.getElementById('file-input2').click()" data-tip="Upload BMP">📂</button>
+  <button class="tbtn"                     onclick="document.getElementById('file-input2').click()" data-tip="Upload BMP or PNG from disk">📂</button>
   <input type="file" id="file-input2" accept=".bmp,.png" style="display:none" onchange="loadFile(this.files[0])">
 </div>
 
@@ -589,7 +589,7 @@ function initImage(pixels, w, h, name) {
   document.getElementById('upload-overlay').style.display = 'none';
   document.getElementById('canvas-wrap').style.display    = 'block';
 
-  fitToWindow();
+  setTimeout(fitToWindow, 50); // after DOM reflow
   render();
   updateStats();
 }
@@ -834,7 +834,10 @@ function setTool(t) {
   S.tool=t;
   document.querySelectorAll('.tbtn[id^="tbtn-"]').forEach(b=>b.classList.remove('on'));
   const b=document.getElementById('tbtn-'+t); if(b) b.classList.add('on');
-  MC.style.cursor={pencil:'crosshair',eraser:'cell',fill:'default',line:'crosshair',rect:'crosshair',pan:'grab',satin:'crosshair'}[t]||'crosshair';
+  MC.style.cursor={pencil:'crosshair',eraser:'cell',fill:'copy',line:'crosshair',rect:'crosshair',pan:'grab',satin:'cell'}[t]||'crosshair';
+  const toolNames={pencil:'Pencil',eraser:'Eraser',fill:'Flood Fill',line:'Line',rect:'Rectangle',pan:'Pan',satin:'Satin Brush'};
+  const hn = document.getElementById('header-sub');
+  if (hn) hn.textContent = toolNames[t] || 'BMP Editor';
 }
 
 function setCol(c) {
@@ -1124,6 +1127,7 @@ document.addEventListener('keydown', e=>{
     case '+': case '=': zoomStep(+1);      break;
     case '-':           zoomStep(-1);      break;
     case 'x':           setCol(S.drawCol==='black'?'white':'black'); break;
+    case 'w': case 'W': setTool('satin'); break;
   }
 });
 
