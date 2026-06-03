@@ -546,7 +546,7 @@
 
   <div class="psec">
     <div class="ptitle" onclick="togglePsec('transform')">Transform<span class="pchev" id="pchev-transform">▸</span></div>
-    <div class="pbody" id="pbody-transform" style="max-height:0;overflow:hidden">
+    <div class="pbody" id="pbody-transform" data-open="false" style="max-height:0;overflow:hidden">
       <button class="obtn" onclick="runOp('flip_h')"><span class="oic">⇄</span> Flip Horizontal</button>
       <button class="obtn" onclick="runOp('flip_v')"><span class="oic">⇅</span> Flip Vertical</button>
       <button class="obtn" onclick="runOp('rotate_90')"><span class="oic">↻</span> Rotate 90°</button>
@@ -558,7 +558,7 @@
 
   <div class="psec">
     <div class="ptitle" onclick="togglePsec('selection')">Selection<span class="pchev" id="pchev-selection">▸</span></div>
-    <div class="pbody" id="pbody-selection" style="max-height:0;overflow:hidden">
+    <div class="pbody" id="pbody-selection" data-open="false" style="max-height:0;overflow:hidden">
       <div id="sel-info" style="font-size:9px;color:var(--muted);margin-bottom:8px;line-height:1.6">
         No selection.<br>Use the ⬚ Select tool to drag a region.
       </div>
@@ -583,7 +583,7 @@
 
   <div class="psec" style="border-bottom:none">
     <div class="ptitle" onclick="togglePsec('history')">History <span style="color:var(--border2);font-size:8px">(click to jump)</span><span class="pchev" id="pchev-history">▸</span></div>
-    <div class="pbody" id="pbody-history" style="max-height:0;overflow:hidden">
+    <div class="pbody" id="pbody-history" data-open="false" style="max-height:0;overflow:hidden">
       <div class="hlist" id="hlist"></div>
     </div>
   </div>
@@ -1436,15 +1436,7 @@ async function applyFillPattern() {
 }
 
 // Init fill preview on load
-document.addEventListener('DOMContentLoaded', () => {
-  updateFillPreview();
-  document.getElementById('fp-pattern')?.addEventListener('change', () => {
-    S.fillPat = null; updateFillPreview();
-  });
-  document.getElementById('fp-n')?.addEventListener('input', () => {
-    S.fillPat = null;
-  });
-});
+
 
 // ═══════════════════════════════════════════════════
 // REFERENCE PANEL  (fixed position, body-level)
@@ -1530,25 +1522,7 @@ function stopRefDrag() {
 }
 
 // ── Drop image directly onto the panel ─────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  const panel = document.getElementById('ref-panel');
-  if (!panel) return;
-  panel.addEventListener('dragover', e => {
-    e.preventDefault();
-    e.stopPropagation();
-    panel.style.borderColor = 'var(--gold)';
-  });
-  panel.addEventListener('dragleave', () => {
-    panel.style.borderColor = '';
-  });
-  panel.addEventListener('drop', e => {
-    e.preventDefault();
-    e.stopPropagation();
-    panel.style.borderColor = '';
-    const f = e.dataTransfer.files[0];
-    if (f && f.type.startsWith('image/')) loadRefImage(f);
-  });
-});
+
 
 // ═══════════════════════════════════════════════════
 // SWAP LMB / RMB
@@ -1906,80 +1880,7 @@ document.addEventListener('keydown', e=>{
     if (!tip) tip = document.getElementById('tb-tooltip');
     return tip;
   }
-  document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('.tbtn[data-tip]').forEach(btn => {
-      btn.addEventListener('mouseenter', () => {
-        clearTimeout(hideT);
-        const t = getOrMakeTip(); if (!t) return;
-        const r = btn.getBoundingClientRect();
-        t.textContent = btn.dataset.tip;
-        t.style.left  = (r.right + 10) + 'px';
-        t.style.top   = (r.top + r.height/2 - 14) + 'px';
-        t.classList.add('show');
-      });
-      btn.addEventListener('mouseleave', () => {
-        hideT = setTimeout(() => { const t=getOrMakeTip(); if(t) t.classList.remove('show'); }, 100);
-      });
-    });
-  });
-})();
-
-// ═══════════════════════════════════════════════════
-// COLLAPSIBLE PANEL SECTIONS
-// ═══════════════════════════════════════════════════
-function togglePsec(slug) {
-  const body = document.getElementById('pbody-' + slug);
-  const chev = document.getElementById('pchev-' + slug);
-  if (!body) return;
-  // Use data-open attribute for reliable state tracking
-  const isOpen = body.dataset.open !== 'false';
-  if (isOpen) {
-    body.style.maxHeight = '0px';
-    body.style.overflow  = 'hidden';
-    body.dataset.open    = 'false';
-    if (chev) chev.textContent = '▸';
-  } else {
-    body.style.maxHeight = '2000px';
-    body.style.overflow  = 'visible';
-    body.dataset.open    = 'true';
-    if (chev) chev.textContent = '▾';
-  }
-}
-
-// ═══════════════════════════════════════════════════
-// INIT
-// ═══════════════════════════════════════════════════
-document.addEventListener('DOMContentLoaded', () => {
-  Object.keys(S.params).forEach(k=>{
-    const el=document.getElementById('pv-'+k); if(el) el.textContent=S.params[k];
-  });
-  tryLoadFromGenerator();
-  // Init collapsible sections — start all open except some
-  ['transform','selection','history'].forEach(slug => {
-    const body = document.getElementById('pbody-' + slug);
-    const chev = document.getElementById('pchev-' + slug);
-    if (body) { body.style.maxHeight='0px'; body.style.overflow='hidden'; body.dataset.open='false'; }
-    if (chev) chev.textContent = '▸';
-  });
-  // Mark open sections
-  ['brush','statistics'].forEach(slug => {
-    const body = document.getElementById('pbody-' + slug);
-    if (body) body.dataset.open = 'true';
-  });
-});
-</script>
-<!-- ─── REFERENCE IMAGE PANEL ──────────────────────── -->
-<div id="ref-panel">
-  <div id="ref-panel-titlebar" onmousedown="startRefDrag(event)">
-    <span id="ref-panel-title">📎 Reference</span>
-    <div style="display:flex;align-items:center;gap:6px">
-      <span style="font-size:9px;color:var(--muted)">opacity</span>
-      <input type="range" id="ref-opacity-slider" min="10" max="100" value="85"
-             style="width:60px;accent-color:var(--gold);cursor:pointer"
-             oninput="setRefOpacity(this.value)" title="Opacity">
-      <button onclick="loadNewRefImage()" title="Load new image"
-        style="background:none;border:1px solid var(--border2);color:var(--muted);
-               border-radius:3px;padding:2px 5px;cursor:pointer;font-size:10px">📂</button>
+  ;font-size:10px">📂</button>
       <button onclick="toggleRefPanel()" title="Close (I)"
         style="background:none;border:none;color:var(--muted);cursor:pointer;
                font-size:14px;line-height:1;padding:0 2px">✕</button>
@@ -2004,5 +1905,99 @@ document.addEventListener('DOMContentLoaded', () => {
 </div>
 
 <div id="tb-tooltip"></div>
+// ═══════════════════════════════════════════════════
+// COLLAPSIBLE PANEL SECTIONS
+// ═══════════════════════════════════════════════════
+function togglePsec(slug) {
+  const body = document.getElementById('pbody-' + slug);
+  const chev = document.getElementById('pchev-' + slug);
+  if (!body) return;
+  const isOpen = body.dataset.open !== 'false';
+  if (isOpen) {
+    body.style.maxHeight = '0px';
+    body.style.overflow  = 'hidden';
+    body.dataset.open    = 'false';
+    if (chev) chev.textContent = '▸';
+  } else {
+    body.style.maxHeight = '2000px';
+    body.style.overflow  = 'visible';
+    body.dataset.open    = 'true';
+    if (chev) chev.textContent = '▾';
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// SINGLE INIT — runs once after DOM is ready
+// ═══════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+
+  // 1. Sync morph param displays
+  Object.keys(S.params).forEach(k => {
+    const el = document.getElementById('pv-' + k);
+    if (el) el.textContent = S.params[k];
+  });
+
+  // 2. Collapsible section states
+  ['transform','selection','history'].forEach(slug => {
+    const body = document.getElementById('pbody-' + slug);
+    const chev = document.getElementById('pchev-' + slug);
+    if (body) { body.style.maxHeight='0px'; body.style.overflow='hidden'; body.dataset.open='false'; }
+    if (chev) chev.textContent = '▸';
+  });
+  ['brush','statistics'].forEach(slug => {
+    const body = document.getElementById('pbody-' + slug);
+    if (body) body.dataset.open = 'true';
+  });
+
+  // 3. Fill pattern preview + listeners
+  updateFillPreview();
+  document.getElementById('fp-pattern')?.addEventListener('change', () => {
+    S.fillPat = null; updateFillPreview();
+  });
+  document.getElementById('fp-n')?.addEventListener('input', () => {
+    S.fillPat = null; updateFillPreview();
+  });
+
+  // 4. Reference panel drop target
+  const refPanel = document.getElementById('ref-panel');
+  if (refPanel) {
+    refPanel.addEventListener('dragover', e => {
+      e.preventDefault(); e.stopPropagation();
+      refPanel.style.borderColor = 'var(--gold)';
+    });
+    refPanel.addEventListener('dragleave', () => {
+      refPanel.style.borderColor = '';
+    });
+    refPanel.addEventListener('drop', e => {
+      e.preventDefault(); e.stopPropagation();
+      refPanel.style.borderColor = '';
+      const f = e.dataTransfer.files[0];
+      if (f && f.type.startsWith('image/')) loadRefImage(f);
+    });
+  }
+
+  // 5. Toolbar tooltips
+  const tipDiv = document.getElementById('tb-tooltip');
+  let hideT;
+  document.querySelectorAll('.tbtn[data-tip]').forEach(btn => {
+    btn.addEventListener('mouseenter', () => {
+      clearTimeout(hideT);
+      if (!tipDiv) return;
+      const r = btn.getBoundingClientRect();
+      tipDiv.textContent = btn.dataset.tip;
+      tipDiv.style.left  = (r.right + 10) + 'px';
+      tipDiv.style.top   = (r.top + r.height / 2 - 14) + 'px';
+      tipDiv.classList.add('show');
+    });
+    btn.addEventListener('mouseleave', () => {
+      hideT = setTimeout(() => tipDiv && tipDiv.classList.remove('show'), 100);
+    });
+  });
+
+  // 6. Load BMP from generator if redirected here
+  tryLoadFromGenerator();
+});
+</script>
+
 </body>
 </html>
