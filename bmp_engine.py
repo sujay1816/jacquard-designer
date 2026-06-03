@@ -952,6 +952,53 @@ def _supersample_to_bmp(image: Image.Image,
     return result
 
 
+def fill_enclosed_regions(arr: np.ndarray) -> np.ndarray:
+    """
+    Flood-fill all enclosed white regions (hollow shape interiors) with black.
+
+    Uses BFS from all 4 border pixels to find background white.
+    Any white pixel NOT reachable from the border is inside a closed shape
+    and gets set to 0 (UP/black).
+
+    Parameters:
+        arr: 2D uint8 array (0=black/UP, 1=white/DOWN)
+
+    Returns:
+        arr with enclosed interior regions filled black (0).
+    """
+    H, W = arr.shape
+    flat    = arr.flatten().copy()
+    is_bg   = flat == 1          # white pixels are candidates for BFS
+    visited = np.zeros(H * W, dtype=np.uint8)
+
+    # Seed from all 4 borders
+    seeds = []
+    for x in range(W):
+        if is_bg[x]:             visited[x] = 1;             seeds.append(x)
+        if is_bg[(H-1)*W + x]:  visited[(H-1)*W + x] = 1;  seeds.append((H-1)*W + x)
+    for y in range(H):
+        if is_bg[y*W]:           visited[y*W] = 1;           seeds.append(y*W)
+        if is_bg[y*W + W - 1]:  visited[y*W + W - 1] = 1;  seeds.append(y*W + W - 1)
+
+    # BFS — 4-connected
+    qi = 0
+    while qi < len(seeds):
+        p = seeds[qi]; qi += 1
+        px, py = p % W, p // W
+        for nb in (p - W if py > 0     else -1,
+                   p + W if py < H - 1 else -1,
+                   p - 1 if px > 0     else -1,
+                   p + 1 if px < W - 1 else -1):
+            if nb >= 0 and is_bg[nb] and not visited[nb]:
+                visited[nb] = 1
+                seeds.append(nb)
+
+    # Any white pixel not visited = enclosed interior → fill black
+    interior = is_bg & (visited == 0)
+    flat[interior] = 0
+    return flat.reshape(H, W).astype(np.uint8)
+
+
 def generate_bmps(
     image: Image.Image,
     pins: int,
@@ -1049,6 +1096,7 @@ def generate_bmps(
             else:
                 arr = smart_fill(zari_mask, satin, s['n'],
                                  satin_min_height=9999)  # solid fill: all design pixels black, no white gaps
+            arr = fill_enclosed_regions(arr)  # fill hollow shape interiors black
             results[f'{design_name}_zari.bmp'] = write_1bit_bmp(arr)
 
         else:
@@ -1061,6 +1109,7 @@ def generate_bmps(
             # zari = fill interior only
             zari_arr = smart_fill(fill_mask, satin, s['n'],
                                   satin_min_height=9999)  # solid fill: all design pixels black, no white gaps
+            zari_arr = fill_enclosed_regions(zari_arr)  # fill hollow shape interiors black
             results[f'{design_name}_zari.bmp'] = write_1bit_bmp(zari_arr)
 
             # rani = outline pixels (solid, always thin) + plain weave base
@@ -1116,6 +1165,7 @@ def generate_bmps(
                 arr = smart_fill(mask, satin, s['n'],
                                  satin_min_height=9999)  # solid fill: all design pixels black, no white gaps
 
+            arr = fill_enclosed_regions(arr)  # fill hollow shape interiors black
             shuttle_arrays[sname] = arr
             results[f'{design_name}_{sname}.bmp'] = write_1bit_bmp(arr)
 
