@@ -340,8 +340,12 @@ def api_generate():
             buf = io.BytesIO()
             thumb.save(buf, format='PNG')
             previews[fname] = base64.b64encode(buf.getvalue()).decode()
-            # Full BMP: sent to the editor so it loads at correct resolution
-            bmp_b64[fname]  = base64.b64encode(bdata).decode()
+            # Full-res PNG for editor: convert 1-bit BMP → 8-bit grey PNG
+            # (1-bit BMP cannot be decoded by <img> in Safari/some Chrome versions)
+            editor_img = Image.open(io.BytesIO(bdata)).convert('L')
+            editor_buf = io.BytesIO()
+            editor_img.save(editor_buf, format='PNG')
+            bmp_b64[fname] = base64.b64encode(editor_buf.getvalue()).decode()
 
         return jsonify({
             'success':      True,

@@ -921,31 +921,26 @@ function tryLoadFromGenerator() {
   const p = new URLSearchParams(window.location.search);
   if (p.get('from_generator') !== '1') return;
   document.getElementById('gen-hint').style.display = 'block';
+
   // Read from localStorage first (reliable cross-tab), fallback to sessionStorage
   const ls = window.localStorage, ss = window.sessionStorage;
-  const bmpData  = ls.getItem('editor_bmp_b64') || ss.getItem('editor_bmp_b64') || '';
+  const imgData  = ls.getItem('editor_bmp_b64') || ss.getItem('editor_bmp_b64') || '';
   const preview  = ls.getItem('editor_preview')  || ss.getItem('editor_preview')  || '';
   const filename = ls.getItem('editor_filename') || ss.getItem('editor_filename') || 'from_generator.bmp';
 
-  // Clean up both storages immediately
-  ['editor_bmp_b64','editor_preview','editor_filename','editor_zip_b64','editor_design'].forEach(k => {
-    try { ls.removeItem(k); } catch(_) {}
-    try { ss.removeItem(k); } catch(_) {}
-  });
-
-  if (!bmpData && !preview) {
-    document.getElementById('gen-hint').textContent = 'No data from generator — upload file manually';
-    return;
+  // Helper: clean up both storages
+  function cleanup() {
+    ['editor_bmp_b64','editor_preview','editor_filename','editor_zip_b64','editor_design'].forEach(k => {
+      try { ls.removeItem(k); } catch(_) {}
+      try { ss.removeItem(k); } catch(_) {}
+    });
   }
 
-  if (bmpData) {
-    // Load the actual BMP file — correct resolution, pixel-perfect
-    const bytes = Uint8Array.from(atob(bmpData), c => c.charCodeAt(0));
-    const blob  = new Blob([bytes], { type: 'image/bmp' });
-    const url   = URL.createObjectURL(blob);
-    const img   = new Image();
+  // Helper: decode a PNG base64 data URL onto canvas and call initImage
+  function loadDataUrl(dataUrl, label) {
+    const img = new Image();
     img.onload = () => {
-      URL.revokeObjectURL(url);
+      cleanup();
       const oc = Object.assign(document.createElement('canvas'),
                                {width: img.naturalWidth, height: img.naturalHeight});
       const c2 = oc.getContext('2d'); c2.drawImage(img, 0, 0);
@@ -955,41 +950,27 @@ function tryLoadFromGenerator() {
         id.data[i]=id.data[i+1]=id.data[i+2]=v; id.data[i+3]=255;
       }
       initImage(id.data, oc.width, oc.height, filename);
-      toast('Loaded from generator: ' + filename);
+      toast(label);
     };
     img.onerror = () => {
-      // BMP decode failed — fall back to PNG thumbnail
-      _loadFromPreview(preview, filename);
+      cleanup();
+      document.getElementById('gen-hint').textContent = 'Could not load BMP from generator — upload file manually';
     };
-    img.src = url;
-  } else {
-    // Fallback: load from PNG thumbnail (older sessions without bmp_b64)
-    _loadFromPreview(preview, filename);
+    img.src = dataUrl;
   }
-}
 
-function _loadFromPreview(preview, filename) {
-  if (!preview) {
-    document.getElementById('gen-hint').textContent = 'Could not load BMP from generator — upload file manually';
-    return;
+  if (imgData) {
+    // Primary: full-resolution grayscale PNG stored by generator
+    loadDataUrl('data:image/png;base64,' + imgData,
+                'Loaded from generator: ' + filename);
+  } else if (preview) {
+    // Fallback: thumbnail PNG (may be scaled for large BMPs)
+    loadDataUrl('data:image/png;base64,' + preview,
+                'Loaded thumbnail from generator. For full-res: download the ZIP and upload the .bmp');
+  } else {
+    cleanup();
+    document.getElementById('gen-hint').textContent = 'No data from generator — upload file manually';
   }
-  const img = new Image();
-  img.onload = () => {
-    const oc = Object.assign(document.createElement('canvas'),
-                             {width: img.naturalWidth, height: img.naturalHeight});
-    const c2 = oc.getContext('2d'); c2.drawImage(img, 0, 0);
-    const id = c2.getImageData(0, 0, oc.width, oc.height);
-    for (let i = 0; i < id.data.length; i += 4) {
-      const v = (id.data[i]+id.data[i+1]+id.data[i+2])/3 < 128 ? 0 : 255;
-      id.data[i]=id.data[i+1]=id.data[i+2]=v; id.data[i+3]=255;
-    }
-    initImage(id.data, oc.width, oc.height, filename);
-    toast('Loaded from generator (thumbnail). For full-res editing: download the ZIP and upload the .bmp file.');
-  };
-  img.onerror = () => {
-    document.getElementById('gen-hint').textContent = 'Could not load BMP from generator — upload file manually';
-  };
-  img.src = 'data:image/png;base64,' + preview;
 }
 
 // ═══════════════════════════════════════════════════
