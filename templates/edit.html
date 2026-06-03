@@ -479,34 +479,34 @@
   <div class="psec">
     <div class="ptitle" onclick="togglePsec('brush')">Brush<span class="pchev" id="pchev-brush">▾</span></div>
     <div class="pbody" id="pbody-brush" style="max-height:2000px;overflow:visible">
-    <div class="opt-row">
-      <span class="opt-label">Size</span>
-      <input type="range" id="brush-size" min="1" max="20" value="1"
-             oninput="S.brushSz=+this.value;document.getElementById('bsval').textContent=this.value">
-      <span class="opt-val" id="bsval">1</span>
-    </div>    </div>
-  </div>
-    <div class="opt-row">
-      <span class="opt-label">Colour</span>
-      <div style="display:flex;gap:5px;align-items:center">
-        <div class="cbtn on" id="c-black" style="background:#000" onclick="setCol('black')" title="UP (black — press X to swap)"></div>
-        <div class="cbtn"    id="c-white" style="background:#fff;border:1px solid #555" onclick="setCol('white')" title="DOWN (white)"></div>
-        <span style="font-size:9px;color:var(--muted);margin-left:2px">(X)</span>
+      <div class="opt-row">
+        <span class="opt-label">Size</span>
+        <input type="range" id="brush-size" min="1" max="20" value="1"
+               oninput="S.brushSz=+this.value;document.getElementById('bsval').textContent=this.value">
+        <span class="opt-val" id="bsval">1</span>
       </div>
-    </div>
-    <div class="opt-row" style="margin-top:5px">
-      <span class="opt-label" style="font-size:9px;line-height:1.4">
-        RMB draws<br>
-        <span id="rmb-label" style="color:var(--gold2)">White ↓</span>
-      </span>
-      <div style="display:flex;align-items:center;gap:6px">
-        <button id="swap-btn" onclick="toggleSwapButtons()"
-          style="padding:3px 8px;background:var(--surface2);border:1px solid var(--border2);
-                 color:var(--muted);border-radius:4px;font-size:9px;cursor:pointer;
-                 font-family:'DM Mono',monospace;transition:all .15s"
-          title="Swap left/right click colour">
-          ⇄ Swap
-        </button>
+      <div class="opt-row">
+        <span class="opt-label">Colour</span>
+        <div style="display:flex;gap:5px;align-items:center">
+          <div class="cbtn on" id="c-black" style="background:#000" onclick="setCol('black')" title="UP (black — press X to swap)"></div>
+          <div class="cbtn"    id="c-white" style="background:#fff;border:1px solid #555" onclick="setCol('white')" title="DOWN (white)"></div>
+          <span style="font-size:9px;color:var(--muted);margin-left:2px">(X)</span>
+        </div>
+      </div>
+      <div class="opt-row" style="margin-top:5px">
+        <span class="opt-label" style="font-size:9px;line-height:1.4">
+          RMB draws<br>
+          <span id="rmb-label" style="color:var(--gold2)">White ↓</span>
+        </span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <button id="swap-btn" onclick="toggleSwapButtons()"
+            style="padding:3px 8px;background:var(--surface2);border:1px solid var(--border2);
+                   color:var(--muted);border-radius:4px;font-size:9px;cursor:pointer;
+                   font-family:'DM Mono',monospace;transition:all .15s"
+            title="Swap left/right click colour">
+            ⇄ Swap
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -525,55 +525,55 @@
   <div class="psec">
     <div class="ptitle" onclick="togglePsec('morphological')">Morphological<span class="pchev" id="pchev-morphological">▾</span></div>
     <div class="pbody" id="pbody-morphological" style="max-height:2000px;overflow:visible">
-    <button class="obtn" onclick="runMorph('dilate')">
-      <span class="oic">⊕</span> Dilate
-      <div class="pctl">
-        <button class="pbtn" onclick="event.stopPropagation();adj('dilate',-1)">−</button>
-        <span class="pval" id="pv-dilate">1</span>
-        <button class="pbtn" onclick="event.stopPropagation();adj('dilate',+1)">+</button>
-      </div>    </div>
-  </div>
-    </button>
-    <button class="obtn" onclick="runMorph('erode')">
-      <span class="oic">⊖</span> Erode
-      <div class="pctl">
-        <button class="pbtn" onclick="event.stopPropagation();adj('erode',-1)">−</button>
-        <span class="pval" id="pv-erode">1</span>
-        <button class="pbtn" onclick="event.stopPropagation();adj('erode',+1)">+</button>
-      </div>
-    </button>
-    <button class="obtn" onclick="runMorph('close_gaps')">
-      <span class="oic">⬡</span> Close Gaps
-      <div class="pctl">
-        <button class="pbtn" onclick="event.stopPropagation();adj('close_gaps',-1)">−</button>
-        <span class="pval" id="pv-close_gaps">2</span>
-        <button class="pbtn" onclick="event.stopPropagation();adj('close_gaps',+1)">+</button>
-      </div>
-    </button>
-    <button class="obtn" onclick="runMorph('open')">
-      <span class="oic">◎</span> Open (smooth)
-      <div class="pctl">
-        <button class="pbtn" onclick="event.stopPropagation();adj('open',-1)">−</button>
-        <span class="pval" id="pv-open">1</span>
-        <button class="pbtn" onclick="event.stopPropagation();adj('open',+1)">+</button>
-      </div>
-    </button>
+      <button class="obtn" onclick="runMorph('dilate')">
+        <span class="oic">⊕</span> Dilate
+        <div class="pctl">
+          <button class="pbtn" onclick="event.stopPropagation();adj('dilate',-1)">−</button>
+          <span class="pval" id="pv-dilate">1</span>
+          <button class="pbtn" onclick="event.stopPropagation();adj('dilate',+1)">+</button>
+        </div>
+      </button>
+      <button class="obtn" onclick="runMorph('erode')">
+        <span class="oic">⊖</span> Erode
+        <div class="pctl">
+          <button class="pbtn" onclick="event.stopPropagation();adj('erode',-1)">−</button>
+          <span class="pval" id="pv-erode">1</span>
+          <button class="pbtn" onclick="event.stopPropagation();adj('erode',+1)">+</button>
+        </div>
+      </button>
+      <button class="obtn" onclick="runMorph('close_gaps')">
+        <span class="oic">⬡</span> Close Gaps
+        <div class="pctl">
+          <button class="pbtn" onclick="event.stopPropagation();adj('close_gaps',-1)">−</button>
+          <span class="pval" id="pv-close_gaps">2</span>
+          <button class="pbtn" onclick="event.stopPropagation();adj('close_gaps',+1)">+</button>
+        </div>
+      </button>
+      <button class="obtn" onclick="runMorph('open')">
+        <span class="oic">◎</span> Open (smooth)
+        <div class="pctl">
+          <button class="pbtn" onclick="event.stopPropagation();adj('open',-1)">−</button>
+          <span class="pval" id="pv-open">1</span>
+          <button class="pbtn" onclick="event.stopPropagation();adj('open',+1)">+</button>
+        </div>
+      </button>
+    </div>
   </div>
 
   <div class="psec">
     <div class="ptitle" onclick="togglePsec('cleanup')">Clean-up<span class="pchev" id="pchev-cleanup">▾</span></div>
     <div class="pbody" id="pbody-cleanup" style="max-height:2000px;overflow:visible">
-    <button class="obtn" onclick="runOp('remove_isolated')"><span class="oic">✕</span> Remove Isolated Pixels</button>
-    <button class="obtn" onclick="runMorph('clean_noise')">
-      <span class="oic">◌</span> Clean Noise
-      <div class="pctl">
-        <button class="pbtn" onclick="event.stopPropagation();adj('clean_noise',-1)">−</button>
-        <span class="pval" id="pv-clean_noise">5</span>
-        <button class="pbtn" onclick="event.stopPropagation();adj('clean_noise',+1)">+</button>
-      </div>    </div>
-  </div>
-    </button>
-    <button class="obtn red" onclick="runOp('invert')"><span class="oic">⬛</span> Invert UP/DOWN</button>
+      <button class="obtn" onclick="runOp('remove_isolated')"><span class="oic">✕</span> Remove Isolated</button>
+      <button class="obtn" onclick="runMorph('clean_noise')">
+        <span class="oic">◌</span> Clean Noise
+        <div class="pctl">
+          <button class="pbtn" onclick="event.stopPropagation();adj('clean_noise',-1)">−</button>
+          <span class="pval" id="pv-clean_noise">5</span>
+          <button class="pbtn" onclick="event.stopPropagation();adj('clean_noise',+1)">+</button>
+        </div>
+      </button>
+      <button class="obtn red" onclick="runOp('invert')"><span class="oic">⬛</span> Invert UP/DOWN</button>
+    </div>
   </div>
 
   <div class="psec">
