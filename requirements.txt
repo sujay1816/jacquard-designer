@@ -4,3 +4,5 @@ numpy>=1.24.0
 scikit-learn>=1.3.0
 scipy>=1.11.0
 scikit-image>=0.21.0
+# Optional — needed for HEIC/HEIF uploads (iPhone photos on macOS):
+# pillow-heif>=0.15.0

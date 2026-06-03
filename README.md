@@ -31,6 +31,9 @@ Upload a cropped design image (Butta motif, running lines, etc.), set your loom'
 pip install flask pillow numpy scikit-learn scipy scikit-image
 ```
 
+> **macOS note:** To upload HEIC/HEIF photos taken on iPhone, also run:
+> `pip install pillow-heif`
+
 **3. Run**
 ```bash
 python run.py
@@ -40,7 +43,7 @@ The app opens automatically at **http://localhost:5000**
 
 ## Usage
 
-1. **Upload** your design image (JPEG, PNG, BMP, TIFF, WebP)
+1. **Upload** your design image (JPEG, PNG, BMP, TIFF, WebP; HEIC with pillow-heif installed)
 2. **Set Pins** (loom width) and Cards (height — auto-computed if left blank)
 3. **Choose shuttle count** (1–4)
 4. **Detect Colours** — KMeans clusters the image into dominant colours

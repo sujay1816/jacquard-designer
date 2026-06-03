@@ -13,7 +13,7 @@ from bmp_engine import (detect_colors, generate_bmps, verify_bmp, enhance_image,
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024   # 50 MB upload cap
 
-ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.webp'}
+ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.webp', '.heic', '.heif'}
 
 
 def _json_error(msg: str, status: int = 400):
@@ -87,7 +87,8 @@ def api_detect_colors():
         if ext not in ALLOWED_EXTENSIONS:
             return _json_error(
                 f'Unsupported file type "{ext}". '
-                f'Please upload a JPEG, PNG, BMP, TIFF, or WebP image.'
+                f'Please upload a JPEG, PNG, BMP, TIFF, or WebP image. '
+                f'For HEIC/HEIF (iPhone photos) install pillow-heif: pip install pillow-heif'
             )
 
         try:
@@ -121,7 +122,9 @@ def api_detect_colors():
         except UnidentifiedImageError:
             return _json_error(
                 'Could not read the uploaded file as an image. '
-                'Please check the file is not corrupted.'
+                'HEIC/HEIF files (iPhone photos) require the pillow-heif package — '
+                'run: pip install pillow-heif. For all other files, '
+                'please check the file is not corrupted.'
             )
 
         orig_w, orig_h = img.size
@@ -665,4 +668,9 @@ def api_bmp_process():
 
 
 if __name__ == '__main__':
+    # Prevent joblib/OpenMP from spawning parallel workers.
+    # Required on macOS (avoids 10-30s KMeans hang) and Windows alike.
+    import os as _os
+    _os.environ.setdefault('LOKY_MAX_CPU_COUNT', '1')
+    _os.environ.setdefault('OMP_NUM_THREADS',    '1')
     app.run(debug=False, port=5000, use_reloader=False, threaded=True)
