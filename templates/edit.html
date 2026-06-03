@@ -307,6 +307,11 @@
       position:absolute; top:0; left:0;
       pointer-events:none; image-rendering:pixelated;
     }
+    #paste-canvas {
+      position:absolute; top:0; left:0;
+      pointer-events:none; image-rendering:pixelated;
+      opacity:0.85;
+    }
 
     /* Zoom bar */
     #zoom-bar {
@@ -379,6 +384,7 @@
   <button class="tbtn"    id="tbtn-satin"  onclick="setTool('satin')"  data-tip="Satin Brush (W) — paints inside UP pixels only"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><polygon points="8,2 13,5 13,11 8,14 3,11 3,5" stroke-width="1.2"/><line x1="8" y1="5" x2="8" y2="11"/><line x1="5" y1="6.5" x2="11" y2="6.5"/><line x1="5" y1="9.5" x2="11" y2="9.5"/></svg></button>
   <button class="tbtn"    id="tbtn-line"   onclick="setTool('line')"   data-tip="Straight line (L)"><svg width="16" height="16" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.8"><line x1="3" y1="13" x2="13" y2="3"/></svg></button>
   <button class="tbtn"    id="tbtn-rect"   onclick="setTool('rect')"   data-tip="Filled rectangle (R)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="10" height="8" rx="1"/></svg></button>
+  <button class="tbtn"    id="tbtn-select" onclick="setTool('select')" data-tip="Select rectangle — drag to select, then Copy (Ctrl+C) (S)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2,1.5"><rect x="2" y="2" width="12" height="12" rx="1"/></svg></button>
   <div class="tsep"></div>
   <button class="tbtn"    id="tbtn-pan"    onclick="setTool('pan')"    data-tip="Pan / scroll canvas (H)">✋</button>
   <div class="tsep"></div>
@@ -418,6 +424,7 @@
        oncontextmenu="event.preventDefault()">
     <canvas id="main-canvas"></canvas>
     <canvas id="ov-canvas"></canvas>
+    <canvas id="paste-canvas" style="display:none"></canvas>
   </div>
 
   <!-- Reference image panel -->
@@ -588,6 +595,50 @@
   </div>
 
   <div class="psec">
+    <div class="ptitle">Canvas Size</div>
+    <div style="font-size:9px;color:var(--muted);margin-bottom:8px;line-height:1.5">
+      Extend or crop the canvas. Existing pixels stay at top-left. New area fills white.
+    </div>
+    <div class="opt-row" style="margin-bottom:6px">
+      <span class="opt-label">Width (pins)</span>
+      <input type="number" id="cs-w" min="1" max="9999" placeholder="—"
+        style="width:60px;padding:3px 5px;background:var(--surface2);border:1px solid var(--border);
+               color:var(--text);border-radius:4px;font-size:10px;font-family:'DM Mono',monospace">
+    </div>
+    <div class="opt-row" style="margin-bottom:8px">
+      <span class="opt-label">Height (cards)</span>
+      <input type="number" id="cs-h" min="1" max="9999" placeholder="—"
+        style="width:60px;padding:3px 5px;background:var(--surface2);border:1px solid var(--border);
+               color:var(--text);border-radius:4px;font-size:10px;font-family:'DM Mono',monospace">
+    </div>
+    <div style="display:flex;gap:4px">
+      <button class="obtn" style="flex:1;justify-content:center;font-size:9px" onclick="applyCanvasSize()">
+        Apply
+      </button>
+      <button class="obtn" style="flex:1;justify-content:center;font-size:9px" onclick="setCSSFromCurrent()">
+        Current
+      </button>
+    </div>
+  </div>
+
+  <div class="psec">
+    <div class="ptitle">Selection</div>
+    <div id="sel-info" style="font-size:9px;color:var(--muted);margin-bottom:8px;line-height:1.6">
+      No selection.<br>Use the ⬚ Select tool to drag a region.
+    </div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap">
+      <button class="obtn" style="flex:1;justify-content:center;font-size:9px" id="btn-copy"
+        onclick="copySelection()" title="Ctrl+C">⎘ Copy</button>
+      <button class="obtn" style="flex:1;justify-content:center;font-size:9px" id="btn-cut"
+        onclick="cutSelection()" title="Ctrl+X">✂ Cut</button>
+      <button class="obtn" style="flex:1;justify-content:center;font-size:9px" id="btn-paste"
+        onclick="startPaste()" title="Ctrl+V">⎘ Paste</button>
+      <button class="obtn" style="flex:1;justify-content:center;font-size:9px" id="btn-clear-sel"
+        onclick="clearSelection()">⬚ Deselect</button>
+    </div>
+  </div>
+
+  <div class="psec">
     <div class="ptitle">Statistics</div>
     <div class="srow"><span class="sl">Size</span>       <span class="sv" id="st-size">—</span></div>
     <div class="srow"><span class="sl">UP pixels</span>  <span class="sv" id="st-up">—</span></div>
@@ -616,10 +667,17 @@ const S = {
   showGrid: false,
   history: [], hi: -1,
   params: { dilate:1, erode:1, close_gaps:2, open:1, clean_noise:5 },
-  swapButtons: false,   // if true: LMB=white(erase), RMB=black(draw)
-  fillPat: null,       // pre-computed fill pattern array (full canvas size)
-  fillPatName: 'satin',
-  fillPatN: 8,
+  swapButtons: false,
+  fillPat: null, fillPatName: 'satin', fillPatN: 8,
+  // Selection
+  sel: null,          // {x0,y0,x1,y1} in BMP pixels (normalised, inclusive)
+  selStart: null,     // drag start {x,y}
+  selActive: false,   // selection exists
+  // Clipboard
+  clipboard: null,    // {pixels:Uint8ClampedArray, w, h}
+  // Paste drag
+  pastePos: null,     // {x,y} top-left of floating paste preview
+  pasteDrag: null,    // {sx,sy,px,py} drag start
 };
 
 const MC = document.getElementById('main-canvas');
@@ -867,11 +925,36 @@ function coords(e) {
 // ═══════════════════════════════════════════════════
 function onMD(e) {
   if (!S.pixels) return;
-  // Right-click on pan tool = no-op
   if (e.button === 2 && S.tool === 'pan') return;
   const {x,y}=coords(e);
-  S._btn = e.button;   // store button for dv() usage during stroke
+  S._btn = e.button;
+
+  // If we have a floating paste preview, mouse-down commits or drags it
+  if (S.pastePos !== null) {
+    // Check if click is inside paste area
+    const PC = document.getElementById('paste-canvas');
+    const pw = S.clipboard ? S.clipboard.w : 0;
+    const ph = S.clipboard ? S.clipboard.h : 0;
+    const inPaste = x >= S.pastePos.x && x < S.pastePos.x+pw
+                 && y >= S.pastePos.y && y < S.pastePos.y+ph;
+    if (inPaste) {
+      // Start dragging the paste preview
+      S.pasteDrag = {sx:e.clientX, sy:e.clientY, px:S.pastePos.x, py:S.pastePos.y};
+      return;
+    } else {
+      // Click outside → commit paste at current position
+      commitPaste();
+    }
+  }
+
   if (S.tool==='pan') { S.panStart={mx:e.clientX,my:e.clientY,sx:document.getElementById('canvas-area').scrollLeft,sy:document.getElementById('canvas-area').scrollTop}; return; }
+
+  if (S.tool==='select') {
+    S.selStart={x,y}; S.sel=null; S.selActive=false;
+    updateSelInfo(); drawSelectionRect();
+    return;
+  }
+
   if (S.tool==='fill')  { pushHist(`Fill (${x},${y})`); fill(x,y,dv(e.button)); render(); updateStats(); return; }
   if (S.tool==='satin') {
     ensureFillPat();
@@ -887,12 +970,32 @@ function onMM(e) {
   if (!S.pixels) return;
   const {x,y}=coords(e);
   document.getElementById('coord-bar').textContent=`x:${x} y:${y}`;
+
+  // Paste drag
+  if (S.pasteDrag) {
+    const dx = Math.round((e.clientX - S.pasteDrag.sx) / S.zoom);
+    const dy = Math.round((e.clientY - S.pasteDrag.sy) / S.zoom);
+    S.pastePos = {x: S.pasteDrag.px+dx, y: S.pasteDrag.py+dy};
+    drawPastePreview(); return;
+  }
+
   if (S.tool==='pan' && S.panStart) {
     const a=document.getElementById('canvas-area');
     a.scrollLeft=S.panStart.sx-(e.clientX-S.panStart.mx);
     a.scrollTop =S.panStart.sy-(e.clientY-S.panStart.my);
     return;
   }
+
+  // Selection drag
+  if (S.tool==='select' && S.selStart && e.buttons > 0) {
+    S.sel = {
+      x0: Math.min(S.selStart.x,x), y0: Math.min(S.selStart.y,y),
+      x1: Math.max(S.selStart.x,x), y1: Math.max(S.selStart.y,y),
+    };
+    S.selActive = true;
+    updateSelInfo(); drawSelectionRect(); return;
+  }
+
   if (!S.painting) return;
   if (S.tool==='pencil'||S.tool==='eraser') { line(S.lx,S.ly,x,y,S._btn); S.lx=x; S.ly=y; render(); }
   if (S.tool==='satin' && S.painting) { satinLine(S.lx,S.ly,x,y,S._btn); S.lx=x; S.ly=y; render(); }
@@ -901,7 +1004,23 @@ function onMM(e) {
 function onMU(e) {
   if (!S.pixels) return;
   const {x,y}=coords(e);
+
+  // End paste drag
+  if (S.pasteDrag) { S.pasteDrag=null; return; }
+
   if (S.tool==='pan') { S.panStart=null; return; }
+
+  if (S.tool==='select') {
+    S.selStart=null;
+    if (S.sel && (S.sel.x1>S.sel.x0 || S.sel.y1>S.sel.y0)) {
+      // Clamp to canvas
+      S.sel.x0=Math.max(0,S.sel.x0); S.sel.y0=Math.max(0,S.sel.y0);
+      S.sel.x1=Math.min(S.W-1,S.sel.x1); S.sel.y1=Math.min(S.H-1,S.sel.y1);
+      S.selActive=true; updateSelInfo();
+    } else { clearSelection(); }
+    return;
+  }
+
   if (S.tool==='line'&&S.lineStart) { pushHist('Line'); line(S.lineStart.x,S.lineStart.y,x,y); S.lineStart=null; render(); updateStats(); return; }
   if (S.tool==='rect'&&S.rectStart) {
     pushHist('Rectangle');
@@ -960,11 +1079,14 @@ function fitToWindow() {
 // TOOL / COLOUR
 // ═══════════════════════════════════════════════════
 function setTool(t) {
+  if (S.tool !== t) {
+    // switching away from select — keep selection but stop drawing it
+  }
   S.tool=t;
   document.querySelectorAll('.tbtn[id^="tbtn-"]').forEach(b=>b.classList.remove('on'));
   const b=document.getElementById('tbtn-'+t); if(b) b.classList.add('on');
-  MC.style.cursor={pencil:'crosshair',eraser:'cell',fill:'copy',line:'crosshair',rect:'crosshair',pan:'grab',satin:'cell'}[t]||'crosshair';
-  const toolNames={pencil:'Pencil',eraser:'Eraser',fill:'Flood Fill',line:'Line',rect:'Rectangle',pan:'Pan',satin:'Satin Brush'};
+  MC.style.cursor={pencil:'crosshair',eraser:'cell',fill:'copy',line:'crosshair',rect:'crosshair',pan:'grab',satin:'cell',select:'crosshair'}[t]||'crosshair';
+  const toolNames={pencil:'Pencil',eraser:'Eraser',fill:'Flood Fill',line:'Line',rect:'Rectangle',pan:'Pan',satin:'Satin Brush',select:'Select'};
   const hn = document.getElementById('header-sub');
   if (hn) hn.textContent = toolNames[t] || 'BMP Editor';
 }
@@ -1330,6 +1452,217 @@ function toggleSwapButtons() {
 }
 
 // ═══════════════════════════════════════════════════
+// SELECTION, COPY, PASTE, CANVAS SIZE
+// ═══════════════════════════════════════════════════
+
+// ── Selection info panel ──────────────────────────
+function updateSelInfo() {
+  const el = document.getElementById('sel-info');
+  if (!el) return;
+  if (!S.selActive || !S.sel) {
+    el.innerHTML = 'No selection.<br>Use the ⬚ Select tool to drag a region.';
+  } else {
+    const w = S.sel.x1 - S.sel.x0 + 1, h = S.sel.y1 - S.sel.y0 + 1;
+    el.innerHTML = `Selected: <strong style="color:var(--gold2)">${w}×${h} px</strong><br>
+      at (${S.sel.x0},${S.sel.y0}) → (${S.sel.x1},${S.sel.y1})`;
+  }
+}
+
+// ── Draw marching-ants selection rectangle on overlay ──
+let _marchOffset = 0;
+function drawSelectionRect() {
+  ox.clearRect(0, 0, OC.width, OC.height);
+  if (!S.selActive || !S.sel) return;
+  const z = S.zoom;
+  const sw = Math.round(S.W * z), sh = Math.round(S.H * z);
+  if (OC.width !== sw || OC.height !== sh) { OC.width=sw; OC.height=sh; }
+  if (S.showGrid) renderGrid();   // re-render grid underneath
+  const x0=Math.round(S.sel.x0*z), y0=Math.round(S.sel.y0*z);
+  const x1=Math.round((S.sel.x1+1)*z), y1=Math.round((S.sel.y1+1)*z);
+  // White outline
+  ox.strokeStyle = 'rgba(255,255,255,0.9)';
+  ox.lineWidth = 1; ox.setLineDash([]);
+  ox.strokeRect(x0+0.5, y0+0.5, x1-x0, y1-y0);
+  // Marching ants (black dashes)
+  ox.strokeStyle = 'rgba(0,0,0,0.9)';
+  ox.setLineDash([4,4]); ox.lineDashOffset = -_marchOffset;
+  ox.strokeRect(x0+0.5, y0+0.5, x1-x0, y1-y0);
+  ox.setLineDash([]);
+}
+
+// Animate marching ants
+setInterval(() => {
+  if (S.selActive) { _marchOffset = (_marchOffset+1)%8; drawSelectionRect(); }
+}, 100);
+
+// ── Select All ────────────────────────────────────
+function selectAll() {
+  if (!S.pixels) return;
+  S.sel = {x0:0,y0:0,x1:S.W-1,y1:S.H-1};
+  S.selActive = true;
+  setTool('select');
+  updateSelInfo(); drawSelectionRect();
+  toast('Selected all — ' + S.W + '×' + S.H);
+}
+
+// ── Clear selection ───────────────────────────────
+function clearSelection() {
+  S.sel=null; S.selActive=false; S.selStart=null;
+  updateSelInfo();
+  ox.clearRect(0,0,OC.width,OC.height);
+  if (S.showGrid) renderGrid();
+}
+
+// ── Copy ─────────────────────────────────────────
+function copySelection() {
+  if (!S.pixels) { toast('No file loaded'); return; }
+  if (!S.selActive || !S.sel) { toast('No selection — drag with the ⬚ Select tool first'); return; }
+  const {x0,y0,x1,y1} = S.sel;
+  const w = x1-x0+1, h = y1-y0+1;
+  const buf = new Uint8ClampedArray(w*h*4);
+  for (let dy=0;dy<h;dy++) for (let dx=0;dx<w;dx++) {
+    const si=(( y0+dy)*S.W+(x0+dx))*4;
+    const di=(dy*w+dx)*4;
+    buf[di]=buf[di+1]=buf[di+2]=S.pixels[si]; buf[di+3]=255;
+  }
+  S.clipboard = {pixels:buf, w, h};
+  toast(`Copied ${w}×${h} pixels`);
+}
+
+// ── Cut ──────────────────────────────────────────
+function cutSelection() {
+  if (!S.selActive||!S.sel) { toast('No selection'); return; }
+  copySelection();
+  deleteSelection();
+  toast(`Cut ${S.clipboard?.w||0}×${S.clipboard?.h||0} pixels`);
+}
+
+// ── Delete ───────────────────────────────────────
+function deleteSelection() {
+  if (!S.selActive||!S.sel) return;
+  pushHist('Delete selection');
+  const {x0,y0,x1,y1}=S.sel;
+  for (let dy=y0;dy<=y1;dy++) for (let dx=x0;dx<=x1;dx++) spx(dx,dy,255);
+  render(); updateStats();
+  toast('Deleted selection');
+}
+
+// ── Paste ────────────────────────────────────────
+function startPaste() {
+  if (!S.clipboard) { toast('Nothing in clipboard — copy something first (Ctrl+C)'); return; }
+  // Position paste preview at top-left of canvas (or current sel start)
+  const px = S.sel ? S.sel.x0 : 0;
+  const py = S.sel ? S.sel.y0 : 0;
+  S.pastePos = {x:px, y:py};
+  S.pasteDrag = null;
+  setTool('select');   // keep select tool active so user can move the paste
+  drawPastePreview();
+  toast('Paste preview — drag to position, then click outside or press Enter/Escape');
+}
+
+function drawPastePreview() {
+  if (!S.clipboard||!S.pastePos) return;
+  const PC = document.getElementById('paste-canvas');
+  const {w,h} = S.clipboard;
+  const z = S.zoom;
+  const sw=Math.round(S.W*z), sh=Math.round(S.H*z);
+  PC.width=sw; PC.height=sh;
+  PC.style.width=sw+'px'; PC.style.height=sh+'px';
+  PC.style.display='block';
+  const pctx=PC.getContext('2d');
+  pctx.clearRect(0,0,sw,sh);
+  // Draw the clipboard content at pastePos with checkerboard for white pixels
+  const id = new ImageData(S.clipboard.pixels.slice(), w, h);
+  const tmpC=Object.assign(document.createElement('canvas'),{width:w,height:h});
+  tmpC.getContext('2d').putImageData(id,0,0);
+  const px=Math.round(S.pastePos.x*z), py=Math.round(S.pastePos.y*z);
+  const pw=Math.round(w*z), ph=Math.round(h*z);
+  pctx.save();
+  pctx.imageSmoothingEnabled=false;
+  // Tinted border
+  pctx.strokeStyle='rgba(200,169,110,0.9)'; pctx.lineWidth=1.5;
+  pctx.setLineDash([4,3]);
+  pctx.strokeRect(px+0.5,py+0.5,pw,ph);
+  pctx.setLineDash([]);
+  pctx.drawImage(tmpC, px, py, pw, ph);
+  pctx.restore();
+  // Update cursor hint
+  PC.style.cursor='move';
+}
+
+function commitPaste() {
+  if (!S.clipboard||!S.pastePos) return;
+  pushHist('Paste');
+  const {x,y}=S.pastePos, {pixels:cp,w,h}=S.clipboard;
+  for (let dy=0;dy<h;dy++) for (let dx=0;dx<w;dx++) {
+    const si=(dy*w+dx)*4;
+    spx(x+dx, y+dy, cp[si]);  // cp[si] is 0 or 255
+  }
+  // Set new selection around pasted area
+  S.sel={x0:x,y0:y,x1:Math.min(S.W-1,x+w-1),y1:Math.min(S.H-1,y+h-1)};
+  S.selActive=true;
+  cancelPaste();
+  render(); updateStats(); updateSelInfo();
+  toast('Pasted ' + w + '×' + h + ' pixels');
+}
+
+function cancelPaste() {
+  S.pastePos=null; S.pasteDrag=null;
+  const PC=document.getElementById('paste-canvas');
+  if (PC) { PC.style.display='none'; PC.width=1; }
+}
+
+// Commit paste on Enter key
+document.addEventListener('keydown', ev => {
+  if (ev.key==='Enter' && S.pastePos!==null) { ev.preventDefault(); commitPaste(); }
+});
+
+// ── Canvas Size ───────────────────────────────────
+function setCSSFromCurrent() {
+  if (!S.pixels) return;
+  const wi=document.getElementById('cs-w'); if(wi) wi.value=S.W;
+  const hi=document.getElementById('cs-h'); if(hi) hi.value=S.H;
+}
+
+function applyCanvasSize() {
+  if (!S.pixels) { toast('No file loaded'); return; }
+  const newW = parseInt(document.getElementById('cs-w')?.value||0);
+  const newH = parseInt(document.getElementById('cs-h')?.value||0);
+  if (!newW||!newH||newW<1||newH<1||newW>9999||newH>9999) {
+    toast('Enter valid width and height (1–9999)'); return;
+  }
+  if (newW===S.W && newH===S.H) { toast('Same size — no change'); return; }
+  pushHist(`Resize canvas ${S.W}×${S.H} → ${newW}×${newH}`);
+  const newPx = new Uint8ClampedArray(newW*newH*4).fill(255);
+  // Set alpha
+  for (let i=3;i<newPx.length;i+=4) newPx[i]=255;
+  // Copy existing pixels into top-left corner
+  const cpW=Math.min(S.W,newW), cpH=Math.min(S.H,newH);
+  for (let dy=0;dy<cpH;dy++) for (let dx=0;dx<cpW;dx++) {
+    const si=(dy*S.W+dx)*4, di=(dy*newW+dx)*4;
+    newPx[di]=newPx[di+1]=newPx[di+2]=S.pixels[si]; newPx[di+3]=255;
+  }
+  // Apply
+  MC.width=OC.width=S.W=newW;
+  MC.height=OC.height=S.H=newH;
+  S.pixels=newPx;
+  S.fillPat=null; // invalidate fill pattern
+  clearSelection();
+  cancelPaste();
+  applyZoom(); render(); updateStats();
+  toast(`Canvas resized to ${newW}×${newH}`);
+}
+
+// ── Override render() to also redraw selection ────
+const _origRender = render;
+function render() {
+  if (!S.pixels) return;
+  cx.putImageData(new ImageData(S.pixels.slice(), S.W, S.H), 0, 0);
+  if (S.selActive) drawSelectionRect();
+  else { renderGrid(); }
+}
+
+// ═══════════════════════════════════════════════════
 // KEYBOARD
 // ═══════════════════════════════════════════════════
 document.addEventListener('keydown', e=>{
@@ -1338,9 +1671,15 @@ document.addEventListener('keydown', e=>{
     if(e.key==='z'){e.preventDefault();undo();}
     if(e.key==='y'||e.key==='Z'){e.preventDefault();redo();}
     if(e.key==='s'){e.preventDefault();downloadBMP();}
+    if(e.key==='c'){e.preventDefault();copySelection();}
+    if(e.key==='x' && S.selActive){e.preventDefault();cutSelection(); return;}
+    if(e.key==='v'){e.preventDefault();startPaste();}
+    if(e.key==='a'){e.preventDefault();selectAll();}
+    if(e.key==='d'){e.preventDefault();clearSelection();}
     return;
   }
   switch(e.key){
+    case 's': case 'S': setTool('select'); break;
     case 'p': case 'b': setTool('pencil'); break;
     case 'e':           setTool('eraser'); break;
     case 'f':           setTool('fill');   break;
@@ -1355,6 +1694,13 @@ document.addEventListener('keydown', e=>{
     case 'w': case 'W': setTool('satin'); break;
     case 'i': case 'I': toggleRefPanel(); break;
     case 'v': case 'V': toggleSwapButtons(); break;
+    case 'Escape':
+      if (S.pastePos !== null) { cancelPaste(); }
+      else if (S.selActive)    { clearSelection(); }
+      break;
+    case 'Delete': case 'Backspace':
+      if (S.selActive) { e.preventDefault(); deleteSelection(); }
+      break;
   }
 });
 
