@@ -885,28 +885,99 @@ function initImage(pixels, w, h, name) {
   updateUndoRedoBtns();
 }
 
+// ── Parse raw BMP bytes directly (no <img> needed, works in all browsers) ──
+function parseBmpBytes(buffer) {
+  const v = new DataView(buffer);
+  if (v.getUint8(0) !== 0x42 || v.getUint8(1) !== 0x4D)
+    throw new Error('Not a BMP file');
+  const pxOffset  = v.getUint32(4*2 + 2, true);          // byte 10
+  const width     = v.getInt32(18, true);
+  const heightRaw = v.getInt32(22, true);
+  const height    = Math.abs(heightRaw);
+  const bottomUp  = heightRaw > 0;
+  const bitCount  = v.getUint16(28, true);
+
+  // Build RGBA pixel array
+  const rgba = new Uint8ClampedArray(width * height * 4);
+
+  if (bitCount === 1) {
+    // 1-bit monochrome BMP — our primary format
+    const rowStride = Math.ceil(width / 32) * 4;
+    for (let row = 0; row < height; row++) {
+      const imgRow = bottomUp ? (height - 1 - row) : row;
+      for (let col = 0; col < width; col++) {
+        const byteOff = pxOffset + row * rowStride + Math.floor(col / 8);
+        const bit = (v.getUint8(byteOff) >> (7 - (col % 8))) & 1;
+        const v8  = bit === 0 ? 0 : 255;   // bit=0 → black(UP), bit=1 → white(DOWN)
+        const i   = (imgRow * width + col) * 4;
+        rgba[i] = rgba[i+1] = rgba[i+2] = v8; rgba[i+3] = 255;
+      }
+    }
+  } else {
+    // 24-bit or 32-bit BMP — binarise by luminance
+    const bytesPerPx = bitCount / 8;
+    const rowStride  = Math.ceil((width * bytesPerPx) / 4) * 4;
+    for (let row = 0; row < height; row++) {
+      const imgRow = bottomUp ? (height - 1 - row) : row;
+      for (let col = 0; col < width; col++) {
+        const off = pxOffset + row * rowStride + col * bytesPerPx;
+        const b = v.getUint8(off), g = v.getUint8(off+1), r = v.getUint8(off+2);
+        const v8 = (r + g + b) / 3 < 128 ? 0 : 255;
+        const i  = (imgRow * width + col) * 4;
+        rgba[i] = rgba[i+1] = rgba[i+2] = v8; rgba[i+3] = 255;
+      }
+    }
+  }
+  return { rgba, width, height };
+}
+
 function loadFile(file) {
   if (!file) return;
-  S.filename = file.name;
+  const name = file.name;
+  const isBmp = /\.bmp$/i.test(name);
+
   const reader = new FileReader();
   reader.onload = e => {
-    const img = new Image();
-    img.onload = () => {
-      const oc = Object.assign(document.createElement('canvas'),
-                               {width: img.naturalWidth, height: img.naturalHeight});
-      const c2 = oc.getContext('2d');
-      c2.drawImage(img, 0, 0);
-      const id = c2.getImageData(0, 0, oc.width, oc.height);
-      // Binarise
-      for (let i = 0; i < id.data.length; i += 4) {
-        const v = (id.data[i] + id.data[i+1] + id.data[i+2]) / 3 < 128 ? 0 : 255;
-        id.data[i] = id.data[i+1] = id.data[i+2] = v; id.data[i+3] = 255;
+    if (isBmp) {
+      // Parse BMP directly — avoids browser <img> 1-bit BMP decode failures
+      try {
+        const { rgba, width, height } = parseBmpBytes(e.target.result);
+        initImage(rgba, width, height, name);
+      } catch(err) {
+        // Fallback: let browser decode (works for 24/32-bit BMP and PNG)
+        _decodeViaImg(e.target.result, name);
       }
-      initImage(id.data, oc.width, oc.height, file.name);
-    };
-    img.src = e.target.result;
+    } else {
+      // PNG and other formats — browser decodes fine
+      _decodeViaImg(e.target.result, name);
+    }
   };
-  reader.readAsDataURL(file);
+  reader.readAsArrayBuffer(file);
+}
+
+function _decodeViaImg(src, name) {
+  const img = new Image();
+  img.onload = () => {
+    const oc = Object.assign(document.createElement('canvas'),
+                             {width: img.naturalWidth, height: img.naturalHeight});
+    const c2 = oc.getContext('2d');
+    c2.drawImage(img, 0, 0);
+    const id = c2.getImageData(0, 0, oc.width, oc.height);
+    for (let i = 0; i < id.data.length; i += 4) {
+      const v = (id.data[i] + id.data[i+1] + id.data[i+2]) / 3 < 128 ? 0 : 255;
+      id.data[i] = id.data[i+1] = id.data[i+2] = v; id.data[i+3] = 255;
+    }
+    initImage(id.data, oc.width, oc.height, name);
+  };
+  img.onerror = () => toast('Could not open file — unsupported format');
+  if (typeof src === 'string') {
+    img.src = src;
+  } else {
+    const blob = new Blob([src]);
+    const url  = URL.createObjectURL(blob);
+    img.onload = () => { URL.revokeObjectURL(url); img.onload = null; img.src = url; };
+    img.src = url;
+  }
 }
 
 function onDrop(e) {
