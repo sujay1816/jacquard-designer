@@ -462,7 +462,6 @@
   <button class="tbtn" id="tbtn-weave" onclick="openPopup('weave',this)" data-tip="Weave / Fill Pattern — paint satin, twill, honeycomb and more"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="3" height="3" rx=".4"/><rect x="6" y="1" width="3" height="3" rx=".4" opacity=".4"/><rect x="11" y="1" width="3" height="3" rx=".4"/><rect x="1" y="6" width="3" height="3" rx=".4" opacity=".4"/><rect x="6" y="6" width="3" height="3" rx=".4"/><rect x="11" y="6" width="3" height="3" rx=".4" opacity=".4"/><rect x="1" y="11" width="3" height="3" rx=".4"/><rect x="6" y="11" width="3" height="3" rx=".4" opacity=".4"/><rect x="11" y="11" width="3" height="3" rx=".4"/></svg></button>
   <button class="tbtn" id="tbtn-fill-int" onclick="openPopup('fillint',this)" data-tip="Fill Interiors (J) — flood-fill enclosed design regions with a weave pattern">⬡</button>
   <div class="tsep"></div>
-  <button class="tbtn"    id="tbtn-weave-fill" onclick="setTool('weave-fill')" data-tip="Weave Fill — click any enclosed region to fill with selected pattern (V)">⬡✎</button>
   <button class="tbtn"    id="tbtn-pan"    onclick="setTool('pan')"    data-tip="Pan / scroll canvas (H)">✋</button>
   <div class="tsep"></div>
   <button class="tbtn"    id="tbtn-grid"   onclick="toggleGrid()"      data-tip="Toggle pixel grid — visible at 4x+ (G)">⊞</button>
@@ -707,8 +706,9 @@
   </div>
   <div class="tb-popup-body">
     <div style="font-size:9px;color:var(--muted);margin-bottom:10px;line-height:1.6">
-      <strong style="color:var(--text)">Fill All:</strong> fills every enclosed white region at once.<br>
-      <strong style="color:var(--gold)">Fill Region (V):</strong> arm the tool, then click any single region to fill only that one — use different patterns per region.
+      Flood-fills every <strong style="color:var(--text)">enclosed white region</strong>
+      inside your design with the selected weave pattern.<br>
+      Outlines and background stay unchanged.
     </div>
     <div class="opt-row" style="margin-bottom:6px">
       <span class="opt-label">Pattern</span>
@@ -747,21 +747,12 @@
         <strong style="color:var(--gold)">Invert</strong> — swap black↔white in filled pattern
       </label>
     </div>
-    <div style="display:flex;gap:6px;margin-top:2px">
-      <button onclick="setTool('weave-fill');closePopup('fillint')"
-        style="flex:1;padding:7px;background:var(--surface2);border:1px solid var(--gold);
-               color:var(--gold);border-radius:4px;font-size:10px;font-weight:700;
-               cursor:pointer;font-family:'DM Mono',monospace"
-        title="Arm the click-to-fill tool, then click any enclosed region on the canvas">
-        ⬡✎ Arm Fill (V)
-      </button>
-      <button onclick="fillInteriors()"
-        style="flex:1;padding:7px;background:linear-gradient(135deg,var(--gold),var(--gold2));
-               border:none;color:#1a1510;border-radius:4px;font-size:11px;font-weight:700;
-               cursor:pointer;font-family:'DM Mono',monospace">
-        ⬡ Fill All
-      </button>
-    </div>
+    <button onclick="fillInteriors()"
+      style="width:100%;padding:7px;background:linear-gradient(135deg,var(--gold),var(--gold2));
+             border:none;color:#1a1510;border-radius:4px;font-size:11px;font-weight:700;
+             cursor:pointer;font-family:'DM Mono',monospace">
+      ⬡ Fill Interiors
+    </button>
   </div>
 </div>
 
@@ -1281,7 +1272,6 @@ function onMD(e) {
   }
 
   if (S.tool==='fill')  { pushHist(`Fill (${x},${y})`); fill(x,y,dv(e.button)); render(); updateStats(); return; }
-  if (S.tool==='weave-fill') { fillRegionAt(x, y); return; }
   if (S.tool==='satin') {
     ensureFillPat();
     S.painting=true; S.lx=x; S.ly=y;
@@ -1411,8 +1401,8 @@ function setTool(t) {
   S.tool=t;
   document.querySelectorAll('.tbtn[id^="tbtn-"]').forEach(b=>b.classList.remove('on'));
   const b=document.getElementById('tbtn-'+t); if(b) b.classList.add('on');
-  MC.style.cursor={pencil:'crosshair',eraser:'cell',fill:'copy',line:'crosshair',rect:'crosshair',pan:'grab',satin:'cell',select:'crosshair','weave-fill':'crosshair'}[t]||'crosshair';
-  const toolNames={pencil:'Pencil',eraser:'Eraser',fill:'Flood Fill',line:'Line',rect:'Rectangle',pan:'Pan',satin:'Satin Brush',select:'Select','weave-fill':'Weave Fill (click a region)'};
+  MC.style.cursor={pencil:'crosshair',eraser:'cell',fill:'copy',line:'crosshair',rect:'crosshair',pan:'grab',satin:'cell',select:'crosshair'}[t]||'crosshair';
+  const toolNames={pencil:'Pencil',eraser:'Eraser',fill:'Flood Fill',line:'Line',rect:'Rectangle',pan:'Pan',satin:'Satin Brush',select:'Select'};
   const hn = document.getElementById('header-sub');
   if (hn) hn.textContent = toolNames[t] || 'BMP Editor';
 }
@@ -1749,75 +1739,6 @@ function fillInteriors() {
   updateStats();
   closePopup('fillint');
   toast('⬡ Filled ' + interior.length.toLocaleString() + ' interior pixels with ' + pattern + (invert ? ' (inverted)' : '') + ' (N=' + n + ')');
-}
-
-function fillRegionAt(cx, cy) {
-  // Click-to-fill: fills only the single enclosed region the user clicked.
-  // Reads pattern/N/invert from the Fill Interiors popup controls.
-  if (!S.pixels || S.W === 0) return;
-
-  const W = S.W, H = S.H;
-  const pos0 = cy * W + cx;
-
-  // Must click on a white (DOWN) pixel
-  if (S.pixels[pos0 * 4] <= 128) {
-    toast('Click inside a white enclosed region to fill it');
-    return;
-  }
-
-  // BFS flood-fill from the clicked pixel (4-connected, white pixels only)
-  const isWhite = new Uint8Array(W * H);
-  for (let i = 0; i < S.pixels.length; i += 4)
-    if (S.pixels[i] > 128) isWhite[i >> 2] = 1;
-
-  const region  = [];
-  const seen    = new Uint8Array(W * H);
-  const queue   = new Int32Array(W * H);
-  let qHead = 0, qTail = 0;
-  seen[pos0] = 1; queue[qTail++] = pos0;
-
-  while (qHead < qTail) {
-    const p = queue[qHead++], px = p % W, py = (p / W) | 0;
-    region.push(p);
-    if (py > 0   && isWhite[p-W] && !seen[p-W]) { seen[p-W]=1; queue[qTail++]=p-W; }
-    if (py < H-1 && isWhite[p+W] && !seen[p+W]) { seen[p+W]=1; queue[qTail++]=p+W; }
-    if (px > 0   && isWhite[p-1] && !seen[p-1]) { seen[p-1]=1; queue[qTail++]=p-1; }
-    if (px < W-1 && isWhite[p+1] && !seen[p+1]) { seen[p+1]=1; queue[qTail++]=p+1; }
-  }
-
-  // Determine if the region is enclosed (not connected to any border pixel)
-  let touchesBorder = false;
-  for (const p of region) {
-    const px = p % W, py = (p / W) | 0;
-    if (px === 0 || px === W-1 || py === 0 || py === H-1) { touchesBorder = true; break; }
-  }
-  if (touchesBorder) {
-    toast('That region is not enclosed — it connects to the border/background');
-    return;
-  }
-
-  // Read settings from the Fill Interiors popup
-  const pattern = document.getElementById('fi-pattern')?.value || 'satin';
-  const n       = parseInt(document.getElementById('fi-n')?.value || '8');
-  const invert  = document.getElementById('fi-invert')?.checked || false;
-
-  // Generate and apply pattern
-  const patArr = generateFillJS(pattern, n, W, H);
-  pushHist('Weave Fill region: ' + pattern);
-  const newPx = S.pixels.slice();
-
-  for (const p of region) {
-    const bit = invert ? (patArr[p] === 0 ? 1 : 0) : patArr[p];
-    const v   = bit === 0 ? 0 : 255;
-    const i   = p * 4;
-    newPx[i] = newPx[i+1] = newPx[i+2] = v;
-    newPx[i+3] = 255;
-  }
-
-  S.pixels = newPx;
-  render();
-  updateStats();
-  toast('⬡ Region filled with ' + pattern + (invert ? ' (inv)' : '') + ' — ' + region.length.toLocaleString() + ' px');
 }
 
 
