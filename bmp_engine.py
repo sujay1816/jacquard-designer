@@ -443,7 +443,7 @@ def enhance_image(image: Image.Image) -> Image.Image:
         # threshold=8: only pixels that differ by >8 from their blurred
         # version get sharpened, ignoring smooth JPEG gradients.
         enhanced = enhanced.filter(
-            ImageFilter.UnsharpMask(radius=1, percent=150, threshold=5))
+            ImageFilter.UnsharpMask(radius=1, percent=80, threshold=8))
 
     return enhanced
 
@@ -623,7 +623,7 @@ def detect_colors(image: Image.Image, n_colors: int, edge_recovery: bool = True)
     img_rgb = image.convert('RGB')
     arr     = np.array(img_rgb).reshape(-1, 3).astype(np.float32)
 
-    km      = KMeans(n_clusters=n_colors, random_state=42, n_init=10, max_iter=300)
+    km      = KMeans(n_clusters=n_colors, random_state=42, n_init=3,  max_iter=100)
     labels  = km.fit_predict(arr)
     centers = km.cluster_centers_.astype(np.uint8)
 
@@ -760,33 +760,6 @@ def detect_colors(image: Image.Image, n_colors: int, edge_recovery: bool = True)
         genuine_flags.append(flag)
         if flag:
             confirmed.append(sorted_colors[i])
-
-    # ── Post-detection: remove isolated noise pixels ────────────────────────
-    # Any design pixel that has NO adjacent design pixel in a 3x3 neighbourhood
-    # is isolated noise (JPEG artifact or dust). Remove it.
-    if n_colors >= 2:
-        from scipy.ndimage import binary_erosion, label as _label
-        for label_idx in range(1, n_colors):
-            mask = (sorted_labels == label_idx)
-            if not mask.any():
-                continue
-            # A pixel is "isolated" if it has no 4-connected design neighbours
-            # Use erosion with a cross-shaped kernel (4-connectivity)
-            cross = np.array([[0,1,0],[1,1,1],[0,1,0]], dtype=bool)
-            eroded = binary_erosion(mask, structure=cross, border_value=0)
-            # Pixels in mask but NOT in eroded = thin/isolated features
-            thin = mask & ~eroded
-            # Label connected components of thin pixels
-            thin_labeled, n_thin = _label(thin)
-            if n_thin > 0:
-                thin_sizes = np.bincount(thin_labeled.flatten())[1:]
-                # Only remove truly isolated single pixels (size <= 2)
-                for comp_id, sz in enumerate(thin_sizes, 1):
-                    if sz <= 2:
-                        sorted_labels[thin_labeled == comp_id] = 0
-        # Recompute counts
-        for i in range(n_colors):
-            sorted_counts[i] = int((sorted_labels == i).sum())
 
     return sorted_colors, sorted_counts, sorted_labels, genuine_flags
 
