@@ -971,9 +971,20 @@ def _apply_shuttle_hollow(arr: np.ndarray,
     cfg = hollow_weave_settings.get(shuttle_name, {})
     if not cfg.get('enabled', False):
         return arr
+    pattern = cfg.get('pattern', 'satin')
+    solid   = cfg.get('solid', False) or pattern == '__solid__'
+    if solid:
+        # Solid black fill — no weave pattern, just fill all hollows black
+        return apply_hollow_weave(
+            arr,
+            pattern     = '_solid_',
+            n           = 1,
+            invert      = False,
+            design_mask = design_mask,
+        )
     return apply_hollow_weave(
         arr,
-        pattern     = cfg.get('pattern', 'satin'),
+        pattern     = pattern,
         n           = int(cfg.get('n', 8)),
         invert      = bool(cfg.get('invert', False)),
         design_mask = design_mask,
@@ -1131,10 +1142,12 @@ def apply_hollow_weave(arr: np.ndarray,
     flat_new[hollow_idx] = 0
 
     # ── Apply weave pattern to hollow pixels only ───────────────────────────
-    pat = generate_fill_pattern(pattern, n, W, H, flip=False).flatten()
-    if invert:
-        pat = np.where(pat == 0, np.uint8(1), np.uint8(0))
-    flat_new[hollow_idx] = pat[hollow_idx]
+    if pattern != '_solid_':
+        pat = generate_fill_pattern(pattern, n, W, H, flip=False).flatten()
+        if invert:
+            pat = np.where(pat == 0, np.uint8(1), np.uint8(0))
+        flat_new[hollow_idx] = pat[hollow_idx]
+    # else: hollow pixels stay at 0 (solid black) — already done in step above
 
     return flat_new.reshape(H, W).astype(np.uint8)
 
@@ -1204,6 +1217,7 @@ def generate_bmps(
     supersample: bool = False,      # oversample 4x then downsample for fine detail
     hollow_weave_settings: dict = None,  # {shuttle_name: {'enabled': bool, 'pattern': str, 'n': int, 'invert': bool}}
     outline_white: dict = None,           # {shuttle_name: True/False} — turn outer face white
+    invert_output: dict = None,           # {shuttle_name: True/False} — invert entire BMP (black↔white)
 ) -> dict:
     """
     Generate all BMP files for a jacquard design.
@@ -1292,6 +1306,8 @@ def generate_bmps(
             if outline_white and outline_white.get('zari'):
                 arr = apply_outer_face_white(arr, design_mask=zari_mask.flatten())
             arr = _apply_shuttle_hollow(arr, 'zari', hollow_weave_settings, design_mask=zari_mask.flatten())
+            if invert_output and invert_output.get('zari'):
+                arr = np.where(arr == 0, np.uint8(1), np.uint8(0))
             results[f'{design_name}_zari.bmp'] = write_1bit_bmp(arr)
 
         else:
@@ -1307,6 +1323,8 @@ def generate_bmps(
             if outline_white and outline_white.get('zari'):
                 zari_arr = apply_outer_face_white(zari_arr, design_mask=fill_mask.flatten())
             zari_arr = _apply_shuttle_hollow(zari_arr, 'zari', hollow_weave_settings, design_mask=fill_mask.flatten())
+            if invert_output and invert_output.get('zari'):
+                zari_arr = np.where(zari_arr == 0, np.uint8(1), np.uint8(0))
             results[f'{design_name}_zari.bmp'] = write_1bit_bmp(zari_arr)
 
             # rani = outline pixels (solid, always thin) + plain weave base
@@ -1365,6 +1383,8 @@ def generate_bmps(
             if outline_white and outline_white.get(sname):
                 arr = apply_outer_face_white(arr, design_mask=mask.flatten())
             arr = _apply_shuttle_hollow(arr, sname, hollow_weave_settings, design_mask=mask.flatten())
+            if invert_output and invert_output.get(sname):
+                arr = np.where(arr == 0, np.uint8(1), np.uint8(0))
             shuttle_arrays[sname] = arr
             results[f'{design_name}_{sname}.bmp'] = write_1bit_bmp(arr)
 

@@ -1825,7 +1825,7 @@ function renderSatinSettings() {
       <!-- Weave ON/OFF pill -->
       <div class="weave-pill-row" style="margin-top:2px">
         <span class="weave-pill-label">Fill Pattern</span>
-        <div class="weave-pill on" id="weave-pill-${sName}"
+        <div class="weave-pill off" id="weave-pill-${sName}"
           onclick="toggleWeavePill('${sName}')">
           <span class="weave-pill-btn on-btn">ON</span>
           <span class="weave-pill-btn off-btn">OFF</span>
@@ -1871,6 +1871,24 @@ function renderSatinSettings() {
         <span id="weave-upPct-${sName}" style="font-size:10px;color:#888"></span>
       </div>
 
+      <!-- ── Invert BMP toggle ───────────────────────────────────────── -->
+      <div style="margin-top:14px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <span style="font-size:11px;color:#ccc;font-weight:600">⬡ Invert BMP</span>
+          <label class="hf-toggle-label" title="Invert the output: black↔white. White outline on black background.">
+            <input type="checkbox" id="inv-toggle-${sName}" style="display:none"
+              onchange="document.getElementById('inv-track-${sName}').classList.toggle('on',this.checked)">
+            <span class="hf-toggle-track" id="inv-track-${sName}">
+              <span class="hf-toggle-thumb"></span>
+            </span>
+          </label>
+        </div>
+        <div style="font-size:9px;color:#888;margin-bottom:2px;line-height:1.5">
+          Swaps black and white — white design outline on black background.
+          ON by default for zari/meena.
+        </div>
+      </div>
+
       <!-- ── Outline → White toggle ──────────────────────────────────── -->
       <div style="margin-top:14px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08)">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
@@ -1893,9 +1911,9 @@ function renderSatinSettings() {
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
           <span style="font-size:11px;color:#ccc;font-weight:600">⬡ Hollow Fill</span>
           <label class="hf-toggle-label" title="Fill enclosed hollow regions inside the design">
-            <input type="checkbox" id="hf-toggle-${sName}"
+            <input type="checkbox" id="hf-toggle-${sName}" checked
               onchange="onHollowFillToggle('${sName}')" style="display:none">
-            <span class="hf-toggle-track" id="hf-track-${sName}">
+            <span class="hf-toggle-track on" id="hf-track-${sName}">
               <span class="hf-toggle-thumb"></span>
             </span>
           </label>
@@ -1906,13 +1924,13 @@ function renderSatinSettings() {
         </div>
 
         <!-- Hollow weave settings (shown only when toggle ON) -->
-        <div id="hf-settings-${sName}" style="display:none">
+        <div id="hf-settings-${sName}" style="display:block">
           <div style="margin-bottom:6px">
             <select id="hf-pattern-${sName}" style="width:100%;padding:5px 8px;font-size:11px;
               background:#1e1b17;border:1px solid rgba(255,255,255,0.15);color:#e8e0d0;
               border-radius:4px;font-family:'DM Mono',monospace"
               onchange="updateHfPreview('${sName}')">
-              <option value="__solid__">Solid Black (no pattern)</option>
+              <option value="__solid__" selected>Solid Black (no pattern)</option>
               <option value="satin">Satin</option>
               <option value="satin_inv">Satin Inverted</option>
               <option value="plain_weave">Plain Weave</option>
@@ -2139,6 +2157,13 @@ async function generateBMPs() {
     }
   });
 
+  // Collect invert-output settings per shuttle
+  const invertOutputSettings = {};
+  shuttles.forEach(sName => {
+    const cb = document.getElementById(`inv-toggle-${sName}`);
+    if (cb && cb.checked) invertOutputSettings[sName] = true;
+  });
+
   // Collect outline→white settings per shuttle
   const outlineWhiteSettings = {};
   shuttles.forEach(sName => {
@@ -2168,7 +2193,8 @@ async function generateBMPs() {
         color_assignments: finalAssignments,
         satin_settings: saSettings,
         hollow_weave_settings: Object.keys(hollowWeaveSettings).length > 0 ? hollowWeaveSettings : null,
-        outline_white: Object.keys(outlineWhiteSettings).length > 0 ? outlineWhiteSettings : null,
+        outline_white:   Object.keys(outlineWhiteSettings).length > 0 ? outlineWhiteSettings : null,
+        invert_output:   Object.keys(invertOutputSettings).length > 0 ? invertOutputSettings : null,
         emboss:      embossChecked,
         supersample: document.getElementById('supersampleMode')?.checked || false,
         full_image:  state.fullImageB64 || undefined,
