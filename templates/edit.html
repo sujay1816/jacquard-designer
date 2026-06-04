@@ -463,7 +463,9 @@
   <button class="tbtn" id="tbtn-fill-int" onclick="openPopup('fillint',this)" data-tip="Fill Interiors (J) — flood-fill enclosed design regions with a weave pattern">⬡</button>
   <div class="tsep"></div>
   <button class="tbtn"    id="tbtn-weave-fill" onclick="openPopup('weavefill',this)" data-tip="Weave Fill (V) — opens pattern selector; arm then click any enclosed region">⬡✎</button>
-  <button class="tbtn"    id="tbtn-invert-region" onclick="setTool('invert-region')" data-tip="Invert Region (K) — click any region to flip black↔white">⬡↔</button>
+  <button class="tbtn"    id="tbtn-invert-region" onclick="setTool('invert-region')" data-tip="Invert Region (K) — click any region to flip black↔white">
+      <button class="tbtn"    id="tbtn-smart-fill" onclick="openPopup('smartfill',this)" data-tip="Smart Fill (Z) — fill + weave + white outline">
+        <span class="oic">⬡✦</span></button>⬡↔</button>
   <button class="tbtn"    id="tbtn-pan"    onclick="setTool('pan')"    data-tip="Pan / scroll canvas (H)">✋</button>
   <div class="tsep"></div>
   <button class="tbtn"    id="tbtn-grid"   onclick="toggleGrid()"      data-tip="Toggle pixel grid — visible at 4x+ (G)">⊞</button>
@@ -843,6 +845,58 @@
              border:none;color:#1a1510;border-radius:4px;font-size:11px;font-weight:700;
              cursor:pointer;font-family:'DM Mono',monospace">
       ⬡✎ Arm Weave Fill
+    </button>
+  </div>
+</div>
+
+<div id="popup-smartfill" class="tb-popup">
+  <div class="tb-popup-header">
+    <span>⬡ Smart Fill</span>
+    <button onclick="closePopup('smartfill')" title="Close">✕</button>
+  </div>
+  <div class="tb-popup-body">
+    <div style="font-size:9px;color:var(--muted);margin-bottom:10px;line-height:1.6">
+      Click any enclosed white region. Fills it <strong style="color:var(--gold)">solid black</strong>
+      with optional weave, then turns the <strong style="color:var(--gold)">outline white</strong>
+      so petals and details stay clearly separated.
+      Tool stays armed — keep clicking.
+    </div>
+    <div class="opt-row" style="margin-bottom:6px">
+      <span class="opt-label">Weave</span>
+      <select id="sf-pattern" style="flex:1;margin-left:8px;padding:3px 5px;
+        background:var(--surface2);border:1px solid var(--border);
+        color:var(--text);border-radius:4px;font-size:10px;font-family:'DM Mono',monospace"
+        onchange="updateSfPreview()">
+        <option value="_solid_">Solid Black (no weave)</option>
+        <option value="satin">Satin</option>
+        <option value="satin_inv">Satin Inverted</option>
+        <option value="plain_weave">Plain Weave</option>
+        <option value="twill22">Twill 2/2</option>
+        <option value="diamond">Diamond</option>
+        <option value="herringbone">Herringbone</option>
+      </select>
+    </div>
+    <div id="sf-density-row" style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <span style="font-size:10px;color:var(--muted);white-space:nowrap">Density N</span>
+      <input type="range" id="sf-n" min="4" max="16" value="12"
+        style="flex:1;accent-color:var(--gold)"
+        oninput="document.getElementById('sf-n-val').textContent=this.value;updateSfPreview()">
+      <span id="sf-n-val" style="font-size:10px;color:var(--text);width:20px">12</span>
+    </div>
+    <canvas id="sf-preview" width="200" height="36"
+      style="width:100%;border:1px solid var(--border);border-radius:4px;
+             image-rendering:pixelated;margin-bottom:10px;background:#fff;display:block"></canvas>
+    <div style="font-size:9px;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:6px">
+      <input type="checkbox" id="sf-outline-white" checked style="accent-color:var(--gold)">
+      <label for="sf-outline-white" style="cursor:pointer;color:var(--text)">
+        <strong style="color:var(--gold)">Outline → White</strong> (border of each shape)
+      </label>
+    </div>
+    <button onclick="setTool('smart-fill')"
+      style="width:100%;padding:8px;background:linear-gradient(135deg,var(--gold),var(--gold2));
+             border:none;color:#1a1510;border-radius:4px;font-size:11px;font-weight:700;
+             cursor:pointer;font-family:'DM Mono',monospace">
+      ⬡ Arm Smart Fill (Z)
     </button>
   </div>
 </div>
@@ -1364,6 +1418,7 @@ function onMD(e) {
 
   if (S.tool==='fill')  { pushHist(`Fill (${x},${y})`); fill(x,y,dv(e.button)); render(); updateStats(); return; }
   if (S.tool==='weave-fill')     { fillRegionAt(x, y);     return; }
+    if (S.tool==='smart-fill')  { smartFillRegionAt(cx, cy); return; }
   if (S.tool==='invert-region')  { invertRegionAt(x, y);  return; }
   if (S.tool==='satin') {
     ensureFillPat();
@@ -1494,7 +1549,7 @@ function setTool(t) {
   S.tool=t;
   document.querySelectorAll('.tbtn[id^="tbtn-"]').forEach(b=>b.classList.remove('on'));
   const b=document.getElementById('tbtn-'+t); if(b) b.classList.add('on');
-  MC.style.cursor={pencil:'crosshair',eraser:'cell',fill:'copy',line:'crosshair',rect:'crosshair',pan:'grab',satin:'cell',select:'crosshair','weave-fill':'crosshair','invert-region':'crosshair'}[t]||'crosshair';
+  MC.style.cursor={pencil:'crosshair',eraser:'cell',fill:'copy',line:'crosshair',rect:'crosshair',pan:'grab',satin:'cell',select:'crosshair','weave-fill':'crosshair','invert-region':'crosshair','smart-fill':'crosshair'}[t]||'crosshair';
   const toolNames={pencil:'Pencil',eraser:'Eraser',fill:'Flood Fill',line:'Line',rect:'Rectangle',pan:'Pan',satin:'Satin Brush',select:'Select','weave-fill':'Weave Fill (click a region)','invert-region':'Invert Region (click any region)'};
   const hn = document.getElementById('header-sub');
   if (hn) hn.textContent = toolNames[t] || 'BMP Editor';
@@ -1977,6 +2032,88 @@ function fillRegionAt(cx, cy) {
         (invert ? ' (inv)' : '') + ', outline→white');
 }
 
+function updateSfPreview() {
+  const canvas = document.getElementById('sf-preview');
+  if (!canvas) return;
+  const pat = document.getElementById('sf-pattern')?.value || '_solid_';
+  const n   = parseInt(document.getElementById('sf-n')?.value || '12');
+  const densRow = document.getElementById('sf-density-row');
+  if (densRow) densRow.style.display = pat === '_solid_' ? 'none' : 'flex';
+  const W = canvas.width, H = canvas.height;
+  const ctx = canvas.getContext('2d');
+  const id  = ctx.createImageData(W, H);
+  if (pat === '_solid_') {
+    for (let i = 0; i < W * H * 4; i += 4) {
+      id.data[i] = id.data[i+1] = id.data[i+2] = 0; id.data[i+3] = 255;
+    }
+  } else {
+    const arr = generateFillJS(pat, n, W, H);
+    for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
+      const v = arr[r*W+c]===0 ? 0 : 220;
+      const i = (r*W+c)*4;
+      id.data[i]=id.data[i+1]=id.data[i+2]=v; id.data[i+3]=255;
+    }
+  }
+  ctx.putImageData(id, 0, 0);
+}
+
+function smartFillRegionAt(cx, cy) {
+  if (!S.pixels) return;
+  const W = S.W, H = S.H;
+  const pos0 = cy * W + cx;
+  if (S.pixels[pos0 * 4] < 128) { toast('Smart Fill: click a WHITE region'); return; }
+
+  // BFS flood-fill the white region
+  const isW = (p) => S.pixels[p*4] >= 128;
+  const region = []; const seen = new Uint8Array(W * H);
+  const q = [pos0]; seen[pos0] = 1;
+  let qi = 0;
+  while (qi < q.length) {
+    const p = q[qi++]; const px = p % W, py = (p / W) | 0;
+    region.push(p);
+    const nbrs = [py>0?p-W:-1, py<H-1?p+W:-1, px>0?p-1:-1, px<W-1?p+1:-1];
+    for (const nb of nbrs) if (nb>=0 && !seen[nb] && isW(nb)) { seen[nb]=1; q.push(nb); }
+  }
+
+  if (region.length === 0) return;
+
+  const pat     = document.getElementById('sf-pattern')?.value || '_solid_';
+  const n       = parseInt(document.getElementById('sf-n')?.value || '12');
+  const doWhite = document.getElementById('sf-outline-white')?.checked !== false;
+  const isSolid = pat === '_solid_';
+  const patArr  = isSolid ? null : generateFillJS(pat, n, W, H);
+
+  pushHist('Smart Fill');
+  const newPx    = S.pixels.slice();
+  const regionSet = new Uint8Array(W * H);
+  for (const p of region) regionSet[p] = 1;
+
+  // Step 1: fill region with weave or solid black
+  for (const p of region) {
+    const v = isSolid ? 0 : (patArr[p] === 0 ? 0 : 255);
+    const i = p * 4;
+    newPx[i] = newPx[i+1] = newPx[i+2] = v; newPx[i+3] = 255;
+  }
+
+  // Step 2: turn original black pixels adjacent to this region → white (outline)
+  if (doWhite) {
+    for (const p of region) {
+      const px = p % W, py = (p / W) | 0;
+      const nbrs = [py>0?p-W:-1, py<H-1?p+W:-1, px>0?p-1:-1, px<W-1?p+1:-1];
+      for (const nb of nbrs) {
+        if (nb >= 0 && !regionSet[nb] && S.pixels[nb*4] < 128) {
+          newPx[nb*4] = newPx[nb*4+1] = newPx[nb*4+2] = 255; newPx[nb*4+3] = 255;
+        }
+      }
+    }
+  }
+
+  S.pixels = newPx;
+  render(); updateStats();
+  toast(`⬡✦ Smart filled ${region.length.toLocaleString()} px — stays armed`);
+  // Tool stays armed
+}
+
 function invertRegionAt(cx, cy) {
   if (!S.pixels || S.W === 0) return;
 
@@ -2378,6 +2515,7 @@ function openPopup(name, btn) {
   if (name === 'weave')     { updateFillPreview(); }
   if (name === 'fillint')   { updateFiPreview(); }
   if (name === 'weavefill') { updateWfPreview(); }
+  if (name === 'smartfill')  { updateSfPreview(); }
   // Sync pval displays
   if (name === 'morph') {
     Object.keys(S.params).forEach(k => {
@@ -2503,6 +2641,7 @@ document.addEventListener('keydown', e=>{
     case 'q': case 'Q': { const b=document.getElementById('tbtn-weave'); if(b) openPopup('weave',b); } break;
     case 'j': case 'J': { const b=document.getElementById('tbtn-fill-int'); if(b) openPopup('fillint',b); } break;
     case 'i': case 'I': toggleRefPanel(); break;
+    case 'z': case 'Z': { const b=document.getElementById('tbtn-smart-fill'); if(b) openPopup('smartfill',b); } break;
     case 'k': case 'K': setTool('invert-region'); toast('Invert Region armed — click any region'); break;
     case 'v': case 'V': { const b=document.getElementById('tbtn-weave-fill'); if(b) openPopup('weavefill',b); } break;
     case 't': case 'T': toggleSwapButtons(); break;
