@@ -342,6 +342,8 @@
   .btn-success:disabled { opacity: 0.4; cursor: not-allowed; }
 
   /* Spinner */
+  .btn.loading .spinner { display: inline-block !important; }
+  .btn.loading span { opacity: 0.6; }
   .spinner {
     width: 14px; height: 14px;
     border: 2px solid rgba(255,255,255,0.3);
@@ -996,7 +998,10 @@
 
       <div id="embossRow" class="emboss-row">
         <label class="emboss-label">
-          <input type="checkbox" id="embossMode">
+          <input type="checkbox" id="embossMode" onchange="
+  var ssRow = document.getElementById('supersampleRow');
+  if(ssRow) ssRow.style.display = this.checked ? 'block' : 'none';
+">
           <span class="emboss-text">
             <strong>✦ Emboss mode</strong>
             <span class="emboss-desc">1-shuttle only — outline goes to rani.bmp (outline + plain weave), fill goes to zari.bmp. Turn off for standard single-thread output.</span>
@@ -1589,6 +1594,8 @@ async function detectColors() {
     return;
   }
 
+  const detectBtn = document.getElementById('detect-btn');
+  if (detectBtn) { detectBtn.disabled = true; detectBtn.classList.add('loading'); }
   setLoading(true, 'Detecting colours...', 'Analysing your design image');
 
   const formData = new FormData();
@@ -1646,6 +1653,7 @@ async function detectColors() {
   } finally {
     clearTimeout(slowTimer);
     setLoading(false);
+    if (detectBtn) { detectBtn.disabled = false; detectBtn.classList.remove('loading'); }
   }
 }
 
@@ -2115,7 +2123,6 @@ function toggleFlip(sName) {
 }
 
 // drawWeavePreview replaced by updateWeavePreview (supports all 14 fill patterns)
-function drawWeavePreview(sName) { updateWeavePreview(sName); }
 
 // =====================================================================
 // Generate BMPs
@@ -2221,6 +2228,8 @@ async function generateBMPs() {
     }
   });
 
+  const generateBtn = document.getElementById('generate-btn');
+  if (generateBtn) { generateBtn.disabled = true; generateBtn.classList.add('loading'); }
   setLoading(true, 'Generating BMP Files', 'Applying weave patterns...');
 
   // Collect hollow weave settings per shuttle
@@ -2311,6 +2320,7 @@ async function generateBMPs() {
     console.error(err.message);
   } finally {
     setLoading(false);
+    if (generateBtn) { generateBtn.disabled = false; generateBtn.classList.remove('loading'); }
   }
 }
 
