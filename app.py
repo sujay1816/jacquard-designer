@@ -332,6 +332,7 @@ def api_generate():
         # Emboss: 1-shuttle only — split outline into rani
         emboss      = bool(data.get('emboss', False)) and shuttle_count == 1
         supersample = bool(data.get('supersample', False))
+        hollow_weave_settings = data.get('hollow_weave_settings', None)
 
         bmp_files = generate_bmps(
             image=full_img if supersample else img,
@@ -344,6 +345,7 @@ def api_generate():
             label_map=label_map,
             emboss=emboss,
             supersample=supersample,
+            hollow_weave_settings=hollow_weave_settings,
         )
 
         # ── Verify ────────────────────────────────────────────────────────────

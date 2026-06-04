@@ -917,6 +917,22 @@
     border:2px solid var(--border2); border-radius:4px; }
   #lightbox-label { position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
     color:var(--muted); font-size:11px; pointer-events:none; }
+
+    /* Hollow Fill toggle switch */
+    .hf-toggle-label { cursor: pointer; }
+    .hf-toggle-track {
+      display: inline-flex; align-items: center;
+      width: 36px; height: 20px;
+      background: rgba(255,255,255,0.12);
+      border-radius: 10px; padding: 2px;
+      transition: background 0.2s;
+    }
+    .hf-toggle-track.on { background: #c8a96e; }
+    .hf-toggle-thumb {
+      width: 16px; height: 16px; border-radius: 50%;
+      background: #888; transition: transform 0.2s, background 0.2s;
+    }
+    .hf-toggle-track.on .hf-toggle-thumb { transform: translateX(16px); background: #1a1510; }
   </style>
 </head>
 <body>
@@ -1853,6 +1869,68 @@ function renderSatinSettings() {
         <canvas id="weave-canvas-${sName}" width="72" height="48"
           style="border:1px solid rgba(255,255,255,0.1);border-radius:4px;image-rendering:pixelated"></canvas>
         <span id="weave-upPct-${sName}" style="font-size:10px;color:#888"></span>
+      </div>
+
+      <!-- ── Hollow Fill toggle ─────────────────────────────────────── -->
+      <div style="margin-top:14px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span style="font-size:11px;color:#ccc;font-weight:600">⬡ Hollow Fill</span>
+          <label class="hf-toggle-label" title="Fill enclosed hollow regions inside the design">
+            <input type="checkbox" id="hf-toggle-${sName}"
+              onchange="onHollowFillToggle('${sName}')" style="display:none">
+            <span class="hf-toggle-track" id="hf-track-${sName}">
+              <span class="hf-toggle-thumb"></span>
+            </span>
+          </label>
+        </div>
+        <div style="font-size:9px;color:#888;margin-bottom:8px;line-height:1.5">
+          Fills enclosed white regions inside the design outline with solid black
+          or a weave pattern.
+        </div>
+
+        <!-- Hollow weave settings (shown only when toggle ON) -->
+        <div id="hf-settings-${sName}" style="display:none">
+          <div style="margin-bottom:6px">
+            <select id="hf-pattern-${sName}" style="width:100%;padding:5px 8px;font-size:11px;
+              background:#1e1b17;border:1px solid rgba(255,255,255,0.15);color:#e8e0d0;
+              border-radius:4px;font-family:'DM Mono',monospace"
+              onchange="updateHfPreview('${sName}')">
+              <option value="__solid__">Solid Black (no pattern)</option>
+              <option value="satin">Satin</option>
+              <option value="satin_inv">Satin Inverted</option>
+              <option value="plain_weave">Plain Weave</option>
+              <option value="twill22">Twill 2/2</option>
+              <option value="twill31">Twill 3/1</option>
+              <option value="dots">Dots</option>
+              <option value="diagonal">Diagonal</option>
+              <option value="crosshatch">Cross-hatch</option>
+              <option value="honeycomb">Honeycomb</option>
+              <option value="diamond">Diamond</option>
+              <option value="herringbone">Herringbone</option>
+              <option value="basket">Basket Weave</option>
+              <option value="crepe">Crepe</option>
+              <option value="rib">Rib Weave</option>
+            </select>
+          </div>
+          <div id="hf-density-row-${sName}" style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <span style="font-size:10px;color:#888;white-space:nowrap">Density N</span>
+            <input type="range" id="hf-n-${sName}" min="4" max="16" step="1" value="8"
+              style="flex:1;accent-color:#f0a500"
+              oninput="document.getElementById('hf-n-val-${sName}').textContent=this.value;updateHfPreview('${sName}')">
+            <span id="hf-n-val-${sName}" style="font-size:10px;color:#aaa;width:20px">8</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+            <input type="checkbox" id="hf-invert-${sName}"
+              style="accent-color:#f0a500"
+              onchange="updateHfPreview('${sName}')">
+            <label for="hf-invert-${sName}" style="font-size:10px;color:#ccc;cursor:pointer">
+              Invert pattern
+            </label>
+          </div>
+          <canvas id="hf-preview-${sName}" width="120" height="36"
+            style="width:100%;border:1px solid rgba(255,255,255,0.1);border-radius:4px;
+                   image-rendering:pixelated;background:#fff;display:block"></canvas>
+        </div>
       </div>`;
   }
 
@@ -1923,6 +2001,55 @@ function drawWeavePreview(sName) { updateWeavePreview(sName); }
 // =====================================================================
 // Generate BMPs
 // =====================================================================
+async function onHollowFillToggle(sName) {
+  const cb    = document.getElementById('hf-toggle-' + sName);
+  const track = document.getElementById('hf-track-'  + sName);
+  const panel = document.getElementById('hf-settings-' + sName);
+  const on = cb && cb.checked;
+  if (track) track.classList.toggle('on', on);
+  if (panel) panel.style.display = on ? 'block' : 'none';
+  if (on)    updateHfPreview(sName);
+}
+
+function updateHfPreview(sName) {
+  const canvas  = document.getElementById('hf-preview-' + sName);
+  if (!canvas) return;
+  const patEl   = document.getElementById('hf-pattern-' + sName);
+  const nEl     = document.getElementById('hf-n-' + sName);
+  const invEl   = document.getElementById('hf-invert-' + sName);
+  const densRow = document.getElementById('hf-density-row-' + sName);
+  const pat     = patEl  ? patEl.value  : 'satin';
+  const n       = nEl    ? parseInt(nEl.value) : 8;
+  const invert  = invEl  ? invEl.checked : false;
+  const isSolid = pat === '__solid__';
+
+  // Show/hide density row for solid option
+  if (densRow) densRow.style.display = isSolid ? 'none' : 'flex';
+
+  const W = canvas.width, H = canvas.height;
+  const ctx = canvas.getContext('2d');
+  const id  = ctx.createImageData(W, H);
+
+  if (isSolid) {
+    // Solid black preview
+    for (let i = 0; i < W * H * 4; i += 4) {
+      id.data[i] = id.data[i+1] = id.data[i+2] = 0; id.data[i+3] = 255;
+    }
+  } else {
+    const arr = generatePatternJS(pat, n, W, H);
+    for (let r = 0; r < H; r++) {
+      for (let c = 0; c < W; c++) {
+        let up = arr[r * W + c] === 0;
+        if (invert) up = !up;
+        const v = up ? 0 : 220;
+        const i = (r * W + c) * 4;
+        id.data[i] = id.data[i+1] = id.data[i+2] = v; id.data[i+3] = 255;
+      }
+    }
+  }
+  ctx.putImageData(id, 0, 0);
+}
+
 async function generateBMPs() {
   const designName = document.getElementById('design-name').value.trim() || 'design';
   const pins = parseInt(document.getElementById('pins').value);
@@ -1977,6 +2104,24 @@ async function generateBMPs() {
 
   setLoading(true, 'Generating BMP Files', 'Applying weave patterns...');
 
+  // Collect hollow weave settings per shuttle
+  const hollowWeaveSettings = {};
+  shuttles.forEach(sName => {
+    const cb  = document.getElementById(`hf-toggle-${sName}`);
+    const pat = document.getElementById(`hf-pattern-${sName}`);
+    const n   = document.getElementById(`hf-n-${sName}`);
+    const inv = document.getElementById(`hf-invert-${sName}`);
+    if (cb && cb.checked) {
+      hollowWeaveSettings[sName] = {
+        enabled: true,
+        pattern: pat ? (pat.value === '__solid__' ? 'satin' : pat.value) : 'satin',
+        n:       n   ? parseInt(n.value) : 8,
+        invert:  inv ? inv.checked : false,
+        solid:   pat ? pat.value === '__solid__' : false,
+      };
+    }
+  });
+
   try {
     try {
       await fetch('/api/fill-patterns', { method: 'GET', signal: AbortSignal.timeout(3000) });
@@ -1998,6 +2143,7 @@ async function generateBMPs() {
         design_name: designName,
         color_assignments: finalAssignments,
         satin_settings: saSettings,
+        hollow_weave_settings: Object.keys(hollowWeaveSettings).length > 0 ? hollowWeaveSettings : null,
         emboss:      embossChecked,
         supersample: document.getElementById('supersampleMode')?.checked || false,
         full_image:  state.fullImageB64 || undefined,

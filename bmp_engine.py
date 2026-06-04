@@ -952,6 +952,82 @@ def _supersample_to_bmp(image: Image.Image,
     return result
 
 
+def _apply_shuttle_hollow(arr: np.ndarray,
+                          shuttle_name: str,
+                          hollow_weave_settings: dict) -> np.ndarray:
+    """Apply hollow-weave post-processing if enabled for this shuttle."""
+    if not hollow_weave_settings:
+        return arr
+    cfg = hollow_weave_settings.get(shuttle_name, {})
+    if not cfg.get('enabled', False):
+        return arr
+    return apply_hollow_weave(
+        arr,
+        pattern = cfg.get('pattern', 'satin'),
+        n       = int(cfg.get('n', 8)),
+        invert  = bool(cfg.get('invert', False)),
+    )
+
+
+def _find_hollow_pixels(arr: np.ndarray) -> np.ndarray:
+    """
+    BFS from all 4 borders to find background white (1) pixels.
+    Returns a flat boolean array: True where pixel is enclosed hollow (white
+    but NOT reachable from border).  arr convention: 0=UP(black), 1=DOWN(white).
+    """
+    H, W = arr.shape
+    flat     = arr.flatten()
+    visited  = np.zeros(H * W, dtype=np.uint8)
+    queue    = []
+    for x in range(W):
+        if flat[x] == 1:           visited[x] = 1;           queue.append(x)
+        if flat[(H-1)*W+x] == 1:   visited[(H-1)*W+x] = 1;   queue.append((H-1)*W+x)
+    for y in range(H):
+        if flat[y*W] == 1:         visited[y*W] = 1;         queue.append(y*W)
+        if flat[y*W+W-1] == 1:     visited[y*W+W-1] = 1;     queue.append(y*W+W-1)
+    qi = 0
+    while qi < len(queue):
+        p = queue[qi]; qi += 1; px, py = p % W, p // W
+        for nb in (p-W if py>0 else -1, p+W if py<H-1 else -1,
+                   p-1 if px>0 else -1, p+1 if px<W-1 else -1):
+            if nb >= 0 and flat[nb] == 1 and not visited[nb]:
+                visited[nb] = 1; queue.append(nb)
+    return (flat == 1) & (visited == 0)   # True = enclosed hollow
+
+
+def apply_hollow_weave(arr: np.ndarray,
+                       pattern: str = 'satin',
+                       n: int = 8,
+                       invert: bool = False) -> np.ndarray:
+    """
+    Post-process a generated BMP array (0=black, 1=white) for zari/meena:
+      1. Fill every enclosed hollow (white pixels not reachable from border) → black (0).
+      2. Apply the chosen weave pattern ONLY to those hollow pixels.
+         Outline and background are NOT touched.
+    Returns a new array with the same shape and dtype.
+    """
+    H, W = arr.shape
+    hollow = _find_hollow_pixels(arr)          # flat bool array
+
+    if not hollow.any():
+        return arr                              # nothing to do
+
+    flat_new = arr.flatten().copy()
+
+    # Step 1: fill hollow solid black
+    flat_new[hollow] = 0
+
+    # Step 2: apply weave pattern to hollow pixels only
+    pat = generate_fill_pattern(pattern, n, W, H, flip=False).flatten()
+    if invert:
+        pat = np.where(pat == 0, np.uint8(1), np.uint8(0))
+
+    hollow_indices = np.where(hollow)[0]
+    flat_new[hollow_indices] = pat[hollow_indices]
+
+    return flat_new.reshape(H, W).astype(np.uint8)
+
+
 def generate_bmps(
     image: Image.Image,
     pins: int,
@@ -963,7 +1039,8 @@ def generate_bmps(
     label_map: np.ndarray = None,   # pre-computed from detect step
     noise_min_size: int = 5,        # remove stray components < this many pixels
     emboss: bool = False,           # 1-shuttle only: split outline into rani
-    supersample: bool = False       # oversample 4x then downsample for fine detail
+    supersample: bool = False,      # oversample 4x then downsample for fine detail
+    hollow_weave_settings: dict = None,  # {shuttle_name: {'enabled': bool, 'pattern': str, 'n': int, 'invert': bool}}
 ) -> dict:
     """
     Generate all BMP files for a jacquard design.
@@ -1049,6 +1126,7 @@ def generate_bmps(
             else:
                 arr = smart_fill(zari_mask, satin, s['n'],
                                  satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
+            arr = _apply_shuttle_hollow(arr, 'zari', hollow_weave_settings)
             results[f'{design_name}_zari.bmp'] = write_1bit_bmp(arr)
 
         else:
@@ -1061,6 +1139,7 @@ def generate_bmps(
             # zari = fill interior only
             zari_arr = smart_fill(fill_mask, satin, s['n'],
                                   satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
+            zari_arr = _apply_shuttle_hollow(zari_arr, 'zari', hollow_weave_settings)
             results[f'{design_name}_zari.bmp'] = write_1bit_bmp(zari_arr)
 
             # rani = outline pixels (solid, always thin) + plain weave base
@@ -1116,6 +1195,7 @@ def generate_bmps(
                 arr = smart_fill(mask, satin, s['n'],
                                  satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
 
+            arr = _apply_shuttle_hollow(arr, sname, hollow_weave_settings)
             shuttle_arrays[sname] = arr
             results[f'{design_name}_{sname}.bmp'] = write_1bit_bmp(arr)
 
