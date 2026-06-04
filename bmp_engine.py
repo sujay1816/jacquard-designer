@@ -958,35 +958,25 @@ def _apply_shuttle_hollow(arr: np.ndarray,
                           design_mask: np.ndarray = None) -> np.ndarray:
     """Apply hollow-weave post-processing if enabled for this shuttle.
 
-    When design_mask is provided, binary_fill_holes closes interior satin
-    gaps so hollow detection and outer-face step use the true design boundary.
-    The base BMP is reconstructed from the solid mask to remove source gaps.
+    Uses design_mask (the raw segmentation mask before smart_fill) as the
+    reference for hollow detection and outer-face calculation.
+    The raw mask correctly preserves internal design details (thin gaps between
+    petals, leaves, decorative elements) that connect to the background — these
+    are NOT enclosed hollows and must stay white.
+    Do NOT use binary_fill_holes here: it would merge internal design details
+    into the solid silhouette, destroying the design structure.
     """
     if not hollow_weave_settings:
         return arr
     cfg = hollow_weave_settings.get(shuttle_name, {})
     if not cfg.get('enabled', False):
         return arr
-
-    if design_mask is not None:
-        from scipy.ndimage import binary_fill_holes
-        H, W = arr.shape
-        mask_2d  = design_mask.reshape(H, W).astype(bool)
-        solid_2d = binary_fill_holes(mask_2d)
-        # Reconstruct clean BMP from solid mask: 0=black design, 1=white bg/hollow
-        clean_arr = np.where(solid_2d, np.uint8(0), np.uint8(1))
-        return apply_hollow_weave(
-            clean_arr,
-            pattern     = cfg.get('pattern', 'satin'),
-            n           = int(cfg.get('n', 8)),
-            invert      = bool(cfg.get('invert', False)),
-            design_mask = solid_2d.flatten().astype(np.uint8),
-        )
     return apply_hollow_weave(
         arr,
-        pattern = cfg.get('pattern', 'satin'),
-        n       = int(cfg.get('n', 8)),
-        invert  = bool(cfg.get('invert', False)),
+        pattern     = cfg.get('pattern', 'satin'),
+        n           = int(cfg.get('n', 8)),
+        invert      = bool(cfg.get('invert', False)),
+        design_mask = design_mask,
     )
 
 def _find_hollow_pixels(arr: np.ndarray) -> np.ndarray:
