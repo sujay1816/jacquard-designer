@@ -445,18 +445,6 @@ def enhance_image(image: Image.Image) -> Image.Image:
         enhanced = enhanced.filter(
             ImageFilter.UnsharpMask(radius=1, percent=150, threshold=5))
 
-        # ── Step 4: close tiny gaps in thin lines (for high-contrast designs) ──
-        # Fills 1-2px breaks in strokes caused by JPEG compression.
-        arr_enh = np.array(enhanced.convert('L'), dtype=np.float32)
-        if arr_enh.std() / max(arr_enh.mean(), 1) > 0.4:
-            from scipy.ndimage import binary_closing as _bc
-            arr_L = np.array(enhanced.convert('L'))
-            dark = arr_L < 200
-            closed = _bc(dark, structure=np.ones((2,2), dtype=bool))
-            arr_L[closed & ~dark] = 0    # fill gaps
-            arr_L[~closed & dark] = 255  # remove isolated noise
-            enhanced = Image.fromarray(arr_L).convert('RGB')
-
     return enhanced
 
 
