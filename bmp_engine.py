@@ -1006,8 +1006,10 @@ def _find_hollow_pixels(arr: np.ndarray) -> np.ndarray:
 
 
 # Minimum number of pixels a hollow region must have to be filled.
-# Regions smaller than this are narrow gaps between strokes — skip them.
-_MIN_HOLLOW_REGION_SIZE = 50
+# Set to 5 to capture small internal design regions (flower petal interiors,
+# leaf pockets, small ornamental spaces) that are only a few pixels at low
+# loom resolutions. Noise (1-4px JPEG artefacts) is still excluded.
+_MIN_HOLLOW_REGION_SIZE = 5
 
 # Maximum compactness (filled_pixels / bounding_box_area) for a hollow region.
 # Regions above this threshold are near-rectangular (frame boxes / background spaces)
