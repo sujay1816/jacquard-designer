@@ -1181,6 +1181,7 @@ def generate_bmps(
     hollow_weave_settings: dict = None,  # {shuttle_name: {'enabled': bool, 'pattern': str, 'n': int, 'invert': bool}}
     outline_white: dict = None,           # {shuttle_name: True/False} — turn outer face white
     invert_output: dict = None,           # {shuttle_name: True/False} — invert entire BMP (black↔white)
+    bg_texture: dict = None,              # {shuttle_name: int} — diagonal period for background satin (0=off)
 ) -> dict:
     """
     Generate all BMP files for a jacquard design.
@@ -1271,6 +1272,16 @@ def generate_bmps(
             arr = _apply_shuttle_hollow(arr, 'zari', hollow_weave_settings, design_mask=zari_mask.flatten())
             if invert_output and invert_output.get('zari'):
                 arr = np.where(arr == 0, np.uint8(1), np.uint8(0))
+            if bg_texture and bg_texture.get('zari', 0):
+                period = int(bg_texture.get('zari', 8))
+                if period > 0:
+                    arr_h, arr_w = arr.shape
+                    arr_f = arr.flatten()
+                    for _r in range(arr_h):
+                        for _c in range(arr_w):
+                            if arr_f[_r*arr_w+_c] == 1 and (_r+_c) % period == 0:
+                                arr_f[_r*arr_w+_c] = 0
+                    arr = arr_f.reshape(arr_h, arr_w)
             results[f'{design_name}_zari.bmp'] = write_1bit_bmp(arr)
 
         else:
@@ -1349,6 +1360,16 @@ def generate_bmps(
             if invert_output and invert_output.get(sname):
                 arr = np.where(arr == 0, np.uint8(1), np.uint8(0))
             shuttle_arrays[sname] = arr
+            if bg_texture and bg_texture.get(sname, 0):
+                period = int(bg_texture.get(sname, 8))
+                if period > 0:
+                    arr_h, arr_w = arr.shape
+                    arr_f = arr.flatten()
+                    for _r in range(arr_h):
+                        for _c in range(arr_w):
+                            if arr_f[_r*arr_w+_c] == 1 and (_r+_c) % period == 0:
+                                arr_f[_r*arr_w+_c] = 0
+                    arr = arr_f.reshape(arr_h, arr_w)
             results[f'{design_name}_{sname}.bmp'] = write_1bit_bmp(arr)
 
         # ── Rani: plain weave base + any remaining design colour ────────────

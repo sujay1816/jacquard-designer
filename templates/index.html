@@ -1889,6 +1889,32 @@ function renderSatinSettings() {
         </div>
       </div>
 
+      <!-- ── Background Texture toggle ──────────────────────────────── -->
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <span style="font-size:11px;color:#ccc;font-weight:600">⬡ Background Diagonal</span>
+          <label class="hf-toggle-label" title="Add diagonal satin lines to the white background — matches the reference zari background texture">
+            <input type="checkbox" id="bg-toggle-${sName}" checked style="display:none"
+              onchange="document.getElementById('bg-track-${sName}').classList.toggle('on',this.checked)">
+            <span class="hf-toggle-track on" id="bg-track-${sName}">
+              <span class="hf-toggle-thumb"></span>
+            </span>
+          </label>
+        </div>
+        <div id="bg-settings-${sName}">
+          <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+            <span style="font-size:10px;color:var(--muted);white-space:nowrap">Period</span>
+            <input type="range" id="bg-n-${sName}" min="4" max="16" value="8"
+              style="flex:1;accent-color:var(--gold)"
+              oninput="document.getElementById('bg-n-val-${sName}').textContent=this.value">
+            <span id="bg-n-val-${sName}" style="font-size:10px;color:var(--text);width:16px">8</span>
+          </div>
+          <div style="font-size:9px;color:#888;margin-top:3px">
+            Diagonal: 1 black line every N pixels. N=8 matches reference.
+          </div>
+        </div>
+      </div>
+
       <!-- ── Outline → White toggle ──────────────────────────────────── -->
       <div style="margin-top:14px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08)">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
@@ -2164,6 +2190,14 @@ async function generateBMPs() {
     if (cb && cb.checked) invertOutputSettings[sName] = true;
   });
 
+  // Collect background-texture settings per shuttle
+  const bgTextureSettings = {};
+  shuttles.forEach(sName => {
+    const cb = document.getElementById(`bg-toggle-${sName}`);
+    const n  = document.getElementById(`bg-n-${sName}`);
+    if (cb && cb.checked) bgTextureSettings[sName] = n ? parseInt(n.value) : 8;
+  });
+
   // Collect outline→white settings per shuttle
   const outlineWhiteSettings = {};
   shuttles.forEach(sName => {
@@ -2195,6 +2229,7 @@ async function generateBMPs() {
         hollow_weave_settings: Object.keys(hollowWeaveSettings).length > 0 ? hollowWeaveSettings : null,
         outline_white:   Object.keys(outlineWhiteSettings).length > 0 ? outlineWhiteSettings : null,
         invert_output:   Object.keys(invertOutputSettings).length > 0 ? invertOutputSettings : null,
+        bg_texture:      Object.keys(bgTextureSettings).length  > 0 ? bgTextureSettings  : null,
         emboss:      embossChecked,
         supersample: document.getElementById('supersampleMode')?.checked || false,
         full_image:  state.fullImageB64 || undefined,

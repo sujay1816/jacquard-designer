@@ -335,6 +335,7 @@ def api_generate():
         hollow_weave_settings = data.get('hollow_weave_settings', None)
         outline_white   = data.get('outline_white',   None)
         invert_output   = data.get('invert_output',   None)
+        bg_texture      = data.get('bg_texture',      None)
 
         bmp_files = generate_bmps(
             image=full_img if supersample else img,
@@ -350,6 +351,7 @@ def api_generate():
             hollow_weave_settings=hollow_weave_settings,
             outline_white=outline_white,
             invert_output=invert_output,
+            bg_texture=bg_texture,
         )
 
         # ── Verify ────────────────────────────────────────────────────────────
