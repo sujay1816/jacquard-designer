@@ -1914,11 +1914,35 @@ function invertRegionAt(cx, cy) {
       }
     }
 
-    // Turn white ONLY the immediately adjacent black pixels (1px border).
-    // NO flood-fill — flood-filling would spread to the entire connected design.
-    const fullOutline = [];
-    for (let i = 0; i < W * H; i++) if (outlineSet[i]) fullOutline.push(i);
+    // Flood-fill the outline: collect all connected black pixels reachable
+    // from the immediately adjacent outline pixels (the full outline ring)
+    const outlineSeeds = [];
+    for (let i = 0; i < W * H; i++) if (outlineSet[i]) outlineSeeds.push(i);
 
+    const outlineSeen = new Uint8Array(W * H);
+    const outlineQueue = new Int32Array(W * H);
+    let oHead = 0, oTail = 0;
+    for (const s of outlineSeeds) {
+      if (!outlineSeen[s]) { outlineSeen[s] = 1; outlineQueue[oTail++] = s; }
+    }
+    const fullOutline = [];
+    while (oHead < oTail) {
+      const p = outlineQueue[oHead++], px = p % W, py = (p / W) | 0;
+      fullOutline.push(p);
+      const tryO = (nb) => {
+        if (nb >= 0 && !outlineSeen[nb] && !hollowSet[nb]) {
+          if (S.pixels[nb * 4] < 128) {   // still black in original
+            outlineSeen[nb] = 1; outlineQueue[oTail++] = nb;
+          }
+        }
+      };
+      if (py > 0)   tryO(p - W);
+      if (py < H-1) tryO(p + W);
+      if (px > 0)   tryO(p - 1);
+      if (px < W-1) tryO(p + 1);
+    }
+
+    // Turn outline white
     for (const p of fullOutline) {
       const i = p * 4;
       newPx[i] = newPx[i+1] = newPx[i+2] = 255; newPx[i+3] = 255;
