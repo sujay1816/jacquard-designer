@@ -1055,6 +1055,7 @@
         <div class="field">
           <label>Pins (Width) *</label>
           <input type="number" id="pins" placeholder="e.g. 480" min="10" max="9999" value="240" oninput="autoCalcCards()">
+          <span class="field-hint" id="pins-hint">Your loom's needle count</span>
         </div>
         <div class="field">
           <label>Cards (Height)</label>
@@ -1234,34 +1235,72 @@ async function assessImageQuality(file) {
   } catch(e) { console.warn('Quality assessment error:', e); }
 }
 
-function autoCalcCards() {
+// Common loom pin counts for snapping suggestions
+const LOOM_PIN_STEPS = [120, 240, 360, 480, 600, 720, 1080, 1200, 1440];
+
+function snapToLoom(px) {
+  // Snap an image pixel width to the nearest standard loom pin count
+  // Use the nearest one that is >= the image width scaled to fit,
+  // or the image width itself if it's already a round number
+  if (px <= 0) return 480;
+  const exact = LOOM_PIN_STEPS.find(v => v >= px);
+  return exact || LOOM_PIN_STEPS[LOOM_PIN_STEPS.length - 1];
+}
+
+function autoCalcDimensions(forceUpdate) {
   const previewImg = document.getElementById('preview-img');
   if (!previewImg || !previewImg.naturalWidth) return;
-  const pins      = parseInt(document.getElementById('pins').value) || 0;
+
+  const imgW = previewImg.naturalWidth;
+  const imgH = previewImg.naturalHeight;
+  const ratio = imgH / imgW;
+
+  const pinsEl    = document.getElementById('pins');
   const cardsEl   = document.getElementById('cards');
+  const pinsHint  = document.getElementById('pins-hint');
   const cardsHint = document.getElementById('cards-hint');
-  if (!pins) return;
-  const ratio    = previewImg.naturalHeight / previewImg.naturalWidth;
-  const computed = Math.max(10, Math.round(pins * ratio));
-  // Always update placeholder to show the formula result
-  cardsEl.placeholder = computed.toString();
-  // Update hint label
-  if (cardsHint) {
-    if (cardsEl.value) {
-      cardsHint.textContent = `Custom (auto = ${computed})`;
-      cardsHint.style.color = 'var(--gold)';
-    } else {
-      cardsHint.textContent = `= ${computed}  (pins × h/w = ${pins} × ${previewImg.naturalHeight}/${previewImg.naturalWidth})`;
+
+  // ── Pins: suggest snap to nearest loom standard ────────────────────────
+  const suggestedPins = snapToLoom(imgW);
+  pinsEl.placeholder = suggestedPins.toString();
+
+  // Only auto-fill pins if blank or if forceUpdate (first image load)
+  if (!pinsEl.value || forceUpdate) {
+    pinsEl.value = suggestedPins;
+    if (pinsHint) {
+      pinsHint.textContent = `Suggested: ${suggestedPins} (image is ${imgW}px wide)`;
+      pinsHint.style.color = 'var(--muted)';
+    }
+  } else {
+    if (pinsHint) {
+      pinsHint.textContent = `Image width: ${imgW}px → suggested ${suggestedPins} pins`;
+      pinsHint.style.color = 'var(--muted)';
+    }
+  }
+
+  // ── Cards: always calculated from current pins × aspect ratio ──────────
+  const currentPins = parseInt(pinsEl.value) || suggestedPins;
+  const suggestedCards = Math.max(10, Math.round(currentPins * ratio));
+
+  cardsEl.placeholder = suggestedCards.toString();
+
+  if (!cardsEl.value || forceUpdate) {
+    if (forceUpdate) cardsEl.value = '';   // clear any old value on new image
+    if (cardsHint) {
+      cardsHint.textContent =
+        `= ${suggestedCards}  (${currentPins} pins × ${imgH}/${imgW} aspect ratio)`;
       cardsHint.style.color = 'var(--muted)';
+    }
+  } else {
+    if (cardsHint) {
+      cardsHint.textContent = `Custom value (auto would be ${suggestedCards})`;
+      cardsHint.style.color = 'var(--gold)';
     }
   }
 }
 
-function clearCardsOverride() {
-  // Called when user clears the cards field — revert to auto
-  const cardsEl = document.getElementById('cards');
-  if (!cardsEl.value) autoCalcCards();
-}
+// Alias — called when pins value changes manually
+function autoCalcCards() { autoCalcDimensions(false); }
 
 const state = {
   imageFile: null,
@@ -1482,7 +1521,7 @@ function handleFile(file) {
     uploadZone.style.display = 'none';
     document.getElementById('upload-preview').style.display = 'block';
     // Set onload BEFORE src to avoid race on fast (data URL) loads
-    document.getElementById('preview-img').onload = autoCalcCards;
+    document.getElementById('preview-img').onload = () => autoCalcDimensions(true);
     document.getElementById('preview-img').src = e.target.result;
     checkDetectReady();
     setStep(1);
