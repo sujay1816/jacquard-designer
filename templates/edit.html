@@ -1857,21 +1857,48 @@ function fillInteriors() {
 }
 
 function _turnOutlineWhite(regionPixels, newPx, originalPixels, W, H) {
-  // Turn IMMEDIATE black neighbours of filled region white (1px only, no flood-fill).
+  // After hollow→black: BFS from canvas border on newPx to find all background white.
+  // Any pixel that was BLACK in originalPixels AND is adjacent to background white
+  // OR adjacent to the filled region = part of the outline ring → turn white.
+  // This correctly handles corners that a simple 1px neighbour check misses.
+
   const regionSet = new Uint8Array(W * H);
   for (const p of regionPixels) regionSet[p] = 1;
-  for (const p of regionPixels) {
-    const px = p % W, py = (p / W) | 0;
+
+  // BFS from all 4 borders to map background white pixels in newPx
+  const isWhiteNew = new Uint8Array(W * H);
+  for (let i = 0; i < W * H; i++) if (newPx[i * 4] >= 128) isWhiteNew[i] = 1;
+
+  const bgVisited = new Uint8Array(W * H);
+  const bgQueue   = new Int32Array(W * H);
+  let bqHead = 0, bqTail = 0;
+  const bgSeed = (p) => { if (isWhiteNew[p] && !bgVisited[p]) { bgVisited[p]=1; bgQueue[bqTail++]=p; } };
+  for (let x = 0; x < W; x++) { bgSeed(x); bgSeed((H-1)*W+x); }
+  for (let y = 0; y < H; y++) { bgSeed(y*W); bgSeed(y*W+W-1); }
+  while (bqHead < bqTail) {
+    const p = bgQueue[bqHead++], px = p%W, py = (p/W)|0;
+    if (py>0   && isWhiteNew[p-W] && !bgVisited[p-W]) { bgVisited[p-W]=1; bgQueue[bqTail++]=p-W; }
+    if (py<H-1 && isWhiteNew[p+W] && !bgVisited[p+W]) { bgVisited[p+W]=1; bgQueue[bqTail++]=p+W; }
+    if (px>0   && isWhiteNew[p-1] && !bgVisited[p-1]) { bgVisited[p-1]=1; bgQueue[bqTail++]=p-1; }
+    if (px<W-1 && isWhiteNew[p+1] && !bgVisited[p+1]) { bgVisited[p+1]=1; bgQueue[bqTail++]=p+1; }
+  }
+
+  // Turn white: any pixel that was black in original AND borders background or hollow
+  for (let pos = 0; pos < W * H; pos++) {
+    if (originalPixels[pos * 4] >= 128) continue;  // was white — skip
+    const px = pos % W, py = (pos / W) | 0;
+    let adjBg = false, adjHollow = false;
     const nbrs = [
-      py > 0   ? p - W : -1,
-      py < H-1 ? p + W : -1,
-      px > 0   ? p - 1 : -1,
-      px < W-1 ? p + 1 : -1,
+      py>0   ? pos-W : -1, py<H-1 ? pos+W : -1,
+      px>0   ? pos-1 : -1, px<W-1 ? pos+1 : -1,
     ];
     for (const nb of nbrs) {
-      if (nb >= 0 && !regionSet[nb] && originalPixels[nb * 4] < 128) {
-        newPx[nb*4] = newPx[nb*4+1] = newPx[nb*4+2] = 255; newPx[nb*4+3] = 255;
-      }
+      if (nb < 0) continue;
+      if (bgVisited[nb])  adjBg     = true;
+      if (regionSet[nb])  adjHollow = true;
+    }
+    if (adjBg || adjHollow) {
+      newPx[pos*4] = newPx[pos*4+1] = newPx[pos*4+2] = 255; newPx[pos*4+3] = 255;
     }
   }
 }
@@ -1995,39 +2022,9 @@ function invertRegionAt(cx, cy) {
       newPx[i] = newPx[i+1] = newPx[i+2] = 0; newPx[i+3] = 255;
     }
 
-    // Step B: find adjacent black outline pixels → turn white
-    // (pixels that are black AND 4-connected to any hollow pixel)
-    const hollowSet = new Uint8Array(W * H);
-    for (const p of hollow) hollowSet[p] = 1;
-
-    const outlineSet = new Uint8Array(W * H);
-    for (const p of hollow) {
-      const px = p % W, py = (p / W) | 0;
-      const nbrs = [
-        py > 0   ? p - W : -1,
-        py < H-1 ? p + W : -1,
-        px > 0   ? p - 1 : -1,
-        px < W-1 ? p + 1 : -1,
-      ];
-      for (const nb of nbrs) {
-        if (nb >= 0 && !hollowSet[nb] && !outlineSet[nb]) {
-          const v = S.pixels[nb * 4];   // read from ORIGINAL pixels
-          if (v < 128) {               // black outline pixel
-            outlineSet[nb] = 1;
-          }
-        }
-      }
-    }
-
-    // Turn white ONLY the immediately adjacent black pixels (1px border).
-    // NO flood-fill — flood-filling would spread to the entire connected design.
-    const fullOutline = [];
-    for (let i = 0; i < W * H; i++) if (outlineSet[i]) fullOutline.push(i);
-
-    for (const p of fullOutline) {
-      const i = p * 4;
-      newPx[i] = newPx[i+1] = newPx[i+2] = 255; newPx[i+3] = 255;
-    }
+    // Step B: turn outline pixels white using BFS-based helper
+    // (correctly handles corners, no flood-fill to rest of design)
+    _turnOutlineWhite(hollow, newPx, S.pixels, W, H);
 
     // Step C: optionally apply weave to the now-black hollow pixels
     if (applyWeave) {
@@ -2044,8 +2041,7 @@ function invertRegionAt(cx, cy) {
     pushHist(label);
     S.pixels = newPx;
     render(); updateStats();
-    toast('⬡↔ Interior→black (' + hollow.length.toLocaleString() + ' px), outline→white (' +
-          fullOutline.length.toLocaleString() + ' px)' +
+    toast('⬡↔ Interior→black (' + hollow.length.toLocaleString() + ' px), outline→white' +
           (applyWeave ? ', weave: ' + pattern : ''));
 
   } else {
