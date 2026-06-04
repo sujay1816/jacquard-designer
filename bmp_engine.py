@@ -954,20 +954,40 @@ def _supersample_to_bmp(image: Image.Image,
 
 def _apply_shuttle_hollow(arr: np.ndarray,
                           shuttle_name: str,
-                          hollow_weave_settings: dict) -> np.ndarray:
-    """Apply hollow-weave post-processing if enabled for this shuttle."""
+                          hollow_weave_settings: dict,
+                          design_mask: np.ndarray = None) -> np.ndarray:
+    """Apply hollow-weave post-processing if enabled for this shuttle.
+
+    When design_mask is provided, binary_fill_holes closes interior satin
+    gaps so hollow detection and outer-face step use the true design boundary.
+    The base BMP is reconstructed from the solid mask to remove source gaps.
+    """
     if not hollow_weave_settings:
         return arr
     cfg = hollow_weave_settings.get(shuttle_name, {})
     if not cfg.get('enabled', False):
         return arr
+
+    if design_mask is not None:
+        from scipy.ndimage import binary_fill_holes
+        H, W = arr.shape
+        mask_2d  = design_mask.reshape(H, W).astype(bool)
+        solid_2d = binary_fill_holes(mask_2d)
+        # Reconstruct clean BMP from solid mask: 0=black design, 1=white bg/hollow
+        clean_arr = np.where(solid_2d, np.uint8(0), np.uint8(1))
+        return apply_hollow_weave(
+            clean_arr,
+            pattern     = cfg.get('pattern', 'satin'),
+            n           = int(cfg.get('n', 8)),
+            invert      = bool(cfg.get('invert', False)),
+            design_mask = solid_2d.flatten().astype(np.uint8),
+        )
     return apply_hollow_weave(
         arr,
         pattern = cfg.get('pattern', 'satin'),
         n       = int(cfg.get('n', 8)),
         invert  = bool(cfg.get('invert', False)),
     )
-
 
 def _find_hollow_pixels(arr: np.ndarray) -> np.ndarray:
     """
@@ -1205,7 +1225,7 @@ def generate_bmps(
             else:
                 arr = smart_fill(zari_mask, satin, s['n'],
                                  satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
-            arr = _apply_shuttle_hollow(arr, 'zari', hollow_weave_settings)
+            arr = _apply_shuttle_hollow(arr, 'zari', hollow_weave_settings, design_mask=zari_mask.flatten())
             results[f'{design_name}_zari.bmp'] = write_1bit_bmp(arr)
 
         else:
@@ -1218,7 +1238,7 @@ def generate_bmps(
             # zari = fill interior only
             zari_arr = smart_fill(fill_mask, satin, s['n'],
                                   satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
-            zari_arr = _apply_shuttle_hollow(zari_arr, 'zari', hollow_weave_settings)
+            zari_arr = _apply_shuttle_hollow(zari_arr, 'zari', hollow_weave_settings, design_mask=fill_mask.flatten())
             results[f'{design_name}_zari.bmp'] = write_1bit_bmp(zari_arr)
 
             # rani = outline pixels (solid, always thin) + plain weave base
@@ -1274,7 +1294,7 @@ def generate_bmps(
                 arr = smart_fill(mask, satin, s['n'],
                                  satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
 
-            arr = _apply_shuttle_hollow(arr, sname, hollow_weave_settings)
+            arr = _apply_shuttle_hollow(arr, sname, hollow_weave_settings, design_mask=mask.flatten())
             shuttle_arrays[sname] = arr
             results[f'{design_name}_{sname}.bmp'] = write_1bit_bmp(arr)
 
