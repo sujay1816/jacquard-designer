@@ -892,7 +892,7 @@
         <strong style="color:var(--gold)">Outline → White</strong> (border of each shape)
       </label>
     </div>
-    <button onclick="setTool('smart-fill')"
+    <button onclick="setTool('smart-fill'); toast('⬡✦ Smart Fill armed — click any white region');"
       style="width:100%;padding:8px;background:linear-gradient(135deg,var(--gold),var(--gold2));
              border:none;color:#1a1510;border-radius:4px;font-size:11px;font-weight:700;
              cursor:pointer;font-family:'DM Mono',monospace">
@@ -1418,7 +1418,7 @@ function onMD(e) {
 
   if (S.tool==='fill')  { pushHist(`Fill (${x},${y})`); fill(x,y,dv(e.button)); render(); updateStats(); return; }
   if (S.tool==='weave-fill')     { fillRegionAt(x, y);     return; }
-    if (S.tool==='smart-fill')  { smartFillRegionAt(cx, cy); return; }
+    if (S.tool==='smart-fill')  { smartFillRegionAt(x, y); return; }
   if (S.tool==='invert-region')  { invertRegionAt(x, y);  return; }
   if (S.tool==='satin') {
     ensureFillPat();
@@ -2061,7 +2061,7 @@ function smartFillRegionAt(cx, cy) {
   if (!S.pixels) return;
   const W = S.W, H = S.H;
   const pos0 = cy * W + cx;
-  if (S.pixels[pos0 * 4] < 128) { toast('Smart Fill: click a WHITE region'); return; }
+  if (S.pixels[pos0 * 4] < 128) { toast('Smart Fill: click a white area — this pixel is already black'); return; }
 
   // BFS flood-fill the white region
   const isW = (p) => S.pixels[p*4] >= 128;
@@ -2641,7 +2641,7 @@ document.addEventListener('keydown', e=>{
     case 'q': case 'Q': { const b=document.getElementById('tbtn-weave'); if(b) openPopup('weave',b); } break;
     case 'j': case 'J': { const b=document.getElementById('tbtn-fill-int'); if(b) openPopup('fillint',b); } break;
     case 'i': case 'I': toggleRefPanel(); break;
-    case 'z': case 'Z': { const b=document.getElementById('tbtn-smart-fill'); if(b) openPopup('smartfill',b); } break;
+    case 'z': case 'Z': { setTool('smart-fill'); toast('⬡✦ Smart Fill armed — click any white region'); const b=document.getElementById('tbtn-smart-fill'); if(b) openPopup('smartfill',b); } break;
     case 'k': case 'K': setTool('invert-region'); toast('Invert Region armed — click any region'); break;
     case 'v': case 'V': { const b=document.getElementById('tbtn-weave-fill'); if(b) openPopup('weavefill',b); } break;
     case 't': case 'T': toggleSwapButtons(); break;
