@@ -1089,21 +1089,37 @@ def apply_hollow_weave(arr: np.ndarray,
 
     flat_new = orig_flat.copy()
 
-    # ── Outline → white: every design stroke gets a 1px white border ───────
-    # Turn white every original-black design pixel that borders ANY white pixel
-    # in the current flat_new (post-hollow-fill) array. This correctly outlines
-    # ALL strokes — outer design boundary AND internal petal/leaf/vein lines.
+    # ── Outer face → white (external background only) ──────────────────────
+    # BFS from 4 borders to map external background, then turn white any
+    # design pixel adjacent to it. Safe for thin 1px lines — internal lines
+    # border hollow/filled pixels, not external background, so they stay black.
     ref_flat = ref_arr.flatten()
+    is_bg_fw  = (flat_new == 1).astype(np.uint8)
+    bg_vis_fw = np.zeros(H * W, dtype=np.uint8)
+    bq_fw     = []
+    for _x in range(W):
+        if is_bg_fw[_x]:           bg_vis_fw[_x] = 1;           bq_fw.append(_x)
+        if is_bg_fw[(H-1)*W+_x]:  bg_vis_fw[(H-1)*W+_x] = 1;  bq_fw.append((H-1)*W+_x)
+    for _y in range(H):
+        if is_bg_fw[_y*W]:         bg_vis_fw[_y*W] = 1;         bq_fw.append(_y*W)
+        if is_bg_fw[_y*W+W-1]:     bg_vis_fw[_y*W+W-1] = 1;     bq_fw.append(_y*W+W-1)
+    _bqi = 0
+    while _bqi < len(bq_fw):
+        _p = bq_fw[_bqi]; _bqi += 1; _px, _py = _p % W, _p // W
+        for _nb in (_p-W if _py>0 else -1, _p+W if _py<H-1 else -1,
+                    _p-1 if _px>0 else -1, _p+1 if _px<W-1 else -1):
+            if _nb >= 0 and is_bg_fw[_nb] and not bg_vis_fw[_nb]:
+                bg_vis_fw[_nb] = 1; bq_fw.append(_nb)
     for pos in range(H * W):
         if ref_flat[pos] != 0:
-            continue       # not a design pixel
+            continue
         if orig_flat[pos] != 0:
-            continue       # already white
-        px, py = pos % W, pos // W
-        for nb in (pos-W if py>0 else -1, pos+W if py<H-1 else -1,
-                   pos-1 if px>0 else -1, pos+1 if px<W-1 else -1):
-            if nb >= 0 and flat_new[nb] == 1:   # any white neighbour
-                flat_new[pos] = 1               # outline → white
+            continue
+        _px, _py = pos % W, pos // W
+        for _nb in (pos-W if _py>0 else -1, pos+W if _py<H-1 else -1,
+                    pos-1 if _px>0 else -1, pos+1 if _px<W-1 else -1):
+            if _nb >= 0 and bg_vis_fw[_nb]:
+                flat_new[pos] = 1
                 break
 
     if not qualifying_idx:
@@ -1125,10 +1141,10 @@ def apply_hollow_weave(arr: np.ndarray,
 def apply_outer_face_white(arr: np.ndarray,
                            design_mask: np.ndarray = None) -> np.ndarray:
     """
-    Turn every design stroke white on its 1px border:
-    any original-black design pixel that is 4-adjacent to ANY white pixel → white.
-    This outlines ALL strokes (outer AND internal petal/leaf/vein lines),
-    not just the outer boundary of the overall design.
+    Turn the outer face of every design shape white.
+    Only design pixels adjacent to EXTERNAL background (reachable from canvas
+    border by BFS) are turned white. This is safe for thin 1px lines because
+    internal stroke pixels border hollow/filled areas, not external background.
 
     arr:          BMP array  0=black(UP), 1=white(DOWN)
     design_mask:  flat uint8 — 1 where design pixel, 0 elsewhere.
@@ -1141,6 +1157,24 @@ def apply_outer_face_white(arr: np.ndarray,
     else:
         ref_flat = orig_flat
 
+    # BFS from 4 borders on arr to map external background
+    is_bg    = (orig_flat == 1).astype(np.uint8)
+    bg_vis   = np.zeros(H * W, dtype=np.uint8)
+    bg_queue = []
+    for x in range(W):
+        if is_bg[x]:           bg_vis[x] = 1;           bg_queue.append(x)
+        if is_bg[(H-1)*W+x]:  bg_vis[(H-1)*W+x] = 1;  bg_queue.append((H-1)*W+x)
+    for y in range(H):
+        if is_bg[y*W]:         bg_vis[y*W] = 1;         bg_queue.append(y*W)
+        if is_bg[y*W+W-1]:     bg_vis[y*W+W-1] = 1;     bg_queue.append(y*W+W-1)
+    bqi = 0
+    while bqi < len(bg_queue):
+        p = bg_queue[bqi]; bqi += 1; px, py = p % W, p // W
+        for nb in (p-W if py>0 else -1, p+W if py<H-1 else -1,
+                   p-1 if px>0 else -1, p+1 if px<W-1 else -1):
+            if nb >= 0 and is_bg[nb] and not bg_vis[nb]:
+                bg_vis[nb] = 1; bg_queue.append(nb)
+
     flat_new = orig_flat.copy()
     for pos in range(H * W):
         if ref_flat[pos] != 0:
@@ -1150,8 +1184,8 @@ def apply_outer_face_white(arr: np.ndarray,
         px, py = pos % W, pos // W
         for nb in (pos-W if py>0 else -1, pos+W if py<H-1 else -1,
                    pos-1 if px>0 else -1, pos+1 if px<W-1 else -1):
-            if nb >= 0 and orig_flat[nb] == 1:   # any white neighbour
-                flat_new[pos] = 1
+            if nb >= 0 and bg_vis[nb]:
+                flat_new[pos] = 1   # outer face → white
                 break
     return flat_new.reshape(H, W).astype(np.uint8)
 
