@@ -1058,8 +1058,8 @@
         </div>
         <div class="field">
           <label>Cards (Height)</label>
-          <input type="number" id="cards" placeholder="Auto" min="10" max="9999">
-          <span class="field-hint">Optional — auto if blank</span>
+          <input type="number" id="cards" placeholder="Auto" min="10" max="9999" oninput="autoCalcCards()">
+          <span class="field-hint" id="cards-hint">Auto-calculated from pins × (image h/w)</span>
         </div>
       </div>
 
@@ -1237,11 +1237,30 @@ async function assessImageQuality(file) {
 function autoCalcCards() {
   const previewImg = document.getElementById('preview-img');
   if (!previewImg || !previewImg.naturalWidth) return;
-  const pins  = parseInt(document.getElementById('pins').value) || 0;
-  const cards = document.getElementById('cards');
-  if (!pins || cards.value) return;   // don't overwrite manual entry
-  const ratio = previewImg.naturalHeight / previewImg.naturalWidth;
-  cards.placeholder = Math.max(10, Math.round(pins * ratio)).toString();
+  const pins      = parseInt(document.getElementById('pins').value) || 0;
+  const cardsEl   = document.getElementById('cards');
+  const cardsHint = document.getElementById('cards-hint');
+  if (!pins) return;
+  const ratio    = previewImg.naturalHeight / previewImg.naturalWidth;
+  const computed = Math.max(10, Math.round(pins * ratio));
+  // Always update placeholder to show the formula result
+  cardsEl.placeholder = computed.toString();
+  // Update hint label
+  if (cardsHint) {
+    if (cardsEl.value) {
+      cardsHint.textContent = `Custom (auto = ${computed})`;
+      cardsHint.style.color = 'var(--gold)';
+    } else {
+      cardsHint.textContent = `= ${computed}  (pins × h/w = ${pins} × ${previewImg.naturalHeight}/${previewImg.naturalWidth})`;
+      cardsHint.style.color = 'var(--muted)';
+    }
+  }
+}
+
+function clearCardsOverride() {
+  // Called when user clears the cards field — revert to auto
+  const cardsEl = document.getElementById('cards');
+  if (!cardsEl.value) autoCalcCards();
 }
 
 const state = {
