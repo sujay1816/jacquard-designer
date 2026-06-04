@@ -1126,6 +1126,60 @@ def apply_hollow_weave(arr: np.ndarray,
 
     return flat_new.reshape(H, W).astype(np.uint8)
 
+def apply_outer_face_white(arr: np.ndarray,
+                           design_mask: np.ndarray = None) -> np.ndarray:
+    """
+    Turn the outer face of the design white:
+    every original-black pixel that is 4-adjacent to EXTERNAL background → white.
+    Internal lines (adjacent only to hollow interior) stay black.
+    Works independently of hollow fill.
+
+    arr:          BMP array  0=black(UP), 1=white(DOWN)
+    design_mask:  flat uint8 — 1 where design, 0 elsewhere (from label map).
+                  Used as reference so thin lines in arr-with-satin are handled correctly.
+    """
+    H, W = arr.shape
+    orig_flat = arr.flatten()
+
+    # Reference for outer-face detection: design_mask if provided, else arr
+    if design_mask is not None:
+        ref_flat = np.where(design_mask, np.uint8(0), np.uint8(1))
+    else:
+        ref_flat = orig_flat
+
+    # BFS from 4 borders on ORIGINAL arr to map external background
+    is_bg    = (orig_flat == 1).astype(np.uint8)
+    bg_vis   = np.zeros(H * W, dtype=np.uint8)
+    bg_queue = []
+    for x in range(W):
+        if is_bg[x]:           bg_vis[x] = 1;           bg_queue.append(x)
+        if is_bg[(H-1)*W+x]:  bg_vis[(H-1)*W+x] = 1;  bg_queue.append((H-1)*W+x)
+    for y in range(H):
+        if is_bg[y*W]:         bg_vis[y*W] = 1;         bg_queue.append(y*W)
+        if is_bg[y*W+W-1]:     bg_vis[y*W+W-1] = 1;     bg_queue.append(y*W+W-1)
+    bqi = 0
+    while bqi < len(bg_queue):
+        p = bg_queue[bqi]; bqi += 1; px, py = p % W, p // W
+        for nb in (p-W if py>0 else -1, p+W if py<H-1 else -1,
+                   p-1 if px>0 else -1, p+1 if px<W-1 else -1):
+            if nb >= 0 and is_bg[nb] and not bg_vis[nb]:
+                bg_vis[nb] = 1; bg_queue.append(nb)
+
+    flat_new = orig_flat.copy()
+    for pos in range(H * W):
+        if ref_flat[pos] != 0:
+            continue       # not a design pixel
+        if orig_flat[pos] != 0:
+            continue       # already white
+        px, py = pos % W, pos // W
+        for nb in (pos-W if py>0 else -1, pos+W if py<H-1 else -1,
+                   pos-1 if px>0 else -1, pos+1 if px<W-1 else -1):
+            if nb >= 0 and bg_vis[nb]:
+                flat_new[pos] = 1  # outer face → white
+                break
+    return flat_new.reshape(H, W).astype(np.uint8)
+
+
 def generate_bmps(
     image: Image.Image,
     pins: int,
@@ -1139,6 +1193,7 @@ def generate_bmps(
     emboss: bool = False,           # 1-shuttle only: split outline into rani
     supersample: bool = False,      # oversample 4x then downsample for fine detail
     hollow_weave_settings: dict = None,  # {shuttle_name: {'enabled': bool, 'pattern': str, 'n': int, 'invert': bool}}
+    outline_white: dict = None,           # {shuttle_name: True/False} — turn outer face white
 ) -> dict:
     """
     Generate all BMP files for a jacquard design.
@@ -1224,6 +1279,8 @@ def generate_bmps(
             else:
                 arr = smart_fill(zari_mask, satin, s['n'],
                                  satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
+            if outline_white and outline_white.get('zari'):
+                arr = apply_outer_face_white(arr, design_mask=zari_mask.flatten())
             arr = _apply_shuttle_hollow(arr, 'zari', hollow_weave_settings, design_mask=zari_mask.flatten())
             results[f'{design_name}_zari.bmp'] = write_1bit_bmp(arr)
 
@@ -1237,6 +1294,8 @@ def generate_bmps(
             # zari = fill interior only
             zari_arr = smart_fill(fill_mask, satin, s['n'],
                                   satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
+            if outline_white and outline_white.get('zari'):
+                zari_arr = apply_outer_face_white(zari_arr, design_mask=fill_mask.flatten())
             zari_arr = _apply_shuttle_hollow(zari_arr, 'zari', hollow_weave_settings, design_mask=fill_mask.flatten())
             results[f'{design_name}_zari.bmp'] = write_1bit_bmp(zari_arr)
 
@@ -1293,6 +1352,8 @@ def generate_bmps(
                 arr = smart_fill(mask, satin, s['n'],
                                  satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
 
+            if outline_white and outline_white.get(sname):
+                arr = apply_outer_face_white(arr, design_mask=mask.flatten())
             arr = _apply_shuttle_hollow(arr, sname, hollow_weave_settings, design_mask=mask.flatten())
             shuttle_arrays[sname] = arr
             results[f'{design_name}_{sname}.bmp'] = write_1bit_bmp(arr)

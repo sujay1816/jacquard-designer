@@ -1871,8 +1871,25 @@ function renderSatinSettings() {
         <span id="weave-upPct-${sName}" style="font-size:10px;color:#888"></span>
       </div>
 
-      <!-- ── Hollow Fill toggle ─────────────────────────────────────── -->
+      <!-- ── Outline → White toggle ──────────────────────────────────── -->
       <div style="margin-top:14px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <span style="font-size:11px;color:#ccc;font-weight:600">⬡ Outline → White</span>
+          <label class="hf-toggle-label" title="Turn the outer 1px face of the design white — creates a clean separation between design and background">
+            <input type="checkbox" id="ow-toggle-${sName}" checked style="display:none"
+              onchange="document.getElementById('ow-track-${sName}').classList.toggle('on',this.checked)">
+            <span class="hf-toggle-track on" id="ow-track-${sName}">
+              <span class="hf-toggle-thumb"></span>
+            </span>
+          </label>
+        </div>
+        <div style="font-size:9px;color:#888;margin-bottom:2px;line-height:1.5">
+          Turns the outer 1px face of every design shape white. Enabled by default.
+        </div>
+      </div>
+
+      <!-- ── Hollow Fill toggle ─────────────────────────────────────── -->
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08)">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
           <span style="font-size:11px;color:#ccc;font-weight:600">⬡ Hollow Fill</span>
           <label class="hf-toggle-label" title="Fill enclosed hollow regions inside the design">
@@ -2122,6 +2139,13 @@ async function generateBMPs() {
     }
   });
 
+  // Collect outline→white settings per shuttle
+  const outlineWhiteSettings = {};
+  shuttles.forEach(sName => {
+    const cb = document.getElementById(`ow-toggle-${sName}`);
+    if (cb && cb.checked) outlineWhiteSettings[sName] = true;
+  });
+
   try {
     try {
       await fetch('/api/fill-patterns', { method: 'GET', signal: AbortSignal.timeout(3000) });
@@ -2144,6 +2168,7 @@ async function generateBMPs() {
         color_assignments: finalAssignments,
         satin_settings: saSettings,
         hollow_weave_settings: Object.keys(hollowWeaveSettings).length > 0 ? hollowWeaveSettings : null,
+        outline_white: Object.keys(outlineWhiteSettings).length > 0 ? outlineWhiteSettings : null,
         emboss:      embossChecked,
         supersample: document.getElementById('supersampleMode')?.checked || false,
         full_image:  state.fullImageB64 || undefined,

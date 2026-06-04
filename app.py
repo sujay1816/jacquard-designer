@@ -333,6 +333,7 @@ def api_generate():
         emboss      = bool(data.get('emboss', False)) and shuttle_count == 1
         supersample = bool(data.get('supersample', False))
         hollow_weave_settings = data.get('hollow_weave_settings', None)
+        outline_white = data.get('outline_white', None)
 
         bmp_files = generate_bmps(
             image=full_img if supersample else img,
@@ -346,6 +347,7 @@ def api_generate():
             emboss=emboss,
             supersample=supersample,
             hollow_weave_settings=hollow_weave_settings,
+            outline_white=outline_white,
         )
 
         # ── Verify ────────────────────────────────────────────────────────────
