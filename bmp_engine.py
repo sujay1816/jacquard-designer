@@ -995,41 +995,75 @@ def _find_hollow_pixels(arr: np.ndarray) -> np.ndarray:
     return (flat == 1) & (visited == 0)   # True = enclosed hollow
 
 
+# Minimum number of pixels a hollow region must have to be filled.
+# Regions smaller than this are narrow gaps between strokes — skip them.
+_MIN_HOLLOW_REGION_SIZE = 50
+
+
 def apply_hollow_weave(arr: np.ndarray,
                        pattern: str = 'satin',
                        n: int = 8,
                        invert: bool = False) -> np.ndarray:
     """
     Post-process a generated BMP array (0=black, 1=white) for zari/meena:
-      1. Fill every enclosed hollow → black (0).
-      2. Turn ONLY the outer face of the outline white: original-black pixels
-         that are 4-connected to background white (NOT to the hollow).
-         Inner face (touching the hollow) stays black.
-      3. Apply the chosen weave pattern to hollow pixels only (N=12 default
-         gives ~92% black inside the hollow).
+      1. Find all enclosed hollow regions via BFS.
+         Skip any region smaller than _MIN_HOLLOW_REGION_SIZE pixels
+         (prevents narrow gaps between strokes from being filled).
+      2. Fill qualifying hollow regions → black (0).
+      3. Turn ONLY the outer face of the outline white: original-black pixels
+         adjacent to background. Inner face (touching hollow) stays black.
+      4. Apply the chosen weave pattern to qualifying hollow pixels only.
     Returns a new array with same shape and dtype.
     """
     H, W = arr.shape
     orig_flat = arr.flatten()
-    hollow    = _find_hollow_pixels(arr)      # flat bool array
 
-    if not hollow.any():
+    # ── Step 0: identify enclosed hollow pixels ─────────────────────────────
+    all_hollow = _find_hollow_pixels(arr)     # flat bool array
+    if not all_hollow.any():
         return arr                            # nothing to do
 
-    hollow_idx = np.where(hollow)[0]
+    # ── Step 1: split hollow into connected regions, drop small ones ────────
+    all_hollow_idx  = np.where(all_hollow)[0]
+    seen_region     = np.zeros(H * W, dtype=np.uint8)
+    qualifying_idx  = []                      # pixels from regions big enough
+
+    for start in all_hollow_idx:
+        if seen_region[start]:
+            continue
+        # BFS to collect this connected region
+        region  = []
+        rq      = [start]
+        seen_region[start] = 1
+        rqi = 0
+        while rqi < len(rq):
+            p = rq[rqi]; rqi += 1; px, py = p % W, p // W
+            region.append(p)
+            for nb in (p-W if py>0 else -1, p+W if py<H-1 else -1,
+                       p-1 if px>0 else -1, p+1 if px<W-1 else -1):
+                if nb >= 0 and all_hollow[nb] and not seen_region[nb]:
+                    seen_region[nb] = 1; rq.append(nb)
+        # Keep only large-enough regions
+        if len(region) >= _MIN_HOLLOW_REGION_SIZE:
+            qualifying_idx.extend(region)
+
+    if not qualifying_idx:
+        return arr                            # all regions too small
+
+    hollow_idx = np.array(qualifying_idx, dtype=np.int64)
     hollow_set = np.zeros(H * W, dtype=np.uint8)
     hollow_set[hollow_idx] = 1
 
     flat_new = orig_flat.copy()
 
-    # ── Step 1: fill hollow solid black ────────────────────────────────────
+    # ── Step 2: fill qualifying hollows solid black ─────────────────────────
     flat_new[hollow_idx] = 0
 
-    # ── Step 2: outer face of outline → white ──────────────────────────────
-    # Background = white pixels reachable from border in the ORIGINAL array.
-    # Outer face = original black pixels whose 4-neighbours include background.
-    # Inner face (adjacent to hollow only) stays black.
-    is_bg = (orig_flat == 1).astype(np.uint8)
+    # ── Step 3: outer face of outline → white ───────────────────────────────
+    # Background = white pixels reachable from the 4 canvas borders in ORIGINAL.
+    # Outer face  = original-black pixels with a background neighbour.
+    # Inner face (touching hollow only) stays black.
+    is_bg    = (orig_flat == 1).astype(np.uint8)
     bg_vis   = np.zeros(H * W, dtype=np.uint8)
     bg_queue = []
     for x in range(W):
@@ -1046,7 +1080,6 @@ def apply_hollow_weave(arr: np.ndarray,
             if nb >= 0 and is_bg[nb] and not bg_vis[nb]:
                 bg_vis[nb] = 1; bg_queue.append(nb)
 
-    # Turn white only outer-face pixels (adj to background, NOT exclusively to hollow)
     for pos in range(H * W):
         if orig_flat[pos] != 0:
             continue                          # was white — skip
@@ -1055,12 +1088,11 @@ def apply_hollow_weave(arr: np.ndarray,
         for nb in (pos-W if py>0 else -1, pos+W if py<H-1 else -1,
                    pos-1 if px>0 else -1, pos+1 if px<W-1 else -1):
             if nb >= 0 and bg_vis[nb]:
-                adj_bg = True
-                break
+                adj_bg = True; break
         if adj_bg:
             flat_new[pos] = 1               # outer face → white
 
-    # ── Step 3: apply weave pattern to hollow pixels only ──────────────────
+    # ── Step 4: apply weave pattern to qualifying hollow pixels only ─────────
     pat = generate_fill_pattern(pattern, n, W, H, flip=False).flatten()
     if invert:
         pat = np.where(pat == 0, np.uint8(1), np.uint8(0))
