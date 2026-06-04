@@ -462,7 +462,7 @@
   <button class="tbtn" id="tbtn-weave" onclick="openPopup('weave',this)" data-tip="Weave / Fill Pattern — paint satin, twill, honeycomb and more"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="3" height="3" rx=".4"/><rect x="6" y="1" width="3" height="3" rx=".4" opacity=".4"/><rect x="11" y="1" width="3" height="3" rx=".4"/><rect x="1" y="6" width="3" height="3" rx=".4" opacity=".4"/><rect x="6" y="6" width="3" height="3" rx=".4"/><rect x="11" y="6" width="3" height="3" rx=".4" opacity=".4"/><rect x="1" y="11" width="3" height="3" rx=".4"/><rect x="6" y="11" width="3" height="3" rx=".4" opacity=".4"/><rect x="11" y="11" width="3" height="3" rx=".4"/></svg></button>
   <button class="tbtn" id="tbtn-fill-int" onclick="openPopup('fillint',this)" data-tip="Fill Interiors (J) — flood-fill enclosed design regions with a weave pattern">⬡</button>
   <div class="tsep"></div>
-  <button class="tbtn"    id="tbtn-weave-fill" onclick="setTool('weave-fill')" data-tip="Weave Fill — click any enclosed region to fill with selected pattern (V)">⬡✎</button>
+  <button class="tbtn"    id="tbtn-weave-fill" onclick="openPopup('weavefill',this)" data-tip="Weave Fill (V) — opens pattern selector; arm then click any enclosed region">⬡✎</button>
   <button class="tbtn"    id="tbtn-invert-region" onclick="setTool('invert-region')" data-tip="Invert Region (K) — click any region to flip black↔white">⬡↔</button>
   <button class="tbtn"    id="tbtn-pan"    onclick="setTool('pan')"    data-tip="Pan / scroll canvas (H)">✋</button>
   <div class="tsep"></div>
@@ -786,6 +786,64 @@
         ⬡↔ Arm Invert (K)
       </button>
     </div>
+  </div>
+</div>
+
+<div id="popup-weavefill" class="tb-popup">
+  <div class="tb-popup-header">
+    <span>⬡✎ Weave Fill</span>
+    <button onclick="closePopup('weavefill')" title="Close">✕</button>
+  </div>
+  <div class="tb-popup-body">
+    <div style="font-size:9px;color:var(--muted);margin-bottom:10px;line-height:1.6">
+      Click <strong style="color:var(--gold)">Arm</strong> then click inside any white hollow on the canvas.
+      Fills with the selected weave pattern and turns the outline white.
+      Tool stays armed — keep clicking different regions.
+    </div>
+    <div class="opt-row" style="margin-bottom:6px">
+      <span class="opt-label">Pattern</span>
+      <select id="wf-pattern" style="flex:1;margin-left:8px;padding:3px 5px;
+        background:var(--surface2);border:1px solid var(--border);
+        color:var(--text);border-radius:4px;font-size:10px;font-family:'DM Mono',monospace"
+        onchange="updateWfPreview()">
+        <option value="satin">Satin</option>
+        <option value="satin_inv">Satin Inverted</option>
+        <option value="plain_weave">Plain Weave</option>
+        <option value="twill22">Twill 2/2</option>
+        <option value="twill31">Twill 3/1</option>
+        <option value="dots">Dots</option>
+        <option value="diagonal">Diagonal</option>
+        <option value="crosshatch">Cross-hatch</option>
+        <option value="honeycomb">Honeycomb</option>
+        <option value="diamond">Diamond</option>
+        <option value="herringbone">Herringbone</option>
+        <option value="basket">Basket Weave</option>
+        <option value="crepe">Crepe</option>
+        <option value="rib">Rib Weave</option>
+      </select>
+    </div>
+    <div class="opt-row" style="margin-bottom:8px">
+      <span class="opt-label">Density N</span>
+      <input type="range" id="wf-n" min="4" max="16" value="8"
+             style="flex:1;margin:0 6px;accent-color:var(--gold)"
+             oninput="document.getElementById('wf-n-val').textContent=this.value;updateWfPreview()">
+      <span class="opt-val" id="wf-n-val">8</span>
+    </div>
+    <canvas id="wf-preview" width="200" height="50"
+      style="width:100%;border:1px solid var(--border);border-radius:4px;
+             image-rendering:pixelated;margin-bottom:10px;background:#fff;display:block"></canvas>
+    <div style="font-size:9px;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:6px">
+      <input type="checkbox" id="wf-invert" style="accent-color:var(--gold)" onchange="updateWfPreview()">
+      <label for="wf-invert" style="cursor:pointer;color:var(--text)">
+        <strong style="color:var(--gold)">Invert</strong> — swap black↔white in pattern
+      </label>
+    </div>
+    <button onclick="setTool('weave-fill')"
+      style="width:100%;padding:8px;background:linear-gradient(135deg,var(--gold),var(--gold2));
+             border:none;color:#1a1510;border-radius:4px;font-size:11px;font-weight:700;
+             cursor:pointer;font-family:'DM Mono',monospace">
+      ⬡✎ Arm Weave Fill
+    </button>
   </div>
 </div>
 
@@ -1711,6 +1769,28 @@ function updateFiPreview() {
   ctx.putImageData(id, 0, 0);
 }
 
+function updateWfPreview() {
+  const canvas  = document.getElementById('wf-preview');
+  if (!canvas) return;
+  const pattern = document.getElementById('wf-pattern')?.value || 'satin';
+  const n       = parseInt(document.getElementById('wf-n')?.value || '8');
+  const invert  = document.getElementById('wf-invert')?.checked || false;
+  const W = 200, H = 50;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  const id  = ctx.createImageData(W, H);
+  const pat = generateFillJS(pattern, n, W, H);
+  for (let i = 0; i < W * H; i++) {
+    const bit = invert ? (pat[i] === 0 ? 1 : 0) : pat[i];
+    const v   = bit === 0 ? 0 : 255;
+    id.data[i*4]   = v;
+    id.data[i*4+1] = v;
+    id.data[i*4+2] = v;
+    id.data[i*4+3] = 255;
+  }
+  ctx.putImageData(id, 0, 0);
+}
+
 function fillInteriors() {
   if (!S.pixels || S.W === 0) { toast('No image loaded'); return; }
 
@@ -1776,6 +1856,26 @@ function fillInteriors() {
   toast('⬡ Filled ' + interior.length.toLocaleString() + ' interior pixels with ' + pattern + (invert ? ' (inverted)' : '') + ' (N=' + n + ')');
 }
 
+function _turnOutlineWhite(regionPixels, newPx, originalPixels, W, H) {
+  // Turn IMMEDIATE black neighbours of filled region white (1px only, no flood-fill).
+  const regionSet = new Uint8Array(W * H);
+  for (const p of regionPixels) regionSet[p] = 1;
+  for (const p of regionPixels) {
+    const px = p % W, py = (p / W) | 0;
+    const nbrs = [
+      py > 0   ? p - W : -1,
+      py < H-1 ? p + W : -1,
+      px > 0   ? p - 1 : -1,
+      px < W-1 ? p + 1 : -1,
+    ];
+    for (const nb of nbrs) {
+      if (nb >= 0 && !regionSet[nb] && originalPixels[nb * 4] < 128) {
+        newPx[nb*4] = newPx[nb*4+1] = newPx[nb*4+2] = 255; newPx[nb*4+3] = 255;
+      }
+    }
+  }
+}
+
 function fillRegionAt(cx, cy) {
   // Click-to-fill: fills only the single enclosed region the user clicked.
   // Reads pattern/N/invert from the Fill Interiors popup controls.
@@ -1821,14 +1921,14 @@ function fillRegionAt(cx, cy) {
     return;
   }
 
-  // Read settings from the Fill Interiors popup
-  const pattern = document.getElementById('fi-pattern')?.value || 'satin';
-  const n       = parseInt(document.getElementById('fi-n')?.value || '8');
-  const invert  = document.getElementById('fi-invert')?.checked || false;
+  // Read settings from the Weave Fill popup (wf-*)
+  const pattern = document.getElementById('wf-pattern')?.value || 'satin';
+  const n       = parseInt(document.getElementById('wf-n')?.value || '8');
+  const invert  = document.getElementById('wf-invert')?.checked || false;
 
   // Generate and apply pattern
   const patArr = generateFillJS(pattern, n, W, H);
-  pushHist('Weave Fill region: ' + pattern);
+  pushHist('Weave Fill: ' + pattern);
   const newPx = S.pixels.slice();
 
   for (const p of region) {
@@ -1839,10 +1939,15 @@ function fillRegionAt(cx, cy) {
     newPx[i+3] = 255;
   }
 
+  // Turn immediate outline pixels white (same as Invert Region tool)
+  _turnOutlineWhite(region, newPx, S.pixels, W, H);
+
   S.pixels = newPx;
   render();
   updateStats();
-  toast('⬡ Region filled with ' + pattern + (invert ? ' (inv)' : '') + ' — ' + region.length.toLocaleString() + ' px');
+  // Tool stays armed — no disarm, keep clicking other regions
+  toast('⬡ Filled ' + region.length.toLocaleString() + ' px with ' + pattern +
+        (invert ? ' (inv)' : '') + ', outline→white');
 }
 
 function invertRegionAt(cx, cy) {
@@ -2274,8 +2379,9 @@ function openPopup(name, btn) {
   // Highlight the toolbar button
   btn.classList.add('on');
   // Re-init fill preview if opening weave popup
-  if (name === 'weave')   { updateFillPreview(); }
-  if (name === 'fillint') { updateFiPreview(); }
+  if (name === 'weave')     { updateFillPreview(); }
+  if (name === 'fillint')   { updateFiPreview(); }
+  if (name === 'weavefill') { updateWfPreview(); }
   // Sync pval displays
   if (name === 'morph') {
     Object.keys(S.params).forEach(k => {
@@ -2402,7 +2508,8 @@ document.addEventListener('keydown', e=>{
     case 'j': case 'J': { const b=document.getElementById('tbtn-fill-int'); if(b) openPopup('fillint',b); } break;
     case 'i': case 'I': toggleRefPanel(); break;
     case 'k': case 'K': setTool('invert-region'); toast('Invert Region armed — click any region'); break;
-    case 'v': case 'V': toggleSwapButtons(); break;
+    case 'v': case 'V': { const b=document.getElementById('tbtn-weave-fill'); if(b) openPopup('weavefill',b); } break;
+    case 't': case 'T': toggleSwapButtons(); break;
     case 'Escape':
       if (S.pastePos !== null) { cancelPaste(); }
       else if (_activePopup)   { closePopup(_activePopup); }
