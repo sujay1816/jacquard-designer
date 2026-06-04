@@ -999,6 +999,11 @@ def _find_hollow_pixels(arr: np.ndarray) -> np.ndarray:
 # Regions smaller than this are narrow gaps between strokes — skip them.
 _MIN_HOLLOW_REGION_SIZE = 50
 
+# Maximum compactness (filled_pixels / bounding_box_area) for a hollow region.
+# Regions above this threshold are near-rectangular (frame boxes / background spaces)
+# and should NOT be filled — only irregular motif interiors get filled.
+_MAX_HOLLOW_COMPACTNESS = 0.85
+
 
 def apply_hollow_weave(arr: np.ndarray,
                        pattern: str = 'satin',
@@ -1045,7 +1050,15 @@ def apply_hollow_weave(arr: np.ndarray,
                     seen_region[nb] = 1; rq.append(nb)
         # Keep only large-enough regions
         if len(region) >= _MIN_HOLLOW_REGION_SIZE:
-            qualifying_idx.extend(region)
+            # Skip near-rectangular (compact) regions — these are frame boxes /
+            # background spaces between motifs, not design interiors.
+            # True motif interiors are irregular shapes with compactness < 0.85.
+            rows = [p // W for p in region]
+            cols = [p %  W for p in region]
+            bb_area = (max(rows) - min(rows) + 1) * (max(cols) - min(cols) + 1)
+            compactness = len(region) / bb_area if bb_area > 0 else 0
+            if compactness < _MAX_HOLLOW_COMPACTNESS:
+                qualifying_idx.extend(region)
 
     if not qualifying_idx:
         return arr                            # all regions too small
