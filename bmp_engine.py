@@ -1001,33 +1001,72 @@ def apply_hollow_weave(arr: np.ndarray,
                        invert: bool = False) -> np.ndarray:
     """
     Post-process a generated BMP array (0=black, 1=white) for zari/meena:
-      1. Fill every enclosed hollow (white pixels not reachable from border) → black (0).
-      2. Apply the chosen weave pattern ONLY to those hollow pixels.
-         Outline and background are NOT touched — outline stays solid black.
-    Returns a new array with the same shape and dtype.
+      1. Fill every enclosed hollow → black (0).
+      2. Turn ONLY the outer face of the outline white: original-black pixels
+         that are 4-connected to background white (NOT to the hollow).
+         Inner face (touching the hollow) stays black.
+      3. Apply the chosen weave pattern to hollow pixels only (N=12 default
+         gives ~92% black inside the hollow).
+    Returns a new array with same shape and dtype.
     """
     H, W = arr.shape
-    hollow = _find_hollow_pixels(arr)          # flat bool array
+    orig_flat = arr.flatten()
+    hollow    = _find_hollow_pixels(arr)      # flat bool array
 
     if not hollow.any():
-        return arr                              # nothing to do
+        return arr                            # nothing to do
 
     hollow_idx = np.where(hollow)[0]
-    flat_new   = arr.flatten().copy()
+    hollow_set = np.zeros(H * W, dtype=np.uint8)
+    hollow_set[hollow_idx] = 1
 
-    # Step 1: fill hollow solid black
+    flat_new = orig_flat.copy()
+
+    # ── Step 1: fill hollow solid black ────────────────────────────────────
     flat_new[hollow_idx] = 0
 
-    # Step 2: apply weave pattern to hollow pixels only
-    # Outline stays solid black — do NOT turn it white (would reduce black fill)
+    # ── Step 2: outer face of outline → white ──────────────────────────────
+    # Background = white pixels reachable from border in the ORIGINAL array.
+    # Outer face = original black pixels whose 4-neighbours include background.
+    # Inner face (adjacent to hollow only) stays black.
+    is_bg = (orig_flat == 1).astype(np.uint8)
+    bg_vis   = np.zeros(H * W, dtype=np.uint8)
+    bg_queue = []
+    for x in range(W):
+        if is_bg[x]:           bg_vis[x] = 1;           bg_queue.append(x)
+        if is_bg[(H-1)*W+x]:  bg_vis[(H-1)*W+x] = 1;  bg_queue.append((H-1)*W+x)
+    for y in range(H):
+        if is_bg[y*W]:         bg_vis[y*W] = 1;         bg_queue.append(y*W)
+        if is_bg[y*W+W-1]:     bg_vis[y*W+W-1] = 1;     bg_queue.append(y*W+W-1)
+    bqi = 0
+    while bqi < len(bg_queue):
+        p = bg_queue[bqi]; bqi += 1; px, py = p % W, p // W
+        for nb in (p-W if py>0 else -1, p+W if py<H-1 else -1,
+                   p-1 if px>0 else -1, p+1 if px<W-1 else -1):
+            if nb >= 0 and is_bg[nb] and not bg_vis[nb]:
+                bg_vis[nb] = 1; bg_queue.append(nb)
+
+    # Turn white only outer-face pixels (adj to background, NOT exclusively to hollow)
+    for pos in range(H * W):
+        if orig_flat[pos] != 0:
+            continue                          # was white — skip
+        px, py = pos % W, pos // W
+        adj_bg = False
+        for nb in (pos-W if py>0 else -1, pos+W if py<H-1 else -1,
+                   pos-1 if px>0 else -1, pos+1 if px<W-1 else -1):
+            if nb >= 0 and bg_vis[nb]:
+                adj_bg = True
+                break
+        if adj_bg:
+            flat_new[pos] = 1               # outer face → white
+
+    # ── Step 3: apply weave pattern to hollow pixels only ──────────────────
     pat = generate_fill_pattern(pattern, n, W, H, flip=False).flatten()
     if invert:
         pat = np.where(pat == 0, np.uint8(1), np.uint8(0))
     flat_new[hollow_idx] = pat[hollow_idx]
 
     return flat_new.reshape(H, W).astype(np.uint8)
-
-
 def generate_bmps(
     image: Image.Image,
     pins: int,
