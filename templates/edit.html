@@ -289,7 +289,14 @@
       opacity: 0.85;
       image-rendering: auto;
       pointer-events: none;
+      transform-origin: 50% 50%;
+      will-change: transform;
     }
+
+    /* Zoom / pan cursor states */
+    #ref-img-wrap.ref-has-image  { cursor: zoom-in; }
+    #ref-img-wrap.ref-zoomed     { cursor: grab; }
+    #ref-img-wrap.ref-panning    { cursor: grabbing; }
 
     #ref-upload-hint {
       text-align: center;
@@ -967,6 +974,12 @@
   <div id="ref-panel-footer">
     <span id="ref-filename" style="font-size:9px;color:var(--muted);
       white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1"></span>
+    <span id="ref-zoom-label"
+      style="font-size:9px;color:var(--gold);min-width:28px;text-align:right;display:none"
+      title="Current zoom">1×</span>
+    <button id="ref-reset-zoom" onclick="resetRefZoom()" title="Reset zoom (double-click image)"
+      style="display:none;background:none;border:1px solid var(--border2);color:var(--muted);
+             border-radius:3px;padding:1px 5px;cursor:pointer;font-size:9px;flex-shrink:0">1:1</button>
     <span id="ref-dimensions" style="font-size:9px;color:var(--border2);flex-shrink:0"></span>
   </div>
 </div>
@@ -2298,9 +2311,12 @@ function loadRefImage(file) {
     const dim  = document.getElementById('ref-dimensions');
     img.onload = () => {
       if (dim) dim.textContent = img.naturalWidth + '×' + img.naturalHeight;
+      // Reset zoom to 1× whenever a new image is loaded
+      resetRefZoom();
     };
     img.src = ev.target.result;
     img.style.display = 'block';
+    document.getElementById('ref-img-wrap').classList.add('ref-has-image');
     if (hint) hint.style.display = 'none';
     if (fn)   fn.textContent = file.name;
     // Show panel if not already visible
@@ -2354,7 +2370,105 @@ function stopRefDrag() {
   document.removeEventListener('mouseup',   stopRefDrag);
 }
 
-// ── Drop image directly onto the panel ─────────────────
+// ── Reference image zoom & pan ──────────────────────────────
+// State — separate from the panel-drag state above
+let _refZoom    = 1.0;
+let _refPanX    = 0;
+let _refPanY    = 0;
+let _refPanDrag = null;
+
+function applyRefTransform() {
+  const img   = document.getElementById('ref-img');
+  const wrap  = document.getElementById('ref-img-wrap');
+  const label = document.getElementById('ref-zoom-label');
+  const btn   = document.getElementById('ref-reset-zoom');
+  if (!img || !wrap) return;
+
+  if (_refZoom <= 1.0) {
+    img.style.transform = '';
+    wrap.classList.remove('ref-zoomed', 'ref-panning');
+    if (label) { label.textContent = '1×'; label.style.display = 'none'; }
+    if (btn)   btn.style.display = 'none';
+  } else {
+    img.style.transform =
+      `translate(${_refPanX.toFixed(1)}px,${_refPanY.toFixed(1)}px) scale(${_refZoom.toFixed(3)})`;
+    wrap.classList.add('ref-zoomed');
+    wrap.classList.toggle('ref-panning', !!_refPanDrag);
+    if (label) { label.textContent = _refZoom.toFixed(1) + '×'; label.style.display = 'block'; }
+    if (btn)   btn.style.display = 'inline-block';
+  }
+}
+
+function clampRefPan(wrapW, wrapH) {
+  // Allow panning up to the point where the image edge reaches the wrap edge,
+  // so the image can never be fully scrolled out of view.
+  const maxX = Math.max(0, (_refZoom - 1) * wrapW / 2);
+  const maxY = Math.max(0, (_refZoom - 1) * wrapH / 2);
+  _refPanX = Math.max(-maxX, Math.min(maxX, _refPanX));
+  _refPanY = Math.max(-maxY, Math.min(maxY, _refPanY));
+}
+
+function resetRefZoom() {
+  _refZoom = 1.0; _refPanX = 0; _refPanY = 0; _refPanDrag = null;
+  applyRefTransform();
+}
+
+function handleRefWheel(e) {
+  const img = document.getElementById('ref-img');
+  if (!img || img.style.display === 'none') return;
+  e.preventDefault();
+  e.stopPropagation();   // don't propagate to canvas-zoom
+
+  const wrap = document.getElementById('ref-img-wrap');
+  const rect = wrap.getBoundingClientRect();
+
+  // Mouse position relative to the element centre (transform-origin: 50% 50%)
+  const mx = e.clientX - rect.left  - rect.width  / 2;
+  const my = e.clientY - rect.top   - rect.height / 2;
+
+  const factor  = e.deltaY < 0 ? 1.2 : 1 / 1.2;
+  const newZoom = Math.max(1.0, Math.min(10.0, _refZoom * factor));
+  if (newZoom === _refZoom) return;
+
+  // Keep the pixel under the cursor fixed during zoom
+  const ratio = newZoom / _refZoom;
+  _refPanX = mx - ratio * (mx - _refPanX);
+  _refPanY = my - ratio * (my - _refPanY);
+  _refZoom = newZoom;
+
+  if (_refZoom <= 1.0) { _refZoom = 1.0; _refPanX = 0; _refPanY = 0; }
+  else clampRefPan(rect.width, rect.height);
+
+  applyRefTransform();
+}
+
+function handleRefImgMousedown(e) {
+  if (_refZoom <= 1.0) return;
+  const img = document.getElementById('ref-img');
+  if (!img || img.style.display === 'none') return;
+  e.preventDefault();
+  e.stopPropagation();   // don't start panel-drag
+  _refPanDrag = { sx: e.clientX, sy: e.clientY, px: _refPanX, py: _refPanY };
+  document.addEventListener('mousemove', handleRefImgMousemove);
+  document.addEventListener('mouseup',   handleRefImgMouseup);
+  applyRefTransform();
+}
+
+function handleRefImgMousemove(e) {
+  if (!_refPanDrag) return;
+  _refPanX = _refPanDrag.px + (e.clientX - _refPanDrag.sx);
+  _refPanY = _refPanDrag.py + (e.clientY - _refPanDrag.sy);
+  const wrap = document.getElementById('ref-img-wrap');
+  clampRefPan(wrap.clientWidth, wrap.clientHeight);
+  applyRefTransform();
+}
+
+function handleRefImgMouseup() {
+  _refPanDrag = null;
+  document.removeEventListener('mousemove', handleRefImgMousemove);
+  document.removeEventListener('mouseup',   handleRefImgMouseup);
+  applyRefTransform();
+}
 
 
 // ═══════════════════════════════════════════════════
@@ -2776,8 +2890,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('fi-pattern')?.addEventListener('change', updateFiPreview);
   document.getElementById('fi-n')?.addEventListener('input', updateFiPreview);
 
-  // 4. Reference panel drop target
+  // 4. Reference panel — drop target + zoom/pan events
   const refPanel = document.getElementById('ref-panel');
+  const refWrap  = document.getElementById('ref-img-wrap');
   if (refPanel) {
     refPanel.addEventListener('dragover', e => {
       e.preventDefault(); e.stopPropagation();
@@ -2792,6 +2907,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const f = e.dataTransfer.files[0];
       if (f && f.type.startsWith('image/')) loadRefImage(f);
     });
+  }
+  if (refWrap) {
+    // Scroll-wheel zoom (passive:false so we can preventDefault)
+    refWrap.addEventListener('wheel', handleRefWheel, { passive: false });
+    // Drag-to-pan when zoomed in
+    refWrap.addEventListener('mousedown', handleRefImgMousedown);
+    // Double-click resets zoom to 1×
+    refWrap.addEventListener('dblclick', resetRefZoom);
   }
 
   // 5. Toolbar tooltips
