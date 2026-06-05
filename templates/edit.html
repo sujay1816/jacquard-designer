@@ -315,13 +315,51 @@
       gap: 8px;
     }
 
-    /* Canvas area */
+    /* Canvas area — leaves 30px at the bottom for the status bar */
     #canvas-area {
       position: fixed;
-      top: 48px; left: 52px; right: 230px; bottom: 0;
+      top: 48px; left: 52px; right: 230px; bottom: 30px;
       background: #0a0a0a;
       overflow: auto;
     }
+
+    /* ── Bottom status bar ────────────────────────────────────────── */
+    #bottom-bar {
+      position: fixed;
+      bottom: 0; left: 52px; right: 230px; height: 30px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      display: flex; align-items: center;
+      justify-content: space-between;
+      padding: 0 10px;
+      z-index: 50;
+    }
+    #coord-bar {
+      font-size: 10px; color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      letter-spacing: .04em;
+      min-width: 90px;
+    }
+    /* Zoom controls — inline in the status bar */
+    #zoom-bar {
+      display: flex; align-items: center; gap: 0;
+    }
+    .zbtn {
+      background: transparent; border: none; color: var(--muted);
+      cursor: pointer; font-size: 15px; font-weight: 300;
+      width: 26px; height: 26px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 4px;
+      transition: all .15s;
+    }
+    .zbtn:hover { background: var(--surface2); color: var(--gold); }
+    #zoom-label {
+      font-size: 11px; color: var(--text); min-width: 44px;
+      text-align: center; cursor: pointer; padding: 0 4px;
+      border-left: 1px solid var(--border); border-right: 1px solid var(--border);
+      height: 22px; line-height: 22px; border-radius: 0;
+    }
+    #zoom-label:hover { color: var(--gold); }
 
     /* Upload overlay — sits inside canvas-area, covers it */
     #upload-overlay {
@@ -392,37 +430,6 @@
     }
     .tb-popup-header button:hover { color: var(--danger); }
     .tb-popup-body { padding: 10px 12px; }
-
-    /* Zoom bar */
-    #zoom-bar {
-      position: absolute; bottom: 14px; right: 14px;
-      display: flex; align-items: center; gap: 0;
-      background: var(--surface); border: 1px solid var(--border2);
-      border-radius: 20px; padding: 0;
-      z-index: 10; overflow: hidden;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-    }
-    .zbtn {
-      background: transparent; border: none; color: var(--muted);
-      cursor: pointer; font-size: 16px; font-weight: 300;
-      width: 32px; height: 30px;
-      display: flex; align-items: center; justify-content: center;
-      transition: all .15s;
-    }
-    .zbtn:hover { background: var(--surface2); color: var(--gold); }
-    #zoom-label {
-      font-size: 11px; color: var(--text); min-width: 48px;
-      text-align: center; cursor: pointer; padding: 0 2px;
-      border-left: 1px solid var(--border); border-right: 1px solid var(--border);
-      height: 30px; line-height: 30px;
-    }
-    #zoom-label:hover { color: var(--gold); }
-    #coord-bar {
-      position: absolute; bottom: 12px; left: 12px;
-      font-size: 9px; color: var(--muted);
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 4px; padding: 3px 7px; z-index: 10;
-    }
 
     /* Toast */
     #toast {
@@ -513,15 +520,16 @@
     <canvas id="ov-canvas"></canvas>
     <canvas id="paste-canvas" style="display:none"></canvas>
   </div>
+</div><!-- /canvas-area -->
 
-
-
+<!-- ─── BOTTOM STATUS BAR ─────────────────────────────────────── -->
+<div id="bottom-bar">
+  <span id="coord-bar">x:— y:—</span>
   <div id="zoom-bar">
-  <button class="zbtn" onclick="zoomStep(-1)" title="Zoom out (-)">−</button>
-  <span id="zoom-label" onclick="resetZoom()" title="Click to reset to 100%">100%</span>
-  <button class="zbtn" onclick="zoomStep(+1)" title="Zoom in (+)">+</button>
-</div>
-  <div id="coord-bar">x:— y:—</div>
+    <button class="zbtn" onclick="zoomStep(-1)" title="Zoom out (-)">−</button>
+    <span id="zoom-label" onclick="resetZoom()" title="Click to reset to 100%">100%</span>
+    <button class="zbtn" onclick="zoomStep(+1)" title="Zoom in (+)">+</button>
+  </div>
 </div>
 
 <!-- ─── RIGHT PANEL ──────────────────────────────────────────── -->
@@ -2840,7 +2848,44 @@ document.addEventListener('keydown', e=>{
     case 'Delete': case 'Backspace':
       if (S.selActive) { e.preventDefault(); deleteSelection(); }
       break;
-  }
+    case 'ArrowLeft': case 'ArrowRight': case 'ArrowUp': case 'ArrowDown': {
+      // Only intercept when there's something to move
+      if (!S.pixels) break;
+      if (S.pastePos === null && !S.selActive) break;
+      e.preventDefault();   // prevent page scroll
+      const step = e.shiftKey ? 10 : 1;
+      const mdx = e.key === 'ArrowRight' ? step : e.key === 'ArrowLeft' ? -step : 0;
+      const mdy = e.key === 'ArrowDown'  ? step : e.key === 'ArrowUp'   ? -step : 0;
+      if (S.pastePos !== null) {
+        // ── Nudge floating paste ──────────────────────────────────────
+        S.pastePos = { x: S.pastePos.x + mdx, y: S.pastePos.y + mdy };
+        drawPastePreview();
+      } else {
+        // ── Lift selection into floating paste then nudge ─────────────
+        // Copy silently (no toast — avoids "Copied X×Y" during a move)
+        const { x0, y0, x1, y1 } = S.sel;
+        const cw = x1 - x0 + 1, ch = y1 - y0 + 1;
+        const cbuf = new Uint8ClampedArray(cw * ch * 4);
+        for (let cy = 0; cy < ch; cy++) for (let cx = 0; cx < cw; cx++) {
+          const si = ((y0 + cy) * S.W + (x0 + cx)) * 4;
+          const di = (cy * cw + cx) * 4;
+          cbuf[di] = cbuf[di+1] = cbuf[di+2] = S.pixels[si]; cbuf[di+3] = 255;
+        }
+        S.clipboard = { pixels: cbuf, w: cw, h: ch };
+        // Clear original area and push to history so Ctrl+Z can undo the lift
+        for (let ry = y0; ry <= y1; ry++) for (let rx = x0; rx <= x1; rx++) spx(rx, ry, 255);
+        pushHist('Move selection');
+        render(); updateStats();
+        // Float the paste at original position + first nudge
+        S.pastePos  = { x: x0 + mdx, y: y0 + mdy };
+        S.pasteDrag = null;
+        setTool('select');
+        drawPastePreview();
+        toast('↑↓←→ nudge  ·  Shift+arrow = 10px  ·  Enter to commit  ·  Esc to cancel');
+      }
+      break;
+    }
+  }   // end switch
 });
 
 // Tooltips registered in DOMContentLoaded
