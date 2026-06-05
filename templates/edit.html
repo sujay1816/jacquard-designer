@@ -1509,7 +1509,7 @@ function onMU(e) {
   }
 }
 
-function onML() { if(S.painting){pushHist('Draw');S.painting=false;updateStats();} }
+function onML() { if(S.painting){pushHist(S.tool==='satin' ? 'Satin brush' : 'Draw');S.painting=false;updateStats();} }
 
 function onWheel(e) {
   e.preventDefault();
@@ -2608,11 +2608,12 @@ function openCanvasSizePopup(e) {
   const popup = document.getElementById('cs-popup');
   if (!popup) return;
   if (popup.style.display === 'none' || popup.style.display === '') {
-    // Position near the toolbar button
-    const btn = e.currentTarget;
-    const r = btn.getBoundingClientRect();
-    popup.style.left = (r.right + 10) + 'px';
-    popup.style.top  = Math.min(r.top, window.innerHeight - 280) + 'px';
+    // Position near the button if called from a click; fall back to a sensible
+    // toolbar-adjacent position when called from a keyboard shortcut (e is null).
+    const btn = e?.currentTarget;
+    const r   = btn?.getBoundingClientRect?.();
+    popup.style.left = r ? (r.right + 10) + 'px' : '90px';
+    popup.style.top  = r ? Math.min(r.top, window.innerHeight - 280) + 'px' : '400px';
     popup.style.display = 'block';
     setCSSFromCurrent();
   } else {
@@ -2686,6 +2687,7 @@ document.addEventListener('keydown', e=>{
     case 'r':           setTool('rect');   break;
     case 'h':           setTool('pan');    break;
     case 'g':           toggleGrid();      break;
+    case 'c': case 'C': openCanvasSizePopup(null); break;
     case '0':           fitToWindow();     break;
     case '+': case '=': zoomStep(+1);      break;
     case '-':           zoomStep(-1);      break;
