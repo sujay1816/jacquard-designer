@@ -1168,6 +1168,7 @@ function loadFile(file) {
 
 function _decodeViaImg(src, name) {
   const img = new Image();
+  let _revokeUrl = null;
   img.onload = () => {
     const oc = Object.assign(document.createElement('canvas'),
                              {width: img.naturalWidth, height: img.naturalHeight});
@@ -1179,15 +1180,15 @@ function _decodeViaImg(src, name) {
       id.data[i] = id.data[i+1] = id.data[i+2] = v; id.data[i+3] = 255;
     }
     initImage(id.data, oc.width, oc.height, name);
+    if (_revokeUrl) { URL.revokeObjectURL(_revokeUrl); _revokeUrl = null; }
   };
   img.onerror = () => toast('Could not open file — unsupported format');
   if (typeof src === 'string') {
     img.src = src;
   } else {
     const blob = new Blob([src]);
-    const url  = URL.createObjectURL(blob);
-    img.onload = () => { URL.revokeObjectURL(url); img.onload = null; img.src = url; };
-    img.src = url;
+    _revokeUrl = URL.createObjectURL(blob);
+    img.src = _revokeUrl;
   }
 }
 
