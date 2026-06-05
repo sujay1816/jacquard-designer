@@ -2586,6 +2586,23 @@ document.addEventListener('keydown', function(e) {
       }
     }
   })();
+
+  // ── Handle image sent from the BMP Editor ──────────────────────────────
+  (function() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('from_editor') === '1') {
+      const b64 = sessionStorage.getItem('from_editor_b64');
+      if (b64) {
+        sessionStorage.removeItem('from_editor_b64');
+        fetch('data:image/png;base64,' + b64)
+          .then(r => r.blob())
+          .then(blob => {
+            const file = new File([blob], 'from_editor.png', { type: 'image/png' });
+            requestAnimationFrame(() => handleFile(file));
+          });
+      }
+    }
+  })();
 </script>
 
 <!-- Lightbox -->

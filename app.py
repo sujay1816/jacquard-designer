@@ -8,7 +8,8 @@ import numpy as np
 import io, os, zipfile, base64
 from bmp_engine import (detect_colors, generate_bmps, verify_bmp, enhance_image,
                         assess_image_quality, extract_outline,
-                        generate_fill_pattern, FILL_PATTERNS)
+                        generate_fill_pattern, FILL_PATTERNS, write_1bit_bmp)
+from border_engine import generate_border_bmps, detect_border
 
 app = Flask(__name__)
 app.secret_key = 'jq-designer-2024'
@@ -685,10 +686,10 @@ def api_bmp_process():
         out_img.save(buf, format='PNG')
         b64 = base64.b64encode(buf.getvalue()).decode()
 
-        # Also encode as BMP for download
-        bmp_buf = io.BytesIO()
-        out_img.save(bmp_buf, format='BMP')
-        bmp_b64 = base64.b64encode(bmp_buf.getvalue()).decode()
+        # Also encode as a TRUE 1-bit BMP (loom format) via the engine's writer.
+        # write_1bit_bmp expects 0 = black/UP, 1 = white/DOWN.
+        bmp_bytes = write_1bit_bmp(np.where(result_mask, np.uint8(0), np.uint8(1)))
+        bmp_b64 = base64.b64encode(bmp_bytes).decode()
 
         return jsonify({
             'success':    True,
@@ -706,6 +707,282 @@ def api_bmp_process():
     except Exception as e:
         import traceback
         return jsonify({'success': False, 'error': str(e), 'trace': traceback.format_exc()})
+
+
+@app.route('/border')
+def border_page():
+    """Dedicated page for border / running-line designs (high-detail mode)."""
+    from flask import make_response
+    resp = make_response(render_template('border.html'))
+    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    resp.headers['Pragma']        = 'no-cache'
+    resp.headers['Expires']       = '0'
+    return resp
+
+
+@app.route('/api/border-detect', methods=['POST'])
+def api_border_detect():
+    """
+    Ink-first colour detection for border designs.
+
+    Separates ink from paper with an adaptive threshold, then classifies only
+    the ink pixels into true thread colours — avoiding the muddy "blend halo"
+    cluster a flat KMeans produces on fine line-art.
+
+    Form fields: image, pins, cards (optional), n_colors (total incl. paper),
+                 ink_sensitivity (optional, default 1.0)
+    Response shape matches /api/detect-colors plus ink_centers.
+    """
+    try:
+        if 'image' not in request.files:
+            return _json_error('No image file uploaded.')
+        file = request.files['image']
+        if not file.filename:
+            return _json_error('No file selected.')
+        ext = os.path.splitext(file.filename)[1].lower()
+        if ext not in ALLOWED_EXTENSIONS:
+            return _json_error(f'Unsupported file type "{ext}".')
+
+        try:
+            pins = int(request.form.get('pins', 400))
+        except (ValueError, TypeError):
+            return _json_error('Pins must be a whole number.')
+        if pins < 10:
+            return _json_error('Pins must be at least 10.')
+
+        try:
+            n_colors = int(request.form.get('n_colors', 3))
+        except (ValueError, TypeError):
+            return _json_error('n_colors must be a whole number.')
+        n_colors = max(2, min(8, n_colors))
+        max_ink = max(1, n_colors - 1)
+
+        try:
+            ink_sensitivity = float(request.form.get('ink_sensitivity', 1.0))
+        except (ValueError, TypeError):
+            ink_sensitivity = 1.0
+        ink_sensitivity = max(0.25, min(3.0, ink_sensitivity))
+
+        cards_raw = request.form.get('cards', '').strip()
+        cards = None
+        if cards_raw:
+            try:
+                cards = int(cards_raw)
+                if cards < 10:
+                    return _json_error('Cards must be at least 10.')
+            except ValueError:
+                return _json_error('Cards must be a whole number.')
+
+        try:
+            img = Image.open(file.stream)
+            img = ImageOps.exif_transpose(img).convert('RGB')
+        except UnidentifiedImageError:
+            return _json_error('Could not read the uploaded file as an image.')
+
+        orig_w, orig_h = img.size
+        if cards is None:
+            cards = max(10, int(pins * orig_h / orig_w))
+
+        det = detect_border(img, pins, cards,
+                            max_ink_colors=max_ink, ink_sensitivity=ink_sensitivity)
+
+        def _to_b64(pil_img, fmt='PNG'):
+            buf = io.BytesIO(); pil_img.save(buf, format=fmt)
+            return base64.b64encode(buf.getvalue()).decode()
+
+        resized   = img.resize((pins, cards), Image.LANCZOS)
+        preview_img = Image.fromarray(det['preview'])
+        label_img   = Image.fromarray(det['label_map'].astype(np.uint8), mode='L')
+
+        full_img_send = img
+        if max(img.width, img.height) > 800:
+            sc = 800 / max(img.width, img.height)
+            full_img_send = img.resize((int(img.width * sc), int(img.height * sc)),
+                                       Image.LANCZOS)
+        buf_full = io.BytesIO(); full_img_send.save(buf_full, format='JPEG', quality=85)
+
+        return jsonify({
+            'success':        True,
+            'colors':         det['colors'],
+            'ink_centers':    det['ink_centers'],
+            'preview_image':  _to_b64(preview_img),
+            'original_image': _to_b64(resized),
+            'full_image':     base64.b64encode(buf_full.getvalue()).decode(),
+            'label_map':      _to_b64(label_img),
+            'pins':           pins,
+            'cards':          cards,
+        })
+
+    except Exception as e:
+        import traceback
+        return _json_error(f'Border detection failed: {e}')
+
+
+@app.route('/api/border-generate', methods=['POST'])
+def api_border_generate():
+    """
+    Generate BMP files for a border design using the high-detail border engine.
+
+    Same JSON contract as /api/generate, plus:
+        palette          : [[r,g,b], ...]  colours by index (from detect step)
+        detail_retention : float 0-1       lower = preserve more fine detail
+        hi_detail        : bool            use high-res detection (default true)
+
+    Response shape matches /api/generate (zip_b64, files, verification,
+    previews, bmp_b64) so the frontend can reuse the same rendering code.
+    """
+    try:
+        if not request.is_json:
+            return _json_error('Request must be JSON.')
+        data = request.get_json(silent=True)
+        if data is None:
+            return _json_error('Invalid or empty JSON body.')
+
+        for field in ('image_b64', 'pins', 'cards', 'shuttle_count', 'color_assignments'):
+            if field not in data:
+                return _json_error(f'Missing required field: {field}')
+
+        try:
+            pins          = int(data['pins'])
+            cards         = int(data['cards'])
+            shuttle_count = int(data['shuttle_count'])
+        except (ValueError, TypeError) as e:
+            return _json_error(f'Invalid numeric field: {e}')
+
+        if pins < 10:
+            return _json_error('Pins must be at least 10.')
+        if cards < 10:
+            return _json_error('Cards must be at least 10.')
+        if shuttle_count not in (1, 2, 3, 4):
+            return _json_error('Shuttle count must be 1, 2, 3, or 4.')
+
+        # Prefer the full-resolution source for high-res detection; fall back
+        # to the resized image if the frontend didn't send it.
+        src_img = None
+        if data.get('full_image'):
+            try:
+                src_img = Image.open(
+                    io.BytesIO(base64.b64decode(data['full_image']))).convert('RGB')
+            except Exception:
+                src_img = None
+        if src_img is None:
+            try:
+                src_img = Image.open(
+                    io.BytesIO(base64.b64decode(data['image_b64']))).convert('RGB')
+            except Exception:
+                return _json_error('Could not decode image data.')
+
+        # Sanitise design name (same rules as /api/generate)
+        design_name = str(data.get('design_name', 'border')).strip() or 'border'
+        design_name = ''.join(c for c in design_name if c.isalnum() or c in '_- ')
+        design_name = design_name.replace(' ', '_') or 'border'
+
+        try:
+            color_assignments = {int(k): str(v)
+                                 for k, v in data['color_assignments'].items()}
+        except (ValueError, TypeError) as e:
+            return _json_error(f'Invalid color_assignments: {e}')
+
+        # Satin settings (same validation as /api/generate)
+        raw_satin = data.get('satin_settings', {})
+        satin_settings = {}
+        valid_n = {4, 5, 6, 7, 8, 16}
+        for k, v in raw_satin.items():
+            try:
+                n = int(v.get('n', 8))
+            except (ValueError, TypeError):
+                return _json_error(f'Satin n for "{k}" must be a whole number.')
+            if n not in valid_n:
+                return _json_error(f'Satin n for "{k}" must be one of {sorted(valid_n)}.')
+            min_h = int(v.get('min_height', 9999))
+            if min_h < 1:   min_h = 1
+            if min_h > 99999: min_h = 99999
+            pattern = str(v.get('pattern', 'satin')).lower().strip()
+            if pattern not in FILL_PATTERNS:
+                pattern = 'satin'
+            satin_settings[str(k)] = {
+                'n': n, 'flip': bool(v.get('flip', False)),
+                'min_height': min_h, 'pattern': pattern,
+                'weave_off': bool(v.get('weave_off', False)),
+            }
+
+        # Label map (target resolution) — optional fallback / shape reference
+        label_map = None
+        if data.get('label_map'):
+            try:
+                lm_img = Image.open(
+                    io.BytesIO(base64.b64decode(data['label_map']))).convert('L')
+                label_map = np.array(lm_img)
+            except Exception:
+                label_map = None
+
+        # Palette (RGB per colour index) — makes hi-res assignment robust
+        palette_rgb = data.get('palette') or None
+
+        # Detail retention (pool threshold). Clamp to a sane range.
+        try:
+            detail_retention = float(data.get('detail_retention', 0.18))
+        except (ValueError, TypeError):
+            detail_retention = 0.18
+        detail_retention = max(0.0, min(0.9, detail_retention))
+
+        hi_detail = bool(data.get('hi_detail', True))
+
+        try:
+            ink_sensitivity = float(data.get('ink_sensitivity', 1.0))
+        except (ValueError, TypeError):
+            ink_sensitivity = 1.0
+        ink_sensitivity = max(0.25, min(3.0, ink_sensitivity))
+
+        bmp_files = generate_border_bmps(
+            image=src_img,
+            pins=pins,
+            cards=cards,
+            shuttle_count=shuttle_count,
+            color_assignments=color_assignments,
+            satin_settings=satin_settings,
+            design_name=design_name,
+            label_map=label_map,
+            palette_rgb=palette_rgb,
+            detail_retention=detail_retention,
+            ink_sensitivity=ink_sensitivity,
+            hi_detail=hi_detail,
+        )
+
+        verification = {fname: verify_bmp(bdata)
+                        for fname, bdata in bmp_files.items()}
+
+        zip_buf = io.BytesIO()
+        with zipfile.ZipFile(zip_buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for fname, bdata in bmp_files.items():
+                zf.writestr(fname, bdata)
+        zip_b64 = base64.b64encode(zip_buf.getvalue()).decode()
+
+        previews = {}
+        bmp_b64  = {}
+        for fname, bdata in bmp_files.items():
+            thumb = Image.open(io.BytesIO(bdata)).convert('RGB')
+            thumb.thumbnail((300, 300), Image.NEAREST)
+            buf = io.BytesIO()
+            thumb.save(buf, format='PNG')
+            previews[fname] = base64.b64encode(buf.getvalue()).decode()
+            bmp_b64[fname]  = base64.b64encode(bdata).decode()
+
+        return jsonify({
+            'success':      True,
+            'zip_b64':      zip_b64,
+            'zip_filename': f'{design_name}_jacquard.zip',
+            'files':        list(bmp_files.keys()),
+            'verification': verification,
+            'previews':     previews,
+            'bmp_b64':      bmp_b64,
+        })
+
+    except ValueError as e:
+        return _json_error(str(e))
+    except Exception as e:
+        import traceback
+        return _json_error(f'Border generation failed: {e}')
 
 
 if __name__ == '__main__':

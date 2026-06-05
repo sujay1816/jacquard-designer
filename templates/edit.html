@@ -1271,28 +1271,39 @@ function pushHist(label) {
     S.history.shift();
     S.hi = Math.max(-1, S.hi - 1);  // keep pointer valid after shift
   }
-  S.history.push({ p: S.pixels.slice(), label });
+  S.history.push({ p: S.pixels.slice(), w: S.W, h: S.H, label });
   S.hi = S.history.length - 1;
   renderHist();
   updateUndoRedoBtns();
+}
+
+// Restore a history entry's pixels AND its canvas dimensions, so undo/redo
+// across a Rotate 90°/270° or Canvas Resize no longer corrupts the canvas.
+function restoreHistEntry(i) {
+  const h = S.history[i];
+  S.pixels = h.p.slice();
+  if (h.w && h.h && (h.w !== S.W || h.h !== S.H)) {
+    MC.width = OC.width = S.W = h.w;
+    MC.height = OC.height = S.H = h.h;
+    applyZoom();
+  }
+  render(); updateStats(); renderHist(); updateUndoRedoBtns();
 }
 
 function undo() {
   if (S.hi <= 0) return;
   cancelPaste();
   clearSelection();
-  S.pixels = S.history[--S.hi].p.slice();
-  render(); updateStats(); renderHist();
-  updateUndoRedoBtns();
+  S.hi--;
+  restoreHistEntry(S.hi);
 }
 
 function redo() {
   if (S.hi >= S.history.length - 1) return;
   cancelPaste();
   clearSelection();
-  S.pixels = S.history[++S.hi].p.slice();
-  render(); updateStats(); renderHist();
-  updateUndoRedoBtns();
+  S.hi++;
+  restoreHistEntry(S.hi);
 }
 
 function updateUndoRedoBtns() {
@@ -1318,7 +1329,7 @@ function renderHist() {
     const el = document.createElement('div');
     el.className = 'hitem' + (i === S.hi ? ' cur' : '');
     el.innerHTML = `<span>${h.label}</span><div class="hdot"></div>`;
-    el.onclick = () => { S.hi=i; S.pixels=S.history[i].p.slice(); render(); updateStats(); renderHist(); };
+    el.onclick = () => { S.hi=i; restoreHistEntry(i); };
     list.appendChild(el);
   });
 }
@@ -1652,20 +1663,62 @@ function updateStats() {
 // ═══════════════════════════════════════════════════
 // DOWNLOAD / SEND BACK
 // ═══════════════════════════════════════════════════
+// Encode the binary canvas as a TRUE 1-bit BMP (matches the engine's
+// write_1bit_bmp: 0=black/UP, 1=white/DOWN, MSB-first, bottom-up rows).
+function encode1bitBMP(pixels, W, H) {
+  const rowStride   = Math.floor((W + 31) / 32) * 4;
+  const imageSize   = rowStride * H;
+  const pixelOffset = 62;                       // 14 file + 40 DIB + 8 palette
+  const fileSize    = pixelOffset + imageSize;
+  const buf = new ArrayBuffer(fileSize);
+  const dv  = new DataView(buf);
+  let o = 0;
+  dv.setUint8(o++, 0x42); dv.setUint8(o++, 0x4D);          // 'BM'
+  dv.setUint32(o, fileSize, true);    o += 4;
+  dv.setUint16(o, 0, true);           o += 2;
+  dv.setUint16(o, 0, true);           o += 2;
+  dv.setUint32(o, pixelOffset, true); o += 4;
+  dv.setUint32(o, 40, true);          o += 4;              // DIB header size
+  dv.setInt32 (o, W, true);           o += 4;
+  dv.setInt32 (o, H, true);           o += 4;              // +H => bottom-up
+  dv.setUint16(o, 1, true);           o += 2;              // planes
+  dv.setUint16(o, 1, true);           o += 2;              // bits per pixel
+  dv.setUint32(o, 0, true);           o += 4;              // no compression
+  dv.setUint32(o, imageSize, true);   o += 4;
+  dv.setInt32 (o, 4096, true);        o += 4;              // X ppm
+  dv.setInt32 (o, 4096, true);        o += 4;              // Y ppm
+  dv.setUint32(o, 2, true);           o += 4;              // colours used
+  dv.setUint32(o, 2, true);           o += 4;              // important
+  dv.setUint8(o++,0);  dv.setUint8(o++,0);  dv.setUint8(o++,0);  dv.setUint8(o++,0);   // idx0 black
+  dv.setUint8(o++,255);dv.setUint8(o++,255);dv.setUint8(o++,255);dv.setUint8(o++,0);   // idx1 white
+  for (let row = 0; row < H; row++) {
+    const srcRow  = H - 1 - row;                           // bottom-up
+    const rowBase = pixelOffset + row * rowStride;
+    for (let col = 0; col < W; col++) {
+      const px  = pixels[(srcRow * W + col) * 4];          // R channel
+      if (px >= 128) {                                     // white => bit 1
+        const bi = rowBase + (col >> 3);
+        dv.setUint8(bi, dv.getUint8(bi) | (0x80 >> (col & 7)));
+      }
+    }
+  }
+  return new Blob([buf], { type: 'image/bmp' });
+}
+
 function downloadBMP() {
   if (!S.pixels) { toast('No file loaded'); return; }
-  const oc=Object.assign(document.createElement('canvas'),{width:S.W,height:S.H});
-  oc.getContext('2d').putImageData(new ImageData(S.pixels.slice(),S.W,S.H),0,0);
-  oc.toBlob(blob=>{
-    const url=URL.createObjectURL(blob);
-    const a=Object.assign(document.createElement('a'),{href:url,download:S.filename.replace(/\.(bmp|png)$/i,'')+'_edited.bmp'});
-    a.click(); URL.revokeObjectURL(url);
-    toast('Downloaded: '+a.download);
-  },'image/png');
+  const blob = encode1bitBMP(S.pixels, S.W, S.H);
+  const url  = URL.createObjectURL(blob);
+  const a = Object.assign(document.createElement('a'),
+            {href:url, download:S.filename.replace(/\.(bmp|png)$/i,'')+'_edited.bmp'});
+  a.click(); URL.revokeObjectURL(url);
+  toast('Downloaded: '+a.download);
 }
 
 function sendToGenerator() {
   if (!S.pixels) { toast('No file loaded'); return; }
+  // The Generator takes a source IMAGE to re-detect; a PNG is the right format
+  // here (the loom-ready 1-bit BMP is what Download produces).
   const oc=Object.assign(document.createElement('canvas'),{width:S.W,height:S.H});
   oc.getContext('2d').putImageData(new ImageData(S.pixels.slice(),S.W,S.H),0,0);
   oc.toBlob(blob=>{
@@ -1673,8 +1726,8 @@ function sendToGenerator() {
     reader.onload=e=>{
       try {
         sessionStorage.setItem('from_editor_b64', e.target.result.split(',')[1]);
-        window.open('/', '_blank');
-        toast('Opened Generator in new tab — upload the BMP there');
+        window.open('/?from_editor=1', '_blank');
+        toast('Opened Generator — loading edited image…');
       } catch { downloadBMP(); alert('Downloaded the BMP — upload it to the Generator manually.'); }
     };
     reader.readAsDataURL(blob);
@@ -2583,7 +2636,7 @@ function applyCanvasSize() {
     toast('Enter valid width and height (1–9999)'); return;
   }
   if (newW===S.W && newH===S.H) { toast('Same size — no change'); return; }
-  pushHist(`Resize canvas ${S.W}×${S.H} → ${newW}×${newH}`);
+  const label = `Resize canvas ${S.W}×${S.H} → ${newW}×${newH}`;
   const newPx = new Uint8ClampedArray(newW*newH*4).fill(255);
   // Set alpha
   for (let i=3;i<newPx.length;i+=4) newPx[i]=255;
@@ -2597,6 +2650,7 @@ function applyCanvasSize() {
   MC.width=OC.width=S.W=newW;
   MC.height=OC.height=S.H=newH;
   S.pixels=newPx;
+  pushHist(label);   // capture new state WITH new dimensions (undo-safe)
   S.fillPat=null; // invalidate fill pattern
   clearSelection();
   cancelPaste();
