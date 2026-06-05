@@ -1241,6 +1241,47 @@ async function assessImageQuality(file) {
 }
 
 // Common loom pin counts for snapping suggestions
+function updateBgPreview(sName) {
+  const canvas = document.getElementById(`bg-preview-${sName}`);
+  if (!canvas) return;
+  const pat = document.getElementById(`bg-pattern-${sName}`)?.value || 'diagonal';
+  const n   = parseInt(document.getElementById(`bg-n-${sName}`)?.value || '32');
+  const W = canvas.width, H = canvas.height;
+  const ctx = canvas.getContext('2d');
+  const id  = ctx.createImageData(W, H);
+  // White background
+  for (let i = 0; i < W * H * 4; i += 4) {
+    id.data[i]=id.data[i+1]=id.data[i+2]=255; id.data[i+3]=255;
+  }
+  // Apply pattern
+  for (let r = 0; r < H; r++) {
+    for (let c = 0; c < W; c++) {
+      let fire = false;
+      if      (pat === 'diagonal')     fire = (r+c)%n === 0;
+      else if (pat === 'diagonal_inv') fire = ((r-c+n*100)%n) === 0;
+      else if (pat === 'diamond')      fire = (r+c)%n===0 || ((r-c+n*100)%n)===0;
+      else if (pat === 'dots')         fire = r%n===0 && c%n===0;
+      else if (pat === 'horizontal')   fire = r%n===0;
+      else if (pat === 'vertical')     fire = c%n===0;
+      else if (pat === 'grid')         fire = r%n===0 || c%n===0;
+      else if (pat === 'brick') {
+        const half=Math.max(1,Math.floor(n/2));
+        const rowGroup=Math.floor(r/n);
+        const shift=rowGroup%2===1?half:0;
+        fire=r%n===0||((c+shift)%n===0);
+      }
+      else if (pat === 'satin')        { const wc=((-r)%n+n)%n; fire=c%n===wc; }
+      else if (pat === 'herringbone')  { const half=Math.max(1,Math.floor(n/2)); fire=(r+c)%(n)===0||(r-c+n*100)%(n)===Math.floor(n/2); }
+      else if (pat === 'plain_weave')  fire=(r+c)%2===0 && r%n===0;
+      if (fire) {
+        const i=(r*W+c)*4;
+        id.data[i]=id.data[i+1]=id.data[i+2]=0; id.data[i+3]=255;
+      }
+    }
+  }
+  ctx.putImageData(id,0,0);
+}
+
 const LOOM_PIN_STEPS = [120, 240, 360, 480, 600, 720, 1080, 1200, 1440];
 
 function snapToLoom(px) {
@@ -1968,15 +2009,40 @@ function renderSatinSettings() {
           </label>
         </div>
         <div id="bg-settings-${sName}">
-          <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
-            <span style="font-size:10px;color:var(--muted);white-space:nowrap">Period</span>
+          <!-- Pattern selector -->
+          <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+            <span style="font-size:10px;color:var(--muted);white-space:nowrap">Pattern</span>
+            <select id="bg-pattern-${sName}"
+              style="flex:1;padding:3px 5px;background:var(--surface2);border:1px solid var(--border);
+                     color:var(--text);border-radius:4px;font-size:10px;font-family:'DM Mono',monospace"
+              onchange="updateBgPreview('${sName}')">
+              <option value="diagonal" selected>Diagonal Lines (reference)</option>
+              <option value="diagonal_inv">Diagonal Lines (reverse)</option>
+              <option value="diamond">Diamond Grid</option>
+              <option value="dots">Dots</option>
+              <option value="horizontal">Horizontal Lines</option>
+              <option value="vertical">Vertical Lines</option>
+              <option value="grid">Grid (H+V)</option>
+              <option value="brick">Brick</option>
+              <option value="satin">Satin Weave</option>
+              <option value="herringbone">Herringbone</option>
+              <option value="plain_weave">Plain Weave</option>
+            </select>
+          </div>
+          <!-- Density slider -->
+          <div style="display:flex;align-items:center;gap:8px;margin-top:5px">
+            <span style="font-size:10px;color:var(--muted);white-space:nowrap">Density N</span>
             <input type="range" id="bg-n-${sName}" min="4" max="64" value="32"
               style="flex:1;accent-color:var(--gold)"
-              oninput="document.getElementById('bg-n-val-${sName}').textContent=this.value">
+              oninput="document.getElementById('bg-n-val-${sName}').textContent=this.value; updateBgPreview('${sName}')">
             <span id="bg-n-val-${sName}" style="font-size:10px;color:var(--text);width:16px">32</span>
           </div>
+          <!-- Live preview canvas -->
+          <canvas id="bg-preview-${sName}" width="200" height="28"
+            style="width:100%;margin-top:5px;border:1px solid var(--border);border-radius:4px;
+                   image-rendering:pixelated;background:#fff;display:block"></canvas>
           <div style="font-size:9px;color:#888;margin-top:3px">
-            Diagonal: 1 black line every N pixels. N=16-32 matches reference.
+            N=32 diagonal matches reference background texture.
           </div>
         </div>
       </div>
@@ -2260,9 +2326,15 @@ async function generateBMPs() {
   // Collect background-texture settings per shuttle
   const bgTextureSettings = {};
   shuttles.forEach(sName => {
-    const cb = document.getElementById(`bg-toggle-${sName}`);
-    const n  = document.getElementById(`bg-n-${sName}`);
-    if (cb && cb.checked) bgTextureSettings[sName] = n ? parseInt(n.value) : 8;
+    const cb  = document.getElementById(`bg-toggle-${sName}`);
+    const pat = document.getElementById(`bg-pattern-${sName}`);
+    const n   = document.getElementById(`bg-n-${sName}`);
+    if (cb && cb.checked) {
+      bgTextureSettings[sName] = {
+        pattern: pat ? pat.value : 'diagonal',
+        n:       n   ? parseInt(n.value) : 32,
+      };
+    }
   });
 
   // Collect outline→white settings per shuttle

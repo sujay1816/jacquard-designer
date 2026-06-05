@@ -1166,6 +1166,73 @@ def apply_outer_face_white(arr: np.ndarray,
     return flat_new.reshape(H, W).astype(np.uint8)
 
 
+def apply_bg_pattern(arr: np.ndarray,
+                     pattern: str,
+                     n: int,
+                     claimed: np.ndarray = None) -> np.ndarray:
+    """
+    Apply a sparse background texture pattern to the white (background) pixels
+    of arr. Only fires on pixels that are white AND not claimed by any other
+    shuttle (true background).
+
+    arr:     BMP array  0=black(UP), 1=white(DOWN)
+    pattern: one of 'diagonal','dots','diamond','horizontal','vertical',
+             'brick','satin','plain_weave','twill22','herringbone','none'
+    n:       period / density (higher = sparser)
+    claimed: bool mask (H×W), True where another shuttle fires — these pixels
+             are skipped even if white in arr.
+    """
+    if pattern == 'none' or n <= 0:
+        return arr
+    H, W = arr.shape
+    flat     = arr.flatten()
+    claimed_f = claimed.flatten() if claimed is not None else None
+    new_flat = flat.copy()
+
+    if pattern in ('satin','satin_inv','plain_weave','twill22','herringbone',
+                   'diamond_weave','dots'):
+        # Use the existing fill-pattern library (these are dense weave patterns)
+        # For background we apply them at high N to keep them sparse.
+        pat = generate_fill_pattern(pattern, n, W, H).flatten()
+        for p in range(H * W):
+            if flat[p] == 1:  # white background pixel
+                if claimed_f is not None and claimed_f[p]:
+                    continue  # claimed by another shuttle
+                if pat[p] == 0:  # pattern says fire here
+                    new_flat[p] = 0
+    else:
+        # Geometric sparse patterns
+        for r in range(H):
+            for c in range(W):
+                p = r * W + c
+                if flat[p] != 1:
+                    continue
+                if claimed_f is not None and claimed_f[p]:
+                    continue
+                fire = False
+                if pattern == 'diagonal':
+                    fire = (r + c) % n == 0
+                elif pattern == 'diagonal_inv':
+                    fire = (r - c) % n == 0
+                elif pattern == 'dots':
+                    fire = (r % n == 0) and (c % n == 0)
+                elif pattern == 'diamond':
+                    fire = ((r + c) % n == 0) or ((r - c) % n == 0)
+                elif pattern == 'horizontal':
+                    fire = r % n == 0
+                elif pattern == 'vertical':
+                    fire = c % n == 0
+                elif pattern == 'brick':
+                    half = max(1, n // 2)
+                    row_shift = half if (r // n) % 2 == 1 else 0
+                    fire = (r % n == 0) or (c % n == 0 and (r // n) % 2 == 0)                            or ((c + row_shift) % n == 0 and (r // n) % 2 == 1)
+                elif pattern == 'grid':
+                    fire = (r % n == 0) or (c % n == 0)
+                if fire:
+                    new_flat[p] = 0
+    return new_flat.reshape(H, W).astype(np.uint8)
+
+
 def generate_bmps(
     image: Image.Image,
     pins: int,
@@ -1273,15 +1340,10 @@ def generate_bmps(
             if invert_output and invert_output.get('zari'):
                 arr = np.where(arr == 0, np.uint8(1), np.uint8(0))
             if bg_texture and bg_texture.get('zari', 0):
-                period = int(bg_texture.get('zari', 8))
-                if period > 0:
-                    arr_h, arr_w = arr.shape
-                    arr_f = arr.flatten()
-                    for _r in range(arr_h):
-                        for _c in range(arr_w):
-                            if arr_f[_r*arr_w+_c] == 1 and (_r+_c) % period == 0:
-                                arr_f[_r*arr_w+_c] = 0
-                    arr = arr_f.reshape(arr_h, arr_w)
+                _bg_cfg = bg_texture.get('zari', 0)
+                _bg_pat = _bg_cfg.get('pattern','diagonal') if isinstance(_bg_cfg,dict) else 'diagonal'
+                _bg_n   = int(_bg_cfg.get('n',32)) if isinstance(_bg_cfg,dict) else int(_bg_cfg)
+                arr = apply_bg_pattern(arr, _bg_pat, _bg_n)
             results[f'{design_name}_zari.bmp'] = write_1bit_bmp(arr)
 
         else:
@@ -1396,20 +1458,17 @@ def generate_bmps(
             arr = shuttle_arrays.get(sname)
             if arr is None:
                 continue
-            if bg_texture and bg_texture.get(sname, 0):
-                period = int(bg_texture.get(sname, 8))
-                if period > 0:
-                    arr_h, arr_w = arr.shape
-                    arr_f = arr.flatten()
-                    claimed_f = _all_claimed.flatten()
-                    for _r in range(arr_h):
-                        for _c in range(arr_w):
-                            p = _r * arr_w + _c
-                            # Only apply diagonal if white in this shuttle AND
-                            # not claimed by ANY named shuttle (true background)
-                            if arr_f[p] == 1 and not claimed_f[p] and (_r + _c) % period == 0:
-                                arr_f[p] = 0
-                    arr = arr_f.reshape(arr_h, arr_w)
+            bg_cfg = bg_texture.get(sname, 0) if bg_texture else 0
+            if bg_cfg:
+                # bg_cfg can be int (legacy diagonal period) or dict {pattern, n}
+                if isinstance(bg_cfg, dict):
+                    bg_pat = bg_cfg.get('pattern', 'diagonal')
+                    bg_n   = int(bg_cfg.get('n', 32))
+                else:
+                    bg_pat = 'diagonal'
+                    bg_n   = int(bg_cfg)
+                if bg_n > 0 and bg_pat != 'none':
+                    arr = apply_bg_pattern(arr, bg_pat, bg_n, _all_claimed)
             results[f'{design_name}_{sname}.bmp'] = write_1bit_bmp(arr)
 
         # ── Rani: plain weave base + any remaining design colour ────────────
