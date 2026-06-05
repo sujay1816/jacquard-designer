@@ -1427,7 +1427,7 @@ function onMD(e) {
     return;
   }
 
-  if (S.tool==='fill')  { pushHist(`Fill (${x},${y})`); fill(x,y,dv(e.button)); render(); updateStats(); return; }
+  if (S.tool==='fill')  { fill(x,y,dv(e.button)); pushHist(`Fill (${x},${y})`); render(); updateStats(); return; }
   if (S.tool==='weave-fill')     { fillRegionAt(x, y);     return; }
     if (S.tool==='smart-fill')  { smartFillRegionAt(x, y); return; }
   if (S.tool==='invert-region')  { invertRegionAt(x, y);  return; }
@@ -1496,11 +1496,11 @@ function onMU(e) {
     return;
   }
 
-  if (S.tool==='line'&&S.lineStart) { pushHist('Line'); line(S.lineStart.x,S.lineStart.y,x,y); S.lineStart=null; render(); updateStats(); return; }
+  if (S.tool==='line'&&S.lineStart) { line(S.lineStart.x,S.lineStart.y,x,y); pushHist('Line'); S.lineStart=null; render(); updateStats(); return; }
   if (S.tool==='rect'&&S.rectStart) {
-    pushHist('Rectangle');
     const x0=Math.min(S.rectStart.x,x),x1=Math.max(S.rectStart.x,x),y0=Math.min(S.rectStart.y,y),y1=Math.max(S.rectStart.y,y);
     for(let ry=y0;ry<=y1;ry++) for(let rx=x0;rx<=x1;rx++) spx(rx,ry,dv(S._btn));
+    pushHist('Rectangle');
     S.rectStart=null; render(); updateStats(); return;
   }
   if (S.painting) {
@@ -1606,12 +1606,12 @@ function runMorph(op) { runOp(op, {radius:S.params[op], min_size:S.params[op]});
 // Invert: swap every black<->white pixel directly in JS (no server round-trip)
 function invertCanvas() {
   if (!S.pixels) { toast('No file loaded'); return; }
-  pushHist('Invert Black↔White');
   for (let i = 0; i < S.pixels.length; i += 4) {
     const v = S.pixels[i] < 128 ? 255 : 0;
     S.pixels[i] = S.pixels[i+1] = S.pixels[i+2] = v;
     S.pixels[i+3] = 255;
   }
+  pushHist('Invert Black↔White');
   render(); updateStats();
   toast('Inverted: black ↔ white');
 }
@@ -1946,7 +1946,6 @@ function fillInteriors() {
   const invert  = document.getElementById('fi-invert')?.checked || false;
 
   // ── Step 5: apply pattern only to interior pixels ─────────────────────
-  pushHist('Fill Interiors: ' + pattern + (invert ? ' (inverted)' : ''));
   const newPx = S.pixels.slice();
 
   for (const pos of interior) {
@@ -1958,8 +1957,8 @@ function fillInteriors() {
   }
 
   S.pixels = newPx;
-  render();
-  updateStats();
+  pushHist('Fill Interiors: ' + pattern + (invert ? ' (inverted)' : ''));
+  render(); updateStats();
   closePopup('fillint');
   toast('⬡ Filled ' + interior.length.toLocaleString() + ' interior pixels with ' + pattern + (invert ? ' (inverted)' : '') + ' (N=' + n + ')');
 }
@@ -2063,7 +2062,6 @@ function fillRegionAt(cx, cy) {
 
   // Generate and apply pattern
   const patArr = generateFillJS(pattern, n, W, H);
-  pushHist('Weave Fill: ' + pattern);
   const newPx = S.pixels.slice();
 
   for (const p of region) {
@@ -2078,6 +2076,7 @@ function fillRegionAt(cx, cy) {
   _turnOutlineWhite(region, newPx, S.pixels, W, H);
 
   S.pixels = newPx;
+  pushHist('Weave Fill: ' + pattern);
   render();
   updateStats();
   // Tool stays armed — no disarm, keep clicking other regions
@@ -2136,7 +2135,6 @@ function smartFillRegionAt(cx, cy) {
   const isSolid = pat === '_solid_';
   const patArr  = isSolid ? null : generateFillJS(pat, n, W, H);
 
-  pushHist('Smart Fill');
   const newPx    = S.pixels.slice();
   const regionSet = new Uint8Array(W * H);
   for (const p of region) regionSet[p] = 1;
@@ -2162,6 +2160,7 @@ function smartFillRegionAt(cx, cy) {
   }
 
   S.pixels = newPx;
+  pushHist('Smart Fill');
   render(); updateStats();
   toast(`⬡✦ Smart filled ${region.length.toLocaleString()} px — stays armed`);
   // Tool stays armed
@@ -2228,20 +2227,20 @@ function invertRegionAt(cx, cy) {
     }
 
     const label = 'Invert hollow' + (applyWeave ? ' + ' + pattern : '');
-    pushHist(label);
     S.pixels = newPx;
+    pushHist(label);
     render(); updateStats();
     toast('⬡↔ Interior→black (' + hollow.length.toLocaleString() + ' px), outline→white' +
           (applyWeave ? ', weave: ' + pattern : ''));
 
   } else {
     // ── Clicked on a BLACK region ── simple invert (original behaviour)
-    pushHist('Invert black region');
     for (const p of hollow) {
       const i = p * 4;
       newPx[i] = newPx[i+1] = newPx[i+2] = 255; newPx[i+3] = 255;
     }
     S.pixels = newPx;
+    pushHist('Invert black region');
     render(); updateStats();
     toast('⬡↔ Black→White: ' + hollow.length.toLocaleString() + ' pixels');
   }
@@ -2468,9 +2467,9 @@ function cutSelection() {
 // ── Delete ───────────────────────────────────────
 function deleteSelection() {
   if (!S.selActive||!S.sel) return;
-  pushHist('Delete selection');
   const {x0,y0,x1,y1}=S.sel;
   for (let dy=y0;dy<=y1;dy++) for (let dx=x0;dx<=x1;dx++) spx(dx,dy,255);
+  pushHist('Delete selection');
   render(); updateStats();
   toast('Deleted selection');
 }
@@ -2520,12 +2519,12 @@ function drawPastePreview() {
 
 function commitPaste() {
   if (!S.clipboard||!S.pastePos) return;
-  pushHist('Paste');
   const {x,y}=S.pastePos, {pixels:cp,w,h}=S.clipboard;
   for (let dy=0;dy<h;dy++) for (let dx=0;dx<w;dx++) {
     const si=(dy*w+dx)*4;
     spx(x+dx, y+dy, cp[si]);  // cp[si] is 0 or 255
   }
+  pushHist('Paste');
   // Set new selection around pasted area
   S.sel={x0:x,y0:y,x1:Math.min(S.W-1,x+w-1),y1:Math.min(S.H-1,y+h-1)};
   S.selActive=true;
