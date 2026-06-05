@@ -1360,15 +1360,55 @@ def generate_bmps(
             if invert_output and invert_output.get(sname):
                 arr = np.where(arr == 0, np.uint8(1), np.uint8(0))
             shuttle_arrays[sname] = arr
+            # (bg_texture and write applied after mutual exclusion below)
+
+        # ── Mutual exclusion: enforce no two named shuttles fire at same pixel ──
+        # In a Jacquard loom each needle can only be UP for ONE thread at a time.
+        # Priority: zari > meena1 > meena2 (in order of shuttle_names list).
+        # Where two shuttles both have 0 (UP), keep the higher-priority one,
+        # set the lower-priority ones to 1 (DOWN) at that pixel.
+        if len(shuttle_names) > 1:
+            claimed = np.zeros((cards, pins), dtype=bool)  # pixels already taken
+            for sname in shuttle_names:   # iterate in priority order
+                arr = shuttle_arrays.get(sname)
+                if arr is None:
+                    continue
+                fires = (arr == 0)        # where this shuttle wants to fire
+                conflict = fires & claimed  # pixels already claimed by higher shuttle
+                if conflict.any():
+                    arr = arr.copy()
+                    arr[conflict] = 1     # suppress this shuttle at conflicting pixels
+                    shuttle_arrays[sname] = arr
+                    results[f'{design_name}_{sname}.bmp'] = write_1bit_bmp(arr)
+                claimed |= (arr == 0)     # add this shuttle's final firings to claimed
+
+        # ── Apply bg_texture and write final shuttle BMPs (post mutual-exclusion) ──
+        # bg_texture diagonal is only added to pixels that are background in THIS
+        # shuttle AND not already claimed (UP=0) by any other named shuttle.
+        # This prevents the diagonal dots from creating false overlaps.
+        _all_claimed = np.zeros((cards, pins), dtype=bool)
+        for _sn in shuttle_names:
+            _sa = shuttle_arrays.get(_sn)
+            if _sa is not None:
+                _all_claimed |= (_sa == 0)
+
+        for sname in shuttle_names:
+            arr = shuttle_arrays.get(sname)
+            if arr is None:
+                continue
             if bg_texture and bg_texture.get(sname, 0):
                 period = int(bg_texture.get(sname, 8))
                 if period > 0:
                     arr_h, arr_w = arr.shape
                     arr_f = arr.flatten()
+                    claimed_f = _all_claimed.flatten()
                     for _r in range(arr_h):
                         for _c in range(arr_w):
-                            if arr_f[_r*arr_w+_c] == 1 and (_r+_c) % period == 0:
-                                arr_f[_r*arr_w+_c] = 0
+                            p = _r * arr_w + _c
+                            # Only apply diagonal if white in this shuttle AND
+                            # not claimed by ANY named shuttle (true background)
+                            if arr_f[p] == 1 and not claimed_f[p] and (_r + _c) % period == 0:
+                                arr_f[p] = 0
                     arr = arr_f.reshape(arr_h, arr_w)
             results[f'{design_name}_{sname}.bmp'] = write_1bit_bmp(arr)
 
