@@ -463,9 +463,8 @@
   <button class="tbtn" id="tbtn-fill-int" onclick="openPopup('fillint',this)" data-tip="Fill Interiors (J) — flood-fill enclosed design regions with a weave pattern">⬡</button>
   <div class="tsep"></div>
   <button class="tbtn"    id="tbtn-weave-fill" onclick="openPopup('weavefill',this)" data-tip="Weave Fill (V) — opens pattern selector; arm then click any enclosed region">⬡✎</button>
-  <button class="tbtn"    id="tbtn-invert-region" onclick="setTool('invert-region')" data-tip="Invert Region (K) — click any region to flip black↔white">
-      <button class="tbtn"    id="tbtn-smart-fill" onclick="openPopup('smartfill',this)" data-tip="Smart Fill (Z) — fill + weave + white outline">
-        <span class="oic">⬡✦</span></button>⬡↔</button>
+  <button class="tbtn"    id="tbtn-invert-region" onclick="setTool('invert-region')" data-tip="Invert Region (K) — click any region to flip black↔white">⬡↔</button>
+  <button class="tbtn"    id="tbtn-smart-fill"    onclick="openPopup('smartfill',this)" data-tip="Smart Fill (Z) — fill + weave + white outline"><span class="oic">⬡✦</span></button>
   <button class="tbtn"    id="tbtn-pan"    onclick="setTool('pan')"    data-tip="Pan / scroll canvas (H)">✋</button>
   <div class="tsep"></div>
   <button class="tbtn"    id="tbtn-grid"   onclick="toggleGrid()"      data-tip="Toggle pixel grid — visible at 4x+ (G)">⊞</button>
@@ -1562,7 +1561,7 @@ function setTool(t) {
   document.querySelectorAll('.tbtn[id^="tbtn-"]').forEach(b=>b.classList.remove('on'));
   const b=document.getElementById('tbtn-'+t); if(b) b.classList.add('on');
   MC.style.cursor={pencil:'crosshair',eraser:'cell',fill:'copy',line:'crosshair',rect:'crosshair',pan:'grab',satin:'cell',select:'crosshair','weave-fill':'crosshair','invert-region':'crosshair','smart-fill':'crosshair'}[t]||'crosshair';
-  const toolNames={pencil:'Pencil',eraser:'Eraser',fill:'Flood Fill',line:'Line',rect:'Rectangle',pan:'Pan',satin:'Satin Brush',select:'Select','weave-fill':'Weave Fill (click a region)','invert-region':'Invert Region (click any region)'};
+  const toolNames={pencil:'Pencil',eraser:'Eraser',fill:'Flood Fill',line:'Line',rect:'Rectangle',pan:'Pan',satin:'Satin Brush',select:'Select','weave-fill':'Weave Fill (click a region)','invert-region':'Invert Region (click any region)','smart-fill':'Smart Fill (click a region)'};
   const hn = document.getElementById('header-sub');
   if (hn) hn.textContent = toolNames[t] || 'BMP Editor';
 }
@@ -2598,8 +2597,9 @@ function closePopup(name) {
 document.addEventListener('mousedown', ev => {
   if (!_activePopup) return;
   const popup = document.getElementById('popup-' + _activePopup);
-  const btn   = document.getElementById('tbtn-' + _activePopup);
-  if (popup && !popup.contains(ev.target) && btn && !btn.contains(ev.target)) {
+  // Use the stored button reference — more reliable than guessing the tbtn- id convention
+  if (popup && !popup.contains(ev.target) &&
+      (!_activePopupBtn || !_activePopupBtn.contains(ev.target))) {
     closePopup(_activePopup);
   }
 });
