@@ -510,21 +510,31 @@ def api_trace_guide():
         # ── OUTPUT 3: Auto-cleaned (ready to upload to main app) ──────────
         from scipy.ndimage import binary_opening, binary_closing, binary_fill_holes, label
 
+        # User-adjustable strength (1 = conservative, 5 = aggressive capture)
+        try:
+            strength = max(1, min(5, int(request.form.get('strength', 3))))
+        except (ValueError, TypeError):
+            strength = 3
+
         # Blur to kill periodic grid
         grid_period = max(3, int(9 * W / 1200))
         blur_r      = max(3, grid_period + 2)
         blurred     = np.stack([median_filter(arr[:,:,c], size=blur_r)
                                 for c in range(3)], axis=2)
-        hsv_b       = np.array(Image.fromarray(blurred).convert('HSV'))
-        sat_b       = hsv_b[:,:,1].astype(float)
-        val_b       = hsv_b[:,:,2].astype(float)
 
-        # Detect design in blurred image
-        m = (sat_b < 90) & (val_b > 152)
+        # ── Universal design detection: pixels far from background colour ──
+        # Works for both dark-on-light (outlines, sketches) and
+        # light-on-dark (coloured motifs on fabric photos).
+        # The old sat/val thresholding only worked for light-on-dark.
+        bg_dist_blurred = np.sqrt(
+            ((blurred.astype(float) - bg_col) ** 2).sum(axis=2))
+        # Lower strength → higher threshold (stricter) → fewer pixels kept
+        dist_threshold = max(15, int(85 - strength * 12))   # 73,61,49,37,25
+        m = bg_dist_blurred > dist_threshold
         m = binary_opening(m, structure=np.ones((3, 3)))
 
         # Keep large connected regions only
-        min_region = max(100, int(1500 * (W / 1200) ** 2))
+        min_region = max(50, int(1200 * (W / 1200) ** 2))
         lbl, n_lbl = label(m)
         sizes = np.bincount(lbl.ravel())[1:]
         clean = np.zeros((H, W), dtype=bool)
@@ -539,6 +549,35 @@ def api_trace_guide():
         cleaned_out = np.full((H, W, 3), 255, dtype=np.uint8)
         cleaned_out[clean] = [0, 0, 0]
 
+        # ── Improved Layer Map: uses actual design colours ─────────────────
+        # Replace hardcoded bird/peacock colour buckets with KMeans on
+        # design pixels so the legend reflects the real image.
+        from sklearn.cluster import KMeans as _KM
+        design_mask = ~is_bg
+        design_pix  = arr[design_mask].astype(np.float32)
+        n_layers    = min(5, max(2, int(n_lbl) if n_lbl > 0 else 3))
+        legend_colors = []
+        if len(design_pix) >= n_layers:
+            km2    = _KM(n_clusters=n_layers, n_init=4, random_state=42,
+                         max_iter=80).fit(design_pix)
+            ctrs   = km2.cluster_centers_.astype(np.uint8)
+            # Sort by brightness for a consistent legend order
+            order  = np.argsort(-ctrs.mean(axis=1))
+            ctrs   = ctrs[order]
+            flat_d = arr[design_mask].astype(np.float32)
+            lbls_d = np.array([int(np.argmin(((flat_d[i] - ctrs.astype(float))**2).sum(1)))
+                               for i in range(len(flat_d))])
+            highlight2 = np.full((H, W, 3), [60, 60, 60], dtype=np.uint8)
+            dm_idx = np.where(design_mask.ravel())[0]
+            for i, ci in enumerate(lbls_d):
+                hy, hx = divmod(int(dm_idx[i]), W)
+                highlight2[hy, hx] = ctrs[ci]
+            # Keep detected bg pixels as dark grey
+            highlight2[is_bg] = [60, 60, 60]
+            highlight = highlight2
+            legend_colors = [f'#{int(c[0]):02x}{int(c[1]):02x}{int(c[2]):02x}'
+                             for c in ctrs]
+
         # ── Encode all three outputs as base64 PNG ────────────────────────
         def _to_b64(arr_img):
             buf = io.BytesIO()
@@ -547,6 +586,7 @@ def api_trace_guide():
 
         n_design_regions = int((sizes >= min_region).sum()) if len(sizes) else 0
         design_pct = round(100 * clean.sum() / (H * W), 1)
+        bg_is_light = bool(float(bg_col.mean()) > 128)
 
         return jsonify({
             'success':   True,
@@ -555,6 +595,8 @@ def api_trace_guide():
             'faded':     _to_b64(faded_out),
             'highlighted': _to_b64(highlight),
             'cleaned':   _to_b64(cleaned_out),
+            'bg_is_light':  bg_is_light,
+            'legend_colors': legend_colors,
             'stats': {
                 'design_regions': n_design_regions,
                 'design_pct':     design_pct,
