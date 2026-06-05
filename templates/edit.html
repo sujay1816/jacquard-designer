@@ -1630,7 +1630,7 @@ async function pxToBlob() {
 }
 
 async function applyResult(b64, w, h, label) {
-  return new Promise(res=>{
+  return new Promise((res, rej)=>{
     const img=new Image();
     img.onload=()=>{
       const oc=Object.assign(document.createElement('canvas'),{width:w,height:h});
@@ -1640,6 +1640,7 @@ async function applyResult(b64, w, h, label) {
       if(w!==S.W||h!==S.H){MC.width=OC.width=S.W=w;MC.height=OC.height=S.H=h;applyZoom();}
       S.pixels=new Uint8ClampedArray(id.data); pushHist(label); render(); updateStats(); res();
     };
+    img.onerror=()=>rej(new Error('Server returned an unreadable image — please try again'));
     img.src='data:image/png;base64,'+b64;
   });
 }
