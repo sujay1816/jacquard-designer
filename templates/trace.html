@@ -70,6 +70,7 @@
     .btn-outline:hover { border-color:var(--gold);color:var(--gold); }
     .btn-success { background:rgba(106,158,106,.15);color:var(--success);border-color:rgba(106,158,106,.35); }
     .btn-success:hover { background:rgba(106,158,106,.25); }
+    .btn-active  { background:rgba(200,169,110,.18) !important;border-color:var(--gold) !important;color:var(--gold2) !important; }
     .btn:disabled { opacity:.45;cursor:not-allowed; }
 
     /* Info panel */
@@ -326,6 +327,7 @@
         </div>
         <div class="output-card-footer">
           <button class="btn btn-success" onclick="sendToGenerator('cleaned')">→ Send to Generator</button>
+          <button class="btn btn-outline" id="invert-btn" onclick="toggleInvertCleaned()" title="Flip black↔white — use when the background was detected as design">⇄ Invert</button>
           <button class="btn btn-outline" onclick="downloadImg('img-cleaned','auto_cleaned.png')">↓ Download</button>
           <button class="btn btn-outline" onclick="viewFullSize('img-cleaned')">⤢ Full size</button>
         </div>
@@ -440,6 +442,11 @@
     setProcessing(true, 'Analysing image…');
     document.getElementById('results').classList.remove('show');
 
+    // Disable both buttons while the server is working
+    document.getElementById('process-btn').disabled = true;
+    const reBtn = document.getElementById('reprocess-btn');
+    if (reBtn) reBtn.disabled = true;
+
     const fd = new FormData();
     fd.append('image', _file);
     fd.append('strength', document.getElementById('strength').value);
@@ -469,6 +476,10 @@
       showError('Error: ' + err.message);
     } finally {
       setProcessing(false);
+      // Re-enable after response (regardless of success/failure)
+      if (_file) document.getElementById('process-btn').disabled = false;
+      const reBtnF = document.getElementById('reprocess-btn');
+      if (reBtnF) reBtnF.disabled = false;
     }
   }
 
@@ -506,6 +517,10 @@
 
     document.getElementById('results').classList.add('show');
     document.getElementById('reprocess-btn').style.display = 'inline-flex';
+    // Reset invert toggle when new results arrive
+    _cleanedInverted = false;
+    const invBtn = document.getElementById('invert-btn');
+    if (invBtn) invBtn.classList.remove('btn-active');
     document.getElementById('results').scrollIntoView({ behavior:'smooth', block:'start' });
   }
 
@@ -542,18 +557,45 @@
     setTimeout(() => window.open('https://www.photopea.com', '_blank'), 300);
   }
 
-  // ── Send to Generator ──
+  // ── Send to Generator (opens in a new tab — keeps trace page alive) ──
   function sendToGenerator(which) {
     const key = { cleaned:'cleaned', faded:'faded' }[which] || 'cleaned';
     const b64 = _results[key];
     if (!b64) return;
     try {
       sessionStorage.setItem('trace_cleaned_b64', b64);
-      window.location.href = '/?from_trace=1';
+      window.open('/?from_trace=1', '_blank');
     } catch(e) {
       downloadImg('img-' + which, which + '_upload_this.png');
       alert('Image downloaded — upload it manually to the BMP Generator.');
     }
+  }
+
+  // ── Invert cleaned output (useful when auto-clean gets bg/design swapped) ──
+  let _cleanedInverted = false;
+  function toggleInvertCleaned() {
+    if (!_results.cleaned) return;
+    _cleanedInverted = !_cleanedInverted;
+
+    // Draw original or inverted version onto an off-screen canvas
+    const img = document.getElementById('img-cleaned');
+    const origSrc = 'data:image/png;base64,' + _results.cleaned;
+
+    const tmp = new Image();
+    tmp.onload = () => {
+      const oc = Object.assign(document.createElement('canvas'),
+                               {width: tmp.naturalWidth, height: tmp.naturalHeight});
+      const ctx = oc.getContext('2d');
+      if (_cleanedInverted) {
+        ctx.filter = 'invert(1)';
+      }
+      ctx.drawImage(tmp, 0, 0);
+      img.src = oc.toDataURL('image/png');
+    };
+    tmp.src = origSrc;
+
+    const btn = document.getElementById('invert-btn');
+    if (btn) btn.classList.toggle('btn-active', _cleanedInverted);
   }
 
   // ── Instructions toggle ──
