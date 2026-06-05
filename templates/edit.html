@@ -1042,7 +1042,8 @@ function applyZoom() {
   OC.style.width  = sw + 'px';
   OC.style.height = sh + 'px';
   document.getElementById('zoom-label').textContent =
-    z < 1 ? Math.round(z * 100) + '%' : Math.round(z) + (Number.isInteger(z) ? 'x' : '×');
+    z < 1 ? Math.round(z * 100) + '%'
+           : (Math.round(z * 10) / 10) + '×';
   renderGrid();
   // Center canvas when smaller than viewport
   const area = document.getElementById('canvas-area');
@@ -1527,16 +1528,13 @@ function onML() { if(S.painting){pushHist(S.tool==='satin' ? 'Satin brush' : 'Dr
 function onWheel(e) {
   e.preventDefault();
   const area = document.getElementById('canvas-area');
-  const wrap = document.getElementById('canvas-wrap');
   const rect = MC.getBoundingClientRect();
   // Mouse position relative to canvas in BMP pixels before zoom
   const bmpX = (e.clientX - rect.left) / S.zoom;
   const bmpY = (e.clientY - rect.top)  / S.zoom;
   // Apply zoom step
-  const oldZoom = S.zoom;
   zoomStep(e.deltaY < 0 ? 1 : -1);
   // Adjust scroll to keep the hovered pixel under the cursor
-  const newRect = MC.getBoundingClientRect();
   const newX = bmpX * S.zoom;
   const newY = bmpY * S.zoom;
   area.scrollLeft += (newX - (e.clientX - area.getBoundingClientRect().left));
@@ -1548,8 +1546,22 @@ function onWheel(e) {
 // ═══════════════════════════════════════════════════
 const ZL = [0.25,0.5,0.75,1,1.5,2,3,4,6,8,10,12,16,20,24,32];
 function zoomStep(d) {
-  const i = ZL.indexOf(S.zoom);
-  S.zoom = ZL[Math.max(0,Math.min(ZL.length-1,(i<0?4:i)+d))];
+  let i = ZL.indexOf(S.zoom);
+  if (i < 0) {
+    // S.zoom was set by fitToWindow — not on a preset level.
+    // Find the correct bracket so +d steps to the next preset in the
+    // right direction instead of always jumping from the hardcoded index 4.
+    if (d > 0) {
+      i = ZL.findIndex(z => z > S.zoom);
+      i = i < 0 ? ZL.length - 1 : i - 1;  // one below the first level above
+    } else {
+      i = ZL.length - 1;
+      for (let j = 0; j < ZL.length; j++) {
+        if (ZL[j] >= S.zoom) { i = j; break; }  // first level at-or-above
+      }
+    }
+  }
+  S.zoom = ZL[Math.max(0, Math.min(ZL.length - 1, i + d))];
   applyZoom();
 }
 function fitToWindow() {

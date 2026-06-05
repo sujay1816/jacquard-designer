@@ -487,11 +487,12 @@ def api_trace_guide():
         bg_fade_mask = diff < 80          # slightly wider than is_bg
         faded = arr.copy().astype(float)
         if bg_is_light:
-            # Light bg (white paper, etc.) → fade toward white
-            faded[bg_fade_mask] = faded[bg_fade_mask] * 0.15 + 255 * 0.85
+            # Light background (white paper, cream etc.) — push bg pixels to
+            # pure white more aggressively so any texture/grain disappears
+            faded[bg_fade_mask] = faded[bg_fade_mask] * 0.05 + 255 * 0.95
         else:
-            # Dark bg (fabric photos, coloured cloth) → fade toward white
-            # so the light design pops against a bleached-out background
+            # Dark background (coloured cloth, fabric photos) — bleach the
+            # dark bg toward white so the lighter design pops out clearly
             faded[bg_fade_mask] = faded[bg_fade_mask] * 0.15 + 255 * 0.85
         faded = np.clip(faded, 0, 255).astype(np.uint8)
         # Boost contrast and sharpness on the non-faded design pixels
@@ -529,14 +530,16 @@ def api_trace_guide():
         m = bg_dist_blurred > dist_threshold
         m = binary_opening(m, structure=np.ones((3, 3)))
 
-        # Keep large connected regions only
+        # Keep large connected regions only — vectorised (np.isin) instead of
+        # a Python for-loop that creates a full boolean array per region.
         min_region = max(50, int(1200 * (W / 1200) ** 2))
         lbl, n_lbl = label(m)
         sizes = np.bincount(lbl.ravel())[1:]
-        clean = np.zeros((H, W), dtype=bool)
-        for i, s in enumerate(sizes):
-            if s >= min_region:
-                clean |= (lbl == i + 1)
+        if len(sizes):
+            large_labels = np.where(sizes >= min_region)[0] + 1  # labels start at 1
+            clean = np.isin(lbl, large_labels)
+        else:
+            clean = np.zeros((H, W), dtype=bool)
 
         close_px = max(5, int(15 * W / 1200))
         clean    = binary_closing(clean, structure=np.ones((close_px, close_px)))

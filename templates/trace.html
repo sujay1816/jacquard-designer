@@ -535,13 +535,14 @@
   // ── View full size in new tab ──
   function viewFullSize(imgId) {
     const src = document.getElementById(imgId).src;
-    if (src) window.open(src, '_blank');
+    if (src && src !== window.location.href) window.open(src, '_blank');
   }
 
   // ── Lightbox ──
   function openLightbox(imgId) {
     const src = document.getElementById(imgId).src;
-    if (!src) return;
+    // Guard: unset img.src resolves to window.location.href — must reject it
+    if (!src || src === window.location.href) return;
     document.getElementById('lightbox-img').src = src;
     document.getElementById('lightbox').classList.add('show');
   }
@@ -559,14 +560,25 @@
 
   // ── Send to Generator (opens in a new tab — keeps trace page alive) ──
   function sendToGenerator(which) {
-    const key = { cleaned:'cleaned', faded:'faded' }[which] || 'cleaned';
-    const b64 = _results[key];
+    // Always read from the current img.src so the Invert toggle is preserved.
+    // _results[key] holds the original server data and would silently ignore
+    // any client-side invert applied by toggleInvertCleaned().
+    const imgEl = document.getElementById('img-' + which);
+    const src   = imgEl ? imgEl.src : null;
+    if (!src || src === window.location.href) return;
+
+    // src is already a data URL (either original or canvas-rendered invert)
+    const b64 = src.startsWith('data:') ? src.split(',')[1] : null;
     if (!b64) return;
+
     try {
       sessionStorage.setItem('trace_cleaned_b64', b64);
       window.open('/?from_trace=1', '_blank');
     } catch(e) {
-      downloadImg('img-' + which, which + '_upload_this.png');
+      // sessionStorage full — fall back to download
+      const a = Object.assign(document.createElement('a'),
+                              { href: src, download: which + '_upload_this.png' });
+      a.click();
       alert('Image downloaded — upload it manually to the BMP Generator.');
     }
   }
