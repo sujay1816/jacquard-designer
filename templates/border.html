@@ -187,16 +187,6 @@
       <!-- Controls row -->
       <div class="control-grid">
         <div>
-          <label class="fld">Shuttle count</label>
-          <select id="shuttleCount">
-            <option value="1">1 — Zari only</option>
-            <option value="2" selected>2 — Zari + Rani base</option>
-            <option value="3">3 — Zari + Meena 1 + Rani</option>
-            <option value="4">4 — Zari + Meena 1 + Meena 2 + Rani</option>
-          </select>
-          <div class="help">Rani is the auto plain-weave base.</div>
-        </div>
-        <div>
           <label class="fld">Detail retention</label>
           <div class="slider-wrap">
             <input type="range" id="detail" min="2" max="60" value="18">
@@ -229,10 +219,21 @@
         <div class="swatch-grid" id="swatches"></div>
       </div>
 
-      <!-- Satin/weave per shuttle -->
+      <!-- Single weave setting for the whole design -->
       <div style="margin-top:22px;">
-        <label class="fld">Weave per shuttle <span style="color:var(--muted);font-size:10px;font-weight:normal;text-transform:none;letter-spacing:0">(default: solid crisp lines)</span></label>
-        <div id="satinPanel"></div>
+        <label class="fld">Weave / fill <span style="color:var(--muted);font-size:10px;font-weight:normal;text-transform:none;letter-spacing:0">(applies to the entire border design)</span></label>
+        <div class="satin-shuttle" style="margin-bottom:0">
+          <div class="satin-row">
+            <label class="toggle"><input type="checkbox" id="weaveOn"> Apply weave</label>
+            <select id="satinPat" disabled></select>
+            <select id="satinN" disabled>
+              <option>4</option><option>5</option><option>6</option>
+              <option>7</option><option selected>8</option><option>16</option>
+            </select>
+            <label class="toggle"><input type="checkbox" id="satinFlip" disabled> Flip</label>
+          </div>
+          <div class="help">Off = solid crisp lines (recommended for fine border detail).</div>
+        </div>
       </div>
 
       <div class="row" style="margin-top:18px;">
@@ -264,13 +265,10 @@
 </main>
 
 <script>
-const SHUTTLE_COLORS = { zari:'#c8a040', meena1:'#8ab4d8', meena2:'#b890c8', rani:'#c87890', background:'#555' };
-const SHUTTLE_LABEL  = {
-  zari:{label:'ZARI',sub:'Gold thread'},
-  meena1:{label:'MEENA 1',sub:'Colour 1'},
-  meena2:{label:'MEENA 2',sub:'Colour 2'},
-  rani:{label:'RANI',sub:'Plain weave base'}
-};
+const THREAD_COLORS = { thread1:'#c8a040', thread2:'#8ab4d8', background:'#555' };
+const THREAD_LABELS = { thread1:'Thread 1', thread2:'Thread 2', background:'Background' };
+// Internal mapping → backend always receives shuttle_count=1 with 'zari' as the key
+const THREAD_TO_SHUTTLE = { thread1:'zari', thread2:'zari', background:'background' };
 const MODE_DESCS = {
   standard: '<b style="color:var(--cream)">Standard</b> — 4× high-res ink-first detection. Best for clear borders with thick lines, solid fills, and defined colour blocks.',
   fine:     '<b style="color:var(--gold2)">Fine Detail</b> — adaptive upscale (4–8×), dual-threshold pooling, and pre-pool closing. Preserves small dots, thin scroll lines, and fine secondary motifs.'
@@ -285,7 +283,10 @@ const state = {
 
 const $ = id => document.getElementById(id);
 
-fetch('/api/fill-patterns').then(r=>r.json()).then(d=>{ state.patterns=d.patterns||[]; }).catch(()=>{});
+fetch('/api/fill-patterns').then(r=>r.json()).then(d=>{
+  state.patterns = d.patterns || [];
+  initSatinPatterns();   // populate dropdown immediately if detect already ran
+}).catch(()=>{});
 
 // ── Mode toggle ────────────────────────────────────────────────────────────
 function setMode(m) {
@@ -351,7 +352,7 @@ $('detectBtn').onclick = async () => {
     state.labelMap=d.label_map;
     $('cards').value=d.cards;
 
-    buildAssignments(); renderSwatches(); renderSatinPanel();
+    buildAssignments(); renderSwatches(); initSatinPatterns();
     setStep(2);
   } catch(err) {
     showMsg('detectMsg', err.message);
@@ -360,60 +361,52 @@ $('detectBtn').onclick = async () => {
   }
 };
 
+// Assign: index 0 → background, index 1 → thread1, index 2 → thread2, rest → background
 function buildAssignments() {
-  state.assignments={};
-  const named=namedShuttles();
-  state.colors.forEach((c,i)=>{ state.assignments[i]=i===0?'background':(named[(i-1)%named.length]||'background'); });
+  state.assignments = {};
+  state.colors.forEach((c, i) => {
+    state.assignments[i] = i === 0 ? 'background' : i === 1 ? 'thread1' : i === 2 ? 'thread2' : 'background';
+  });
 }
-function namedShuttles() {
-  const sc=parseInt($('shuttleCount').value);
-  return sc<=2?['zari']:sc===3?['zari','meena1']:['zari','meena1','meena2'];
-}
+
 function renderSwatches() {
-  const grid=$('swatches'); grid.innerHTML='';
-  const opts=['background',...namedShuttles()];
-  state.colors.forEach((c,i)=>{
-    const div=document.createElement('div'); div.className='swatch';
-    const sel=opts.map(o=>`<option value="${o}" ${state.assignments[i]===o?'selected':''}>${o==='background'?'Background':SHUTTLE_LABEL[o].label}</option>`).join('');
-    div.innerHTML=`<div class="chip" style="background:${c.hex}"></div>
+  const grid = $('swatches'); grid.innerHTML = '';
+  const opts = ['background', 'thread1', 'thread2'];
+  state.colors.forEach((c, i) => {
+    const div = document.createElement('div'); div.className = 'swatch';
+    const sel = opts.map(o =>
+      `<option value="${o}" ${state.assignments[i]===o?'selected':''}>${THREAD_LABELS[o]}</option>`
+    ).join('');
+    div.innerHTML = `<div class="chip" style="background:${c.hex}"></div>
       <div class="meta">
         <div class="pct">${c.percentage}%${c.is_genuine===false?' <span class="badge-artefact">· possible artefact</span>':''}</div>
         <select data-i="${i}">${sel}</select>
       </div>`;
     grid.appendChild(div);
   });
-  grid.querySelectorAll('select').forEach(s=>{ s.onchange=()=>{ state.assignments[+s.dataset.i]=s.value; renderSatinPanel(); }; });
-}
-function activeNamedShuttles() {
-  const used=new Set(Object.values(state.assignments).filter(v=>v!=='background'));
-  return namedShuttles().filter(s=>used.has(s));
-}
-function renderSatinPanel() {
-  const panel=$('satinPanel'); panel.innerHTML='';
-  const patOpts=state.patterns.length
-    ? state.patterns.map(p=>`<option value="${p.id}">${p.label}</option>`).join('')
-    : '<option value="satin">Satin</option>';
-  activeNamedShuttles().forEach(s=>{
-    const div=document.createElement('div'); div.className='satin-shuttle'; div.dataset.shuttle=s;
-    div.innerHTML=`<h4 style="color:${SHUTTLE_COLORS[s]}">${SHUTTLE_LABEL[s].label}</h4>
-      <div class="satin-row">
-        <label class="toggle"><input type="checkbox" class="weaveOn"> Apply weave</label>
-        <select class="pat" disabled>${patOpts}</select>
-        <select class="nval" disabled><option>4</option><option>5</option><option>6</option><option>7</option><option selected>8</option><option>16</option></select>
-        <label class="toggle"><input type="checkbox" class="flip" disabled> Flip</label>
-      </div>
-      <div class="help">Off = solid crisp lines (recommended for fine border detail).</div>`;
-    panel.appendChild(div);
-    const on=div.querySelector('.weaveOn');
-    on.onchange=()=>{ ['.pat','.nval','.flip'].forEach(q=>div.querySelector(q).disabled=!on.checked); };
+  grid.querySelectorAll('select').forEach(s => {
+    s.onchange = () => { state.assignments[+s.dataset.i] = s.value; };
   });
 }
 
-$('shuttleCount').onchange = ()=>{ buildAssignments(); renderSwatches(); renderSatinPanel(); };
-$('detail').oninput   = ()=>{ $('detailVal').textContent  = ($('detail').value/100).toFixed(2); };
-$('inkSens').oninput  = ()=>{ $('inkSensVal').textContent = ($('inkSens').value/100).toFixed(2); };
-$('noiseMin').oninput = ()=>{ $('noiseMinVal').textContent= $('noiseMin').value; };
-$('backBtn').onclick  = ()=> setStep(1);
+// Populate the single satin pattern dropdown once patterns arrive
+function initSatinPatterns() {
+  const patSel = $('satinPat');
+  if (!patSel || patSel.options.length > 0) return;
+  const opts = state.patterns.length
+    ? state.patterns.map(p => `<option value="${p.id}">${p.label}</option>`).join('')
+    : '<option value="satin">Satin</option>';
+  patSel.innerHTML = opts;
+}
+
+$('weaveOn').onchange = () => {
+  const on = $('weaveOn').checked;
+  [$('satinPat'), $('satinN'), $('satinFlip')].forEach(el => { el.disabled = !on; });
+};
+$('detail').oninput   = () => { $('detailVal').textContent  = ($('detail').value/100).toFixed(2); };
+$('inkSens').oninput  = () => { $('inkSensVal').textContent = ($('inkSens').value/100).toFixed(2); };
+$('noiseMin').oninput = () => { $('noiseMinVal').textContent = $('noiseMin').value; };
+$('backBtn').onclick  = () => setStep(1);
 
 // ── Generate ──────────────────────────────────────────────────────────────
 $('generateBtn').onclick = async () => {
@@ -421,47 +414,56 @@ $('generateBtn').onclick = async () => {
   const btn=$('generateBtn'); btn.disabled=true; btn.classList.add('loading');
   btn.innerHTML='<span class="spinner"></span>Generating…';
   try {
-    const sc=parseInt($('shuttleCount').value);
-    const finalAssign={};
-    state.colors.forEach((c,i)=>{ finalAssign[i]=state.assignments[i]||'background'; });
-
-    const sa={};
-    document.querySelectorAll('.satin-shuttle').forEach(div=>{
-      const s=div.dataset.shuttle, on=div.querySelector('.weaveOn').checked;
-      sa[s]={n:parseInt(div.querySelector('.nval').value),flip:div.querySelector('.flip').checked,pattern:div.querySelector('.pat').value,weave_off:!on};
+    // Always one BMP — map thread1/thread2 both to 'zari' so the engine
+    // merges them into one combined border mask. Backend unchanged.
+    const finalAssign = {};
+    state.colors.forEach((c, i) => {
+      const t = state.assignments[i] || 'background';
+      finalAssign[i] = THREAD_TO_SHUTTLE[t] || 'background';
     });
 
-    // Body shared by both endpoints
-    const body={
-      image_b64:       state.safeImageB64,
-      full_image:      state.fullImageB64||undefined,
-      label_map:       state.labelMap,
-      pins:            state.pins,
-      cards:           state.cards,
-      shuttle_count:   sc,
-      design_name:     $('designName').value||'border',
-      color_assignments: finalAssign,
-      satin_settings:  sa,
-      palette:         state.colors.map(c=>c.rgb),
-      detail_retention: $('detail').value/100,
-      ink_sensitivity:  $('inkSens').value/100,
-      hi_detail:        true,
+    // Single satin config for the whole design
+    const weaveOn = $('weaveOn').checked;
+    const sa = {
+      zari: {
+        n:         parseInt($('satinN').value),
+        flip:      $('satinFlip').checked,
+        pattern:   $('satinPat').value || 'satin',
+        weave_off: !weaveOn,
+      }
     };
 
-    // Fine detail mode sends extra params + uses the enhanced endpoint
-    const isFine = state.mode === 'fine';
+    const body = {
+      image_b64:         state.safeImageB64,
+      full_image:        state.fullImageB64 || undefined,
+      label_map:         state.labelMap,
+      pins:              state.pins,
+      cards:             state.cards,
+      shuttle_count:     1,            // always one output BMP
+      design_name:       $('designName').value || 'border',
+      color_assignments: finalAssign,
+      satin_settings:    sa,
+      palette:           state.colors.map(c => c.rgb),
+      detail_retention:  $('detail').value / 100,
+      ink_sensitivity:   $('inkSens').value / 100,
+      hi_detail:         true,
+    };
+
+    // Fine detail mode uses the enhanced endpoint + extra params
+    const isFine   = state.mode === 'fine';
     const endpoint = isFine ? '/api/border-id-generate' : '/api/border-generate';
     if (isFine) {
       body.noise_min_size = parseInt($('noiseMin').value);
       body.hi_detail      = $('hiDetail').checked;
     }
 
-    const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    const d=await r.json();
-    if(!d.success) throw new Error(d.error||'Generation failed');
+    const r = await fetch(endpoint, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'Generation failed');
 
-    state.zipB64=d.zip_b64; state.zipFilename=d.zip_filename;
-    state.bmpB64=d.bmp_b64||{};
+    state.zipB64      = d.zip_b64;
+    state.zipFilename = d.zip_filename;
+    state.bmpB64      = d.bmp_b64 || {};
     renderPreviews(d);
     setStep(3);
     $('step3').scrollIntoView({behavior:'smooth'});
@@ -478,18 +480,16 @@ function renderPreviews(data) {
     ? '✦ Generated with Fine Detail mode — adaptive upscale, dual-threshold pooling'
     : '● Generated with Standard mode — 4× high-resolution ink-first detection';
   const grid=$('previewGrid'); grid.innerHTML='';
-  data.files.forEach(fname=>{
-    const sname=Object.keys(SHUTTLE_LABEL).find(k=>fname.includes(k))||'file';
-    const info=SHUTTLE_LABEL[sname]||{label:fname,sub:''};
-    const v=data.verification[fname]||{};
-    const up=(v.pure_black!=null&&v.pure_white!=null)
-      ?(100*v.pure_black/(v.pure_black+v.pure_white)).toFixed(1):'—';
-    const card=document.createElement('div'); card.className='preview-card';
+  data.files.forEach(fname => {
+    const v   = data.verification[fname] || {};
+    const up  = (v.pure_black!=null && v.pure_white!=null)
+      ? (100*v.pure_black/(v.pure_black+v.pure_white)).toFixed(1) : '—';
+    const card = document.createElement('div'); card.className='preview-card';
     card.innerHTML=`
       <div class="pc-head">
-        <span class="pc-dot" style="background:${SHUTTLE_COLORS[sname]||'#888'}"></span>
-        <span class="pc-name">${info.label}</span>
-        <span class="pc-sub">${info.sub}</span>
+        <span class="pc-dot" style="background:var(--gold)"></span>
+        <span class="pc-name">BORDER</span>
+        <span class="pc-sub">Design thread</span>
       </div>
       <img src="data:image/png;base64,${data.previews[fname]}" alt="${fname}">
       <div class="pc-stat">
