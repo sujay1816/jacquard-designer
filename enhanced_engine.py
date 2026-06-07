@@ -144,6 +144,15 @@ def analyze_border_image(image: Image.Image) -> dict:
         det_r, noise_n = 0.28, 3
         det_why = 'coarse / thick-line design'
 
+    # Light-background JPEG scans (lum p10 > 100 AND contrast < 0.55) have
+    # JPEG compression halos that inflate the edge density reading.
+    # A very low threshold would capture those halos as design pixels,
+    # producing over-inked output. Floor detail_retention at 0.12 for these images.
+    bg_is_light_jpeg = (p10 > 100 and contrast < 0.55)
+    if bg_is_light_jpeg and det_r < 0.12:
+        det_r   = 0.12
+        det_why = det_why + ' (floor raised — light-background JPEG source detected)'
+
     # ── Pins ─────────────────────────────────────────────────────────────
     raw  = max(200, min(960, round(W * 0.65 / 20) * 20))
     pins = min(_STANDARD_PINS, key=lambda p: abs(p - raw))
