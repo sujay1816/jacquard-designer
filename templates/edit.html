@@ -1456,7 +1456,8 @@ function line(x0,y0,x1,y1,btn) {
 }
 
 function fill(sx, sy, fv) {
-  const tgt = gpx(sx, sy); if (tgt === fv) return;
+  const tgt = gpx(sx, sy);
+  if (tgt < 0 || tgt === fv) return;  // -1 = out of bounds; skip cleanly
   const W = S.W, H = S.H;
   const vis = new Uint8Array(W * H);
   // Use a flat integer stack (linear indices) — avoids allocating a new
@@ -1615,8 +1616,9 @@ function onWheel(e) {
   // Adjust scroll to keep the hovered pixel under the cursor
   const newX = bmpX * S.zoom;
   const newY = bmpY * S.zoom;
-  area.scrollLeft += (newX - (e.clientX - area.getBoundingClientRect().left));
-  area.scrollTop  += (newY - (e.clientY - area.getBoundingClientRect().top));
+  const aRect = area.getBoundingClientRect();
+  area.scrollLeft += (newX - (e.clientX - aRect.left));
+  area.scrollTop  += (newY - (e.clientY - aRect.top));
 }
 
 // ═══════════════════════════════════════════════════
@@ -2713,9 +2715,17 @@ function commitPaste() {
     spx(x+dx, y+dy, cp[si]);  // cp[si] is 0 or 255
   }
   pushHist('Paste');
-  // Set new selection around pasted area
-  S.sel={x0:x,y0:y,x1:Math.min(S.W-1,x+w-1),y1:Math.min(S.H-1,y+h-1)};
-  S.selActive=true;
+  // Build selection around the pasted area — clamped to canvas bounds.
+  // If the paste landed entirely outside the canvas, clear rather than
+  // creating an inverted selection (x1 < x0) that breaks the marquee.
+  const sx0 = Math.max(0, x),         sy0 = Math.max(0, y);
+  const sx1 = Math.min(S.W-1, x+w-1), sy1 = Math.min(S.H-1, y+h-1);
+  if (sx0 <= sx1 && sy0 <= sy1) {
+    S.sel = {x0:sx0, y0:sy0, x1:sx1, y1:sy1};
+    S.selActive = true;
+  } else {
+    clearSelection();   // paste was completely off canvas
+  }
   cancelPaste();
   render(); updateStats(); updateSelInfo();
   toast('Pasted ' + w + '×' + h + ' pixels');
@@ -2914,6 +2924,7 @@ document.addEventListener('keydown', e=>{
         drawPastePreview();
       } else {
         // ── Lift selection into floating paste then nudge ─────────────
+        if (!S.sel) break;  // selActive can be true briefly before sel is set
         // Copy silently (no toast — avoids "Copied X×Y" during a move)
         const { x0, y0, x1, y1 } = S.sel;
         const cw = x1 - x0 + 1, ch = y1 - y0 + 1;
