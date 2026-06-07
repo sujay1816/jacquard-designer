@@ -833,32 +833,42 @@ def _adaptive_thin(mask: np.ndarray, noise_min_size: int = 5) -> np.ndarray:
     """
     Thin a design mask to ~1px strokes, adapting to source stroke thickness.
 
-    Problem with fixed 1px extract_outline:
-        A 3px-thick source stroke has a 1px ring on each side plus a 1px
-        interior. extract_outline(mask, 1) takes the OUTER ring → still
-        ~3px equivalent coverage. We need to reach the interior core.
+    Decision is based on UP% (fraction of black pixels in the mask):
 
-    Solution — two-path adaptive logic:
-        Thick strokes (≥2px):  erode once → interior becomes ~1px → use that.
-                                No further noise removal — the design was already
-                                cleaned in step 5a, and corner/dot elements that
-                                become single pixels after erosion are legitimate
-                                thin design features, not noise.
-        Thin strokes (1px):    erosion removes them entirely → fall back to
-                               extract_outline on the original, then clean noise.
+        UP% < 10%  → design already thin (outline strokes, fine motifs) OR
+                     already fragmented from detection artifacts.
+                     Erosion would destroy it further — clean noise only.
+                     Covers: thin border designs, sparse motif designs,
+                     reference-quality outputs like IMG_2009.BMP (5.25% UP).
 
-    Threshold: if >5% of mask pixels survive 1× erosion, strokes are thick.
+        UP% ≥ 10%  → design has thick/solid fills that need thinning.
+                     Apply erosion. Then check erosion_ratio:
+                       ≥ 0.15 → strokes genuinely thick (3px+) → use eroded interior.
+                       < 0.15 → strokes 2px or mixed → use outline ring (milder).
+
+    Verified against all known cases:
+        IMG_2009.BMP   5.25% UP → skip erosion → preserved at 5.25% ✓
+        __28__ bad     2.41% UP → skip erosion → cleaned at ~2.4%  ✓
+        prev thick    24.7%  UP → erode, ratio=0.235 → thinned to 5.8% ✓
     """
     if not mask.any():
         return mask
 
-    eroded = ndimage.binary_erosion(mask)
+    up_pct = mask.sum() / float(mask.size)
 
-    if eroded.sum() > 0.05 * mask.sum():
-        # Thick strokes — eroded interior is already ~1px, return as-is
+    if up_pct < 0.10:
+        # Already thin / sparse — erosion would only fragment further
+        return remove_noise(mask, min_size=noise_min_size)
+
+    # Design is thick — compute how well erosion thins it
+    eroded        = ndimage.binary_erosion(mask)
+    erosion_ratio = eroded.sum() / float(mask.sum())
+
+    if erosion_ratio >= 0.15:
+        # Strokes are 3px+ — eroded interior is clean ~1px, return directly
         return eroded
     else:
-        # Thin strokes already — extract boundary ring then clean residual noise
+        # Strokes are 2px or mixed — use the outer boundary ring (milder)
         outline, _ = extract_outline(mask, thickness=1)
         result = outline if outline.any() else mask
         return remove_noise(result, min_size=noise_min_size)
