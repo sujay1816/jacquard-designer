@@ -1067,6 +1067,10 @@ const _refImg       = document.getElementById('ref-img');
 const _refWrap      = document.getElementById('ref-img-wrap');
 const _refZoomLabel = document.getElementById('ref-zoom-label');
 const _refResetBtn  = document.getElementById('ref-reset-zoom');
+const _refPanel     = document.getElementById('ref-panel');
+// Swap-buttons UI
+const _rmbLabel = document.getElementById('rmb-label');
+const _swapBtn  = document.getElementById('swap-btn');
 
 // requestAnimationFrame throttle — prevents render() being called faster
 // than the display refresh rate (Mac Retina fires mousemove at up to 120Hz
@@ -2375,8 +2379,7 @@ async function applyFillPattern() {
 let _refDrag = null;
 
 function toggleRefPanel() {
-  const p = document.getElementById('ref-panel');
-  const isShowing = p.classList.toggle('show');
+  const isShowing = _refPanel.classList.toggle('show');
   document.getElementById('tbtn-ref')?.classList.toggle('on', isShowing);
 }
 
@@ -2402,7 +2405,7 @@ function loadRefImage(file) {
     if (hint) hint.style.display = 'none';
     if (fn)   fn.textContent = file.name;
     // Show panel if not already visible
-    document.getElementById('ref-panel').classList.add('show');
+    _refPanel.classList.add('show');
     document.getElementById('tbtn-ref')?.classList.add('on');
   };
   reader.readAsDataURL(file);
@@ -2415,8 +2418,7 @@ function setRefOpacity(val) {
 // ── Drag to move (titlebar) ─────────────────────────────
 function startRefDrag(e) {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
-  const panel = document.getElementById('ref-panel');
-  const r = panel.getBoundingClientRect();
+  const r = _refPanel.getBoundingClientRect();
   _refDrag = {
     startX: e.clientX,
     startY: e.clientY,
@@ -2430,19 +2432,18 @@ function startRefDrag(e) {
 
 function onRefDrag(e) {
   if (!_refDrag) return;
-  const panel = document.getElementById('ref-panel');
   const dx = e.clientX - _refDrag.startX;
   const dy = e.clientY - _refDrag.startY;
   let nx = _refDrag.origLeft + dx;
   let ny = _refDrag.origTop  + dy;
   // Clamp to viewport so panel can't be lost off-screen
-  const pw = panel.offsetWidth;
-  const ph = panel.offsetHeight;
+  const pw = _refPanel.offsetWidth;
+  const ph = _refPanel.offsetHeight;
   nx = Math.max(0, Math.min(window.innerWidth  - pw, nx));
   ny = Math.max(48, Math.min(window.innerHeight - ph, ny));  // 48 = header height
-  panel.style.left  = nx + 'px';
-  panel.style.top   = ny + 'px';
-  panel.style.right = 'auto';   // unset the default right anchor
+  _refPanel.style.left  = nx + 'px';
+  _refPanel.style.top   = ny + 'px';
+  _refPanel.style.right = 'auto';   // unset the default right anchor
 }
 
 function stopRefDrag() {
@@ -2549,19 +2550,17 @@ function handleRefImgMouseup() {
 // ═══════════════════════════════════════════════════
 function toggleSwapButtons() {
   S.swapButtons = !S.swapButtons;
-  const lbl = document.getElementById('rmb-label');
-  const btn = document.getElementById('swap-btn');
   if (S.swapButtons) {
-    lbl.textContent = 'Black ↑ (swapped)';
-    lbl.style.color = 'var(--gold)';
-    btn.style.borderColor = 'var(--gold)';
-    btn.style.color = 'var(--gold)';
+    _rmbLabel.textContent = 'Black ↑ (swapped)';
+    _rmbLabel.style.color = 'var(--gold)';
+    _swapBtn.style.borderColor = 'var(--gold)';
+    _swapBtn.style.color = 'var(--gold)';
     toast('RMB = Black (draw),  LMB = White (erase)');
   } else {
-    lbl.textContent = 'White ↓';
-    lbl.style.color = 'var(--gold2)';
-    btn.style.borderColor = 'var(--border2)';
-    btn.style.color = 'var(--muted)';
+    _rmbLabel.textContent = 'White ↓';
+    _rmbLabel.style.color = 'var(--gold2)';
+    _swapBtn.style.borderColor = 'var(--border2)';
+    _swapBtn.style.color = 'var(--muted)';
     toast('LMB = Black (draw),  RMB = White (erase)');
   }
 }
@@ -2997,22 +2996,21 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Fill Interiors preview listeners
-  document.getElementById('fi-pattern')?.addEventListener('change', updateFiPreview);
-  document.getElementById('fi-n')?.addEventListener('input', updateFiPreview);
+  _fpPattern?.addEventListener('change', updateFiPreview);
+  _fpN?.addEventListener('input', updateFiPreview);
 
   // 4. Reference panel — drop target + zoom/pan events
-  const refPanel = document.getElementById('ref-panel');
-  if (refPanel) {
-    refPanel.addEventListener('dragover', e => {
+  if (_refPanel) {
+    _refPanel.addEventListener('dragover', e => {
       e.preventDefault(); e.stopPropagation();
-      refPanel.style.borderColor = 'var(--gold)';
+      _refPanel.style.borderColor = 'var(--gold)';
     });
-    refPanel.addEventListener('dragleave', () => {
-      refPanel.style.borderColor = '';
+    _refPanel.addEventListener('dragleave', () => {
+      _refPanel.style.borderColor = '';
     });
-    refPanel.addEventListener('drop', e => {
+    _refPanel.addEventListener('drop', e => {
       e.preventDefault(); e.stopPropagation();
-      refPanel.style.borderColor = '';
+      _refPanel.style.borderColor = '';
       const f = e.dataTransfer.files[0];
       if (f && f.type.startsWith('image/')) loadRefImage(f);
     });
