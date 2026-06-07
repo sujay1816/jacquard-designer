@@ -1051,13 +1051,9 @@ if __name__ == '__main__':
 
 @app.route('/border-id')
 def border_id_page():
-    """Enhanced border identification page (fine-detail mode)."""
-    from flask import make_response
-    resp = make_response(render_template('border_id.html'))
-    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-    resp.headers['Pragma']        = 'no-cache'
-    resp.headers['Expires']       = '0'
-    return resp
+    """Border ID is now combined into /border — redirect for backwards compatibility."""
+    from flask import redirect
+    return redirect('/border', code=301)
 
 
 @app.route('/api/border-id-generate', methods=['POST'])

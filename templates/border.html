@@ -3,190 +3,125 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Border Designer — Jacquard Designer</title>
+<title>Border Studio — Jacquard Designer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #0e0c0a;
-    --surface: #161410;
-    --surface2: #1e1b17;
-    --border: #2e2a24;
-    --border2: #3e3830;
-    --gold: #c8a96e;
-    --gold2: #e8c98e;
-    --cream: #f0e8d8;
-    --muted: #7a6f62;
-    --text: #e8e0d0;
-    --danger: #c06060;
-    --success: #6a9e6a;
-    --zari: #c8a040;
-    --meena1: #8ab4d8;
-    --meena2: #b890c8;
-    --rani: #c87890;
-    --radius: 8px;
-    --transition: 0.2s ease;
+    --bg:#0e0c0a; --surface:#161410; --surface2:#1e1b17;
+    --border:#2e2a24; --border2:#3e3830;
+    --gold:#c8a96e; --gold2:#e8c98e; --cream:#f0e8d8;
+    --muted:#7a6f62; --text:#e8e0d0;
+    --danger:#c06060; --success:#6a9e6a;
+    --zari:#c8a040; --meena1:#8ab4d8; --meena2:#b890c8; --rani:#c87890;
+    --radius:8px; --transition:0.2s ease;
   }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    background:
-      radial-gradient(1200px 600px at 80% -10%, rgba(200,169,110,0.06), transparent 60%),
-      var(--bg);
-    color: var(--text);
-    font-family: 'DM Mono', monospace;
-    font-size: 13px;
-    min-height: 100vh;
-  }
-  a { color: var(--gold); text-decoration: none; }
-  a:hover { color: var(--gold2); }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:radial-gradient(1200px 600px at 80% -10%,rgba(200,169,110,0.06),transparent 60%),var(--bg);color:var(--text);font-family:'DM Mono',monospace;font-size:13px;min-height:100vh;}
+  a{color:var(--gold);text-decoration:none;} a:hover{color:var(--gold2);}
+  header{border-bottom:1px solid var(--border);padding:18px 32px;display:flex;align-items:center;gap:18px;background:var(--surface);position:sticky;top:0;z-index:20;}
+  .logo{font-family:'Fraunces',serif;font-size:20px;color:var(--gold2);letter-spacing:0.5px;}
+  .logo small{color:var(--muted);font-family:'DM Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;display:block;margin-top:2px;}
+  .tag{margin-left:6px;padding:3px 10px;border:1px solid var(--border2);border-radius:100px;color:var(--gold);font-size:11px;letter-spacing:1px;text-transform:uppercase;}
+  .nav{margin-left:auto;display:flex;gap:22px;font-size:12px;letter-spacing:1px;text-transform:uppercase;}
+  .nav a{color:var(--muted);transition:color var(--transition);} .nav a:hover{color:var(--cream);} .nav a.active{color:var(--gold);}
+  main{max-width:1080px;margin:0 auto;padding:32px;}
+  .intro{border:1px solid var(--border);border-left:3px solid var(--gold);background:var(--surface);border-radius:var(--radius);padding:16px 20px;margin-bottom:28px;color:var(--cream);line-height:1.6;}
+  .intro b{color:var(--gold2);font-weight:500;}
+  .step{margin-bottom:26px;opacity:.45;pointer-events:none;transition:opacity var(--transition);}
+  .step.active{opacity:1;pointer-events:auto;}
+  .step-head{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
+  .step-num{width:26px;height:26px;border-radius:50%;flex:none;border:1px solid var(--border2);display:grid;place-items:center;font-size:12px;color:var(--gold);}
+  .step.active .step-num{background:var(--gold);color:#1a1610;border-color:var(--gold);}
+  .step-title{font-family:'Fraunces',serif;font-size:17px;color:var(--cream);}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;}
+  label.fld{display:block;color:var(--muted);font-size:11px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;}
+  input[type=text],input[type=number],select{width:100%;background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-family:'DM Mono',monospace;font-size:13px;padding:9px 11px;border-radius:6px;outline:none;}
+  input:focus,select:focus{border-color:var(--gold);}
+  .row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;}
+  .help{color:var(--muted);font-size:11px;margin-top:6px;line-height:1.5;}
+  .dropzone{border:1.5px dashed var(--border2);border-radius:var(--radius);padding:34px;text-align:center;cursor:pointer;transition:var(--transition);background:var(--surface2);}
+  .dropzone:hover,.dropzone.drag{border-color:var(--gold);background:#211d18;}
+  .dropzone .big{font-family:'Fraunces',serif;font-size:16px;color:var(--cream);}
+  .dropzone .sub{color:var(--muted);margin-top:6px;}
+  #thumb{max-height:220px;max-width:100%;border-radius:6px;margin-top:14px;border:1px solid var(--border2);}
+  button.primary{background:linear-gradient(180deg,var(--gold2),var(--gold));color:#1a1610;border:none;font-family:'DM Mono',monospace;font-weight:500;font-size:13px;letter-spacing:1px;text-transform:uppercase;padding:12px 22px;border-radius:6px;cursor:pointer;transition:var(--transition);}
+  button.primary:hover{filter:brightness(1.08);}
+  button.primary:disabled{opacity:.5;cursor:not-allowed;}
+  button.primary.loading{opacity:.7;cursor:wait;}
+  button.ghost{background:transparent;color:var(--gold);border:1px solid var(--border2);padding:10px 18px;border-radius:6px;cursor:pointer;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:1px;text-transform:uppercase;}
+  button.ghost:hover{border-color:var(--gold);}
 
-  header {
-    border-bottom: 1px solid var(--border);
-    padding: 18px 32px;
-    display: flex; align-items: center; gap: 18px;
-    background: var(--surface);
-    position: sticky; top: 0; z-index: 20;
-  }
-  .logo {
-    font-family: 'Fraunces', serif;
-    font-size: 20px; color: var(--gold2);
-    letter-spacing: 0.5px;
-  }
-  .logo small { color: var(--muted); font-family:'DM Mono',monospace; font-size:11px; letter-spacing:2px; text-transform:uppercase; display:block; margin-top:2px;}
-  .tag {
-    margin-left: 6px; padding: 3px 10px; border:1px solid var(--border2);
-    border-radius: 100px; color: var(--gold); font-size: 11px; letter-spacing:1px; text-transform:uppercase;
-  }
-  .nav { margin-left:auto; display:flex; gap: 22px; font-size:12px; letter-spacing:1px; text-transform:uppercase;}
-  .nav a { color: var(--muted); }
-  .nav a:hover { color: var(--cream); }
+  /* ── Mode toggle ─────────────────────────────────────────── */
+  .mode-wrap{background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);padding:16px 18px;margin-bottom:20px;}
+  .mode-label{color:var(--muted);font-size:11px;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;}
+  .mode-btns{display:flex;gap:0;border-radius:6px;overflow:hidden;border:1px solid var(--border2);width:fit-content;}
+  .mode-btn{padding:9px 22px;background:var(--surface);border:none;color:var(--muted);font-family:'DM Mono',monospace;font-size:12px;letter-spacing:.5px;cursor:pointer;transition:var(--transition);border-right:1px solid var(--border2);}
+  .mode-btn:last-child{border-right:none;}
+  .mode-btn:hover{color:var(--cream);}
+  .mode-btn.active{background:rgba(200,169,110,0.15);color:var(--gold2);}
+  .mode-desc{margin-top:10px;font-size:11px;color:var(--muted);line-height:1.6;padding:10px 12px;background:rgba(200,169,110,0.05);border-radius:6px;border-left:2px solid var(--border2);}
+  .mode-desc.fine{border-left-color:var(--gold);}
+  .fine-badge{display:inline-block;padding:1px 7px;border:1px solid var(--gold);border-radius:100px;color:var(--gold);font-size:9px;letter-spacing:1px;text-transform:uppercase;margin-left:6px;vertical-align:middle;}
 
-  main { max-width: 1080px; margin: 0 auto; padding: 32px; }
-
-  .intro {
-    border:1px solid var(--border); border-left:3px solid var(--gold);
-    background: var(--surface); border-radius: var(--radius);
-    padding: 16px 20px; margin-bottom: 28px; color: var(--cream); line-height: 1.6;
-  }
-  .intro b { color: var(--gold2); font-weight: 500; }
-
-  .step { margin-bottom: 26px; opacity: 0.45; pointer-events: none; transition: opacity var(--transition); }
-  .step.active { opacity: 1; pointer-events: auto; }
-  .step-head { display:flex; align-items:center; gap:12px; margin-bottom: 14px; }
-  .step-num {
-    width: 26px; height: 26px; border-radius: 50%; flex: none;
-    border:1px solid var(--border2); display:grid; place-items:center;
-    font-size: 12px; color: var(--gold);
-  }
-  .step.active .step-num { background: var(--gold); color: #1a1610; border-color: var(--gold); }
-  .step-title { font-family:'Fraunces',serif; font-size: 17px; color: var(--cream); }
-
-  .card { background: var(--surface); border:1px solid var(--border); border-radius: var(--radius); padding: 20px; }
-
-  label.fld { display:block; color: var(--muted); font-size:11px; letter-spacing:1px; text-transform:uppercase; margin-bottom:6px; }
-  input[type=text], input[type=number], select {
-    width: 100%; background: var(--surface2); border:1px solid var(--border2);
-    color: var(--text); font-family:'DM Mono',monospace; font-size:13px;
-    padding: 9px 11px; border-radius: 6px; outline:none;
-  }
-  input:focus, select:focus { border-color: var(--gold); }
-  .row { display:grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 14px; }
-  .help { color: var(--muted); font-size:11px; margin-top: 6px; line-height:1.5; }
-
-  .dropzone {
-    border: 1.5px dashed var(--border2); border-radius: var(--radius);
-    padding: 34px; text-align:center; cursor:pointer; transition: var(--transition);
-    background: var(--surface2);
-  }
-  .dropzone:hover, .dropzone.drag { border-color: var(--gold); background:#211d18; }
-  .dropzone .big { font-family:'Fraunces',serif; font-size:16px; color: var(--cream); }
-  .dropzone .sub { color: var(--muted); margin-top:6px; }
-  #thumb { max-height: 220px; max-width: 100%; border-radius:6px; margin-top: 14px; border:1px solid var(--border2); }
-
-  button.primary {
-    background: linear-gradient(180deg, var(--gold2), var(--gold));
-    color:#1a1610; border:none; font-family:'DM Mono',monospace; font-weight:500;
-    font-size:13px; letter-spacing:1px; text-transform:uppercase;
-    padding: 12px 22px; border-radius:6px; cursor:pointer; transition: var(--transition);
-  }
-  button.primary:hover { filter:brightness(1.08); }
-  button.primary:disabled { opacity:0.5; cursor:not-allowed; }
-  button.primary.loading { opacity:0.7; cursor:wait; }
-  button.ghost {
-    background: transparent; color: var(--gold); border:1px solid var(--border2);
-    padding:10px 18px; border-radius:6px; cursor:pointer; font-family:'DM Mono',monospace;
-    font-size:12px; letter-spacing:1px; text-transform:uppercase;
-  }
-  button.ghost:hover { border-color: var(--gold); }
-
-  .swatch-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap: 12px; margin-top: 6px; }
-  .swatch {
-    display:flex; align-items:center; gap:12px; background: var(--surface2);
-    border:1px solid var(--border2); border-radius:6px; padding: 10px;
-  }
-  .chip { width: 38px; height: 38px; border-radius:6px; flex:none; border:1px solid rgba(255,255,255,0.12); }
-  .swatch .meta { flex:1; min-width:0; }
-  .swatch .pct { color: var(--muted); font-size:11px; }
-  .swatch select { padding:6px 8px; font-size:12px; }
-  .badge-artefact { color: var(--danger); font-size:10px; letter-spacing:0.5px; }
-
-  .control-grid { display:grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 4px; }
-  @media (max-width: 720px){ .control-grid { grid-template-columns: 1fr; } }
-
-  .slider-wrap { display:flex; align-items:center; gap:12px; }
-  input[type=range]{ flex:1; accent-color: var(--gold); }
-  .slider-val { color: var(--gold2); min-width: 42px; text-align:right; }
-
-  .toggle { display:flex; align-items:center; gap:10px; cursor:pointer; user-select:none; }
-  .toggle input { width:16px; height:16px; accent-color: var(--gold); }
-
-  .satin-shuttle { border:1px solid var(--border2); border-radius:6px; padding:12px; background:var(--surface2); margin-bottom:10px; }
-  .satin-shuttle h4 { font-family:'DM Mono',monospace; font-size:12px; letter-spacing:1px; text-transform:uppercase; margin-bottom:10px; }
-  .satin-row { display:grid; grid-template-columns: auto 1fr 1fr auto; gap:12px; align-items:center; }
-  @media (max-width:620px){ .satin-row{ grid-template-columns:1fr 1fr; } }
-
-  .msg { padding: 11px 14px; border-radius:6px; margin-top:14px; font-size:12px; line-height:1.5; display:none; }
-  .msg.err { background: rgba(192,96,96,0.12); border:1px solid var(--danger); color:#e0a0a0; display:block; }
-  .msg.ok  { background: rgba(106,158,106,0.12); border:1px solid var(--success); color:#a0d0a0; display:block; }
-
-  .preview-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap:16px; margin-top:6px; }
-  .preview-card { background: var(--surface2); border:1px solid var(--border2); border-radius:6px; overflow:hidden; }
-  .pc-head { padding:10px 12px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; }
-  .pc-dot { width:10px; height:10px; border-radius:50%; }
-  .pc-name { font-size:12px; letter-spacing:1px; text-transform:uppercase; color:var(--cream); }
-  .pc-sub { color: var(--muted); font-size:10px; margin-left:auto; }
-  .preview-card img { width:100%; display:block; background:#fff; image-rendering: pixelated; }
-  .pc-stat { padding:8px 12px; color:var(--muted); font-size:11px; display:flex; justify-content:space-between; }
-  .pc-stat .clean { color: var(--success); }
-  .actions { display:flex; gap:12px; margin-top:18px; flex-wrap:wrap; }
-  .spinner { display:inline-block; width:14px; height:14px; border:2px solid rgba(26,22,16,0.4); border-top-color:#1a1610; border-radius:50%; animation:spin 0.7s linear infinite; vertical-align:-2px; margin-right:8px;}
-  @keyframes spin { to { transform: rotate(360deg);} }
+  .swatch-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-top:6px;}
+  .swatch{display:flex;align-items:center;gap:12px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:10px;}
+  .chip{width:38px;height:38px;border-radius:6px;flex:none;border:1px solid rgba(255,255,255,0.12);}
+  .swatch .meta{flex:1;min-width:0;} .swatch .pct{color:var(--muted);font-size:11px;} .swatch select{padding:6px 8px;font-size:12px;}
+  .badge-artefact{color:var(--danger);font-size:10px;letter-spacing:.5px;}
+  .control-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:4px;}
+  @media(max-width:720px){.control-grid{grid-template-columns:1fr;}}
+  .slider-wrap{display:flex;align-items:center;gap:12px;}
+  input[type=range]{flex:1;accent-color:var(--gold);}
+  .slider-val{color:var(--gold2);min-width:42px;text-align:right;}
+  .toggle{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;}
+  .toggle input{width:16px;height:16px;accent-color:var(--gold);}
+  .satin-shuttle{border:1px solid var(--border2);border-radius:6px;padding:12px;background:var(--surface2);margin-bottom:10px;}
+  .satin-shuttle h4{font-family:'DM Mono',monospace;font-size:12px;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;}
+  .satin-row{display:grid;grid-template-columns:auto 1fr 1fr auto;gap:12px;align-items:center;}
+  @media(max-width:620px){.satin-row{grid-template-columns:1fr 1fr;}}
+  .msg{padding:11px 14px;border-radius:6px;margin-top:14px;font-size:12px;line-height:1.5;display:none;}
+  .msg.err{background:rgba(192,96,96,0.12);border:1px solid var(--danger);color:#e0a0a0;display:block;}
+  .msg.ok{background:rgba(106,158,106,0.12);border:1px solid var(--success);color:#a0d0a0;display:block;}
+  .preview-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:16px;margin-top:6px;}
+  .preview-card{background:var(--surface2);border:1px solid var(--border2);border-radius:6px;overflow:hidden;}
+  .pc-head{padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;}
+  .pc-dot{width:10px;height:10px;border-radius:50%;}
+  .pc-name{font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--cream);}
+  .pc-sub{color:var(--muted);font-size:10px;margin-left:auto;}
+  .preview-card img{width:100%;display:block;background:#fff;image-rendering:pixelated;}
+  .pc-stat{padding:8px 12px;color:var(--muted);font-size:11px;display:flex;justify-content:space-between;}
+  .pc-stat .clean{color:var(--success);}
+  .pc-actions{padding:8px 12px;border-top:1px solid var(--border);display:flex;gap:8px;}
+  .pc-btn{flex:1;padding:6px 0;background:var(--surface);border:1px solid var(--border2);color:var(--muted);border-radius:5px;cursor:pointer;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.5px;text-transform:uppercase;text-align:center;transition:var(--transition);}
+  .pc-btn:hover{border-color:var(--gold);color:var(--gold);}
+  .actions{display:flex;gap:12px;margin-top:18px;flex-wrap:wrap;}
+  .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(26,22,16,0.4);border-top-color:#1a1610;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;margin-right:8px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
 </style>
 </head>
 <body>
 <header>
   <div>
-    <div class="logo">Jacquard Designer<small>Border Mode</small></div>
+    <div class="logo">Jacquard Designer<small>Border Studio</small></div>
   </div>
   <span class="tag">High-detail</span>
   <nav class="nav">
     <a href="/">Generator</a>
     <a href="/trace">Trace</a>
     <a href="/edit">BMP Editor</a>
-    <a href="/border" class="active">Border Gen</a>
-    <a href="/border-id">Border ID</a>
+    <a href="/border" class="active">Border</a>
   </nav>
 </header>
 
 <main>
   <div class="intro">
-    This mode is tuned for <b>border &amp; running-line designs</b> — dense, fine scrollwork where the
-    standard generator can drop thin lines. It detects colours and builds masks at <b>high resolution</b>,
-    then pools them down with a low <b>detail-retention</b> threshold so fine lines survive. For best
-    results upload a single cropped border strip and use a generous pin count.
+    Tuned for <b>border &amp; running-line designs</b> — dense scrollwork, fine dots, and
+    thin lines where the standard generator drops detail. Choose <b>Standard</b> for clear
+    thick-line borders, or <b>Fine Detail</b> for dense dot-work and fine secondary motifs.
   </div>
 
-  <!-- STEP 1 -->
+  <!-- ── STEP 1: Upload ────────────────────────────────────────────────── -->
   <section class="step active" id="step1">
     <div class="step-head"><div class="step-num">1</div><div class="step-title">Upload &amp; loom settings</div></div>
     <div class="card">
@@ -231,10 +166,25 @@
     </div>
   </section>
 
-  <!-- STEP 2 -->
+  <!-- ── STEP 2: Assign + Mode ─────────────────────────────────────────── -->
   <section class="step" id="step2">
-    <div class="step-head"><div class="step-num">2</div><div class="step-title">Assign colours &amp; detail</div></div>
+    <div class="step-head"><div class="step-num">2</div><div class="step-title">Assign colours &amp; configure</div></div>
     <div class="card">
+
+      <!-- Mode selector -->
+      <div class="mode-wrap">
+        <div class="mode-label">Generation mode</div>
+        <div class="mode-btns">
+          <button class="mode-btn active" data-mode="standard" onclick="setMode('standard')">Standard</button>
+          <button class="mode-btn"        data-mode="fine"     onclick="setMode('fine')">✦ Fine Detail</button>
+        </div>
+        <div class="mode-desc" id="modeDesc">
+          <b style="color:var(--cream)">Standard</b> — high-resolution ink-first detection at 4× upscale.
+          Best for clear borders with thick lines, solid fills, and defined colour blocks.
+        </div>
+      </div>
+
+      <!-- Controls row -->
       <div class="control-grid">
         <div>
           <label class="fld">Shuttle count</label>
@@ -252,21 +202,36 @@
             <input type="range" id="detail" min="2" max="60" value="18">
             <span class="slider-val" id="detailVal">0.18</span>
           </div>
-          <div class="help">Lower keeps more fine lines (more ink). Higher is cleaner but may thin detail.</div>
+          <div class="help" id="detailHelp">Lower preserves finer lines. Higher = cleaner, may drop thin detail.</div>
         </div>
       </div>
 
-      <div style="margin-top:18px;">
-        <label class="toggle"><input type="checkbox" id="hiDetail" checked> High-resolution detection (4× oversample)</label>
+      <!-- Fine-detail only: min feature size -->
+      <div class="control-grid" id="fineControls" style="display:none;margin-top:16px;">
+        <div>
+          <label class="fld">Min feature size (px) <span class="fine-badge">fine</span></label>
+          <div class="slider-wrap">
+            <input type="range" id="noiseMin" min="1" max="6" value="1">
+            <span class="slider-val" id="noiseMinVal">1</span>
+          </div>
+          <div class="help">1 = keep finest dots &amp; single-pixel elements. Higher removes smaller noise.</div>
+        </div>
+        <div style="padding-top:6px;">
+          <label class="toggle"><input type="checkbox" id="hiDetail" checked>
+            Adaptive hi-res upscale <span class="fine-badge">fine</span></label>
+          <div class="help" style="margin-top:8px;">Auto-selects 4–8× based on source density for finest detail.</div>
+        </div>
       </div>
 
+      <!-- Colour assignment -->
       <div style="margin-top:22px;">
         <label class="fld">Assign each detected colour to a shuttle</label>
         <div class="swatch-grid" id="swatches"></div>
       </div>
 
+      <!-- Satin/weave per shuttle -->
       <div style="margin-top:22px;">
-        <label class="fld">Weave per shuttle (default solid lines)</label>
+        <label class="fld">Weave per shuttle <span style="color:var(--muted);font-size:10px;font-weight:normal;text-transform:none;letter-spacing:0">(default: solid crisp lines)</span></label>
         <div id="satinPanel"></div>
       </div>
 
@@ -279,19 +244,20 @@
 
       <div class="actions">
         <button class="primary" id="generateBtn">Generate BMP files</button>
-        <button class="ghost" id="backBtn">Re-upload</button>
+        <button class="ghost"   id="backBtn">Re-upload</button>
       </div>
       <div class="msg" id="genMsg"></div>
     </div>
   </section>
 
-  <!-- STEP 3 -->
+  <!-- ── STEP 3: Results ───────────────────────────────────────────────── -->
   <section class="step" id="step3">
     <div class="step-head"><div class="step-num">3</div><div class="step-title">Result</div></div>
     <div class="card">
+      <div id="modeUsed" style="font-size:11px;color:var(--muted);margin-bottom:14px;"></div>
       <div class="preview-grid" id="previewGrid"></div>
       <div class="actions">
-        <button class="primary" id="downloadBtn">Download ZIP</button>
+        <button class="primary" id="downloadBtn">↓ Download ZIP</button>
       </div>
     </div>
   </section>
@@ -299,239 +265,284 @@
 
 <script>
 const SHUTTLE_COLORS = { zari:'#c8a040', meena1:'#8ab4d8', meena2:'#b890c8', rani:'#c87890', background:'#555' };
-const SHUTTLE_LABEL = {
-  zari:{label:'ZARI', sub:'Gold thread'}, meena1:{label:'MEENA 1', sub:'Colour 1'},
-  meena2:{label:'MEENA 2', sub:'Colour 2'}, rani:{label:'RANI', sub:'Plain weave base'}
+const SHUTTLE_LABEL  = {
+  zari:{label:'ZARI',sub:'Gold thread'},
+  meena1:{label:'MEENA 1',sub:'Colour 1'},
+  meena2:{label:'MEENA 2',sub:'Colour 2'},
+  rani:{label:'RANI',sub:'Plain weave base'}
+};
+const MODE_DESCS = {
+  standard: '<b style="color:var(--cream)">Standard</b> — 4× high-res ink-first detection. Best for clear borders with thick lines, solid fills, and defined colour blocks.',
+  fine:     '<b style="color:var(--gold2)">Fine Detail</b> — adaptive upscale (4–8×), dual-threshold pooling, and pre-pool closing. Preserves small dots, thin scroll lines, and fine secondary motifs.'
 };
 
 const state = {
   file:null, colors:[], pins:0, cards:0,
   safeImageB64:null, fullImageB64:null, labelMap:null,
-  assignments:{}, zipB64:null, zipFilename:null, patterns:[]
+  assignments:{}, zipB64:null, zipFilename:null,
+  patterns:[], bmpB64:{}, mode:'standard'
 };
 
 const $ = id => document.getElementById(id);
 
-// ---- fill patterns for the weave dropdowns ----
-fetch('/api/fill-patterns').then(r=>r.json()).then(d=>{ state.patterns = d.patterns || []; }).catch(()=>{});
+fetch('/api/fill-patterns').then(r=>r.json()).then(d=>{ state.patterns=d.patterns||[]; }).catch(()=>{});
 
-// ---- upload ----
-const dz = $('dropzone'), fi = $('fileInput');
-dz.onclick = ()=> fi.click();
-dz.ondragover = e=>{ e.preventDefault(); dz.classList.add('drag'); };
+// ── Mode toggle ────────────────────────────────────────────────────────────
+function setMode(m) {
+  state.mode = m;
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode===m));
+  $('modeDesc').innerHTML       = MODE_DESCS[m];
+  $('modeDesc').className       = 'mode-desc' + (m==='fine' ? ' fine' : '');
+  $('fineControls').style.display = m==='fine' ? '' : 'none';
+  if (m === 'fine') {
+    $('detail').min='0'; $('detail').max='25'; $('detail').value='12';
+    $('detailVal').textContent='0.12';
+    $('detailHelp').textContent='Lower = more fine detail (0.00 = keep any ink coverage).';
+    $('designName').value = $('designName').value.replace(/^border$/, 'border_fine');
+  } else {
+    $('detail').min='2'; $('detail').max='60'; $('detail').value='18';
+    $('detailVal').textContent='0.18';
+    $('detailHelp').textContent='Lower preserves finer lines. Higher = cleaner, may drop thin detail.';
+    $('designName').value = $('designName').value.replace(/^border_fine$/, 'border');
+  }
+}
+
+// ── Upload ─────────────────────────────────────────────────────────────────
+const dz=$('dropzone'), fi=$('fileInput');
+dz.onclick     = ()=> fi.click();
+dz.ondragover  = e=>{ e.preventDefault(); dz.classList.add('drag'); };
 dz.ondragleave = ()=> dz.classList.remove('drag');
 dz.ondrop = e=>{ e.preventDefault(); dz.classList.remove('drag'); if(e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); };
 fi.onchange = ()=>{ if(fi.files[0]) loadFile(fi.files[0]); };
 
-function loadFile(f){
-  state.file = f;
-  const url = URL.createObjectURL(f);
-  const t = $('thumb'); t.src = url; t.style.display='block';
-  dz.querySelector('.big').textContent = f.name;
-  $('detectBtn').disabled = false;
+function loadFile(f) {
+  state.file=f;
+  const t=$('thumb'); t.src=URL.createObjectURL(f); t.style.display='block';
+  dz.querySelector('.big').textContent=f.name;
+  $('detectBtn').disabled=false;
 }
 
-function setStep(n){
-  for(let i=1;i<=3;i++) $('step'+i).classList.toggle('active', i<=n);
-  if(n>=2) $('step2').scrollIntoView({behavior:'smooth', block:'start'});
+function setStep(n) {
+  for(let i=1;i<=3;i++) $('step'+i).classList.toggle('active',i<=n);
+  if(n>=2) $('step2').scrollIntoView({behavior:'smooth',block:'start'});
 }
-function showMsg(id, text, ok){
-  const el = $(id); el.textContent = text; el.className = 'msg ' + (ok?'ok':'err');
-}
-function clearMsg(id){ const el=$(id); el.className='msg'; el.textContent=''; }
+function showMsg(id,txt,ok){ const e=$(id); e.textContent=txt; e.className='msg '+(ok?'ok':'err'); }
+function clearMsg(id){ const e=$(id); e.className='msg'; e.textContent=''; }
 
-// ---- detect (reuses existing /api/detect-colors) ----
-$('detectBtn').onclick = async ()=>{
+// ── Detect ────────────────────────────────────────────────────────────────
+$('detectBtn').onclick = async () => {
   if(!state.file) return;
   clearMsg('detectMsg');
-  const btn = $('detectBtn'); btn.disabled=true; btn.classList.add('loading');
-  btn.innerHTML = '<span class="spinner"></span>Detecting…';
-  try{
-    const fd = new FormData();
+  const btn=$('detectBtn'); btn.disabled=true; btn.classList.add('loading');
+  btn.innerHTML='<span class="spinner"></span>Detecting…';
+  try {
+    const fd=new FormData();
     fd.append('image', state.file);
-    fd.append('pins', $('pins').value || '400');
-    fd.append('cards', $('cards').value || '');
-    fd.append('n_colors', $('ncolors').value || '3');
+    fd.append('pins',  $('pins').value||'400');
+    fd.append('cards', $('cards').value||'');
+    fd.append('n_colors', $('ncolors').value||'3');
     fd.append('ink_sensitivity', ($('inkSens').value/100).toFixed(2));
-    const res = await fetch('/api/border-detect', { method:'POST', body: fd });
-    const data = await res.json();
-    if(!data.success) throw new Error(data.error || 'Detection failed');
+    const r=await fetch('/api/border-detect',{method:'POST',body:fd});
+    const d=await r.json();
+    if(!d.success) throw new Error(d.error||'Detection failed');
 
-    state.colors = data.colors;
-    state.pins = data.pins; state.cards = data.cards;
-    state.safeImageB64 = data.original_image;
-    state.fullImageB64 = data.full_image || null;
-    state.labelMap = data.label_map;
-    $('cards').value = data.cards;
+    state.colors=d.colors; state.pins=d.pins; state.cards=d.cards;
+    state.safeImageB64=d.original_image; state.fullImageB64=d.full_image||null;
+    state.labelMap=d.label_map;
+    $('cards').value=d.cards;
 
-    buildAssignments();
-    renderSwatches();
-    renderSatinPanel();
+    buildAssignments(); renderSwatches(); renderSatinPanel();
     setStep(2);
-  }catch(err){
+  } catch(err) {
     showMsg('detectMsg', err.message);
-  }finally{
+  } finally {
     btn.disabled=false; btn.classList.remove('loading'); btn.textContent='Detect colours';
   }
 };
 
-// default: index 0 -> background, rest -> zari / meena1 / meena2 by dominance
-function buildAssignments(){
-  state.assignments = {};
-  const named = namedShuttles();
-  state.colors.forEach((c,i)=>{
-    if(i===0){ state.assignments[i]='background'; }
-    else { state.assignments[i] = named[(i-1) % named.length] || 'background'; }
-  });
+function buildAssignments() {
+  state.assignments={};
+  const named=namedShuttles();
+  state.colors.forEach((c,i)=>{ state.assignments[i]=i===0?'background':(named[(i-1)%named.length]||'background'); });
 }
-
-function namedShuttles(){
-  const sc = parseInt($('shuttleCount').value);
-  if(sc<=2) return ['zari'];
-  if(sc===3) return ['zari','meena1'];
-  return ['zari','meena1','meena2'];
+function namedShuttles() {
+  const sc=parseInt($('shuttleCount').value);
+  return sc<=2?['zari']:sc===3?['zari','meena1']:['zari','meena1','meena2'];
 }
-
-function renderSwatches(){
-  const grid = $('swatches'); grid.innerHTML='';
-  const opts = ['background', ...namedShuttles()];
+function renderSwatches() {
+  const grid=$('swatches'); grid.innerHTML='';
+  const opts=['background',...namedShuttles()];
   state.colors.forEach((c,i)=>{
-    const div = document.createElement('div'); div.className='swatch';
-    const sel = opts.map(o=>`<option value="${o}" ${state.assignments[i]===o?'selected':''}>${o==='background'?'Background':SHUTTLE_LABEL[o].label}</option>`).join('');
-    div.innerHTML = `
-      <div class="chip" style="background:${c.hex}"></div>
+    const div=document.createElement('div'); div.className='swatch';
+    const sel=opts.map(o=>`<option value="${o}" ${state.assignments[i]===o?'selected':''}>${o==='background'?'Background':SHUTTLE_LABEL[o].label}</option>`).join('');
+    div.innerHTML=`<div class="chip" style="background:${c.hex}"></div>
       <div class="meta">
-        <div class="pct">${c.percentage}% ${c.is_genuine===false?'<span class="badge-artefact">· possible artefact</span>':''}</div>
+        <div class="pct">${c.percentage}%${c.is_genuine===false?' <span class="badge-artefact">· possible artefact</span>':''}</div>
         <select data-i="${i}">${sel}</select>
       </div>`;
     grid.appendChild(div);
   });
-  grid.querySelectorAll('select').forEach(s=>{
-    s.onchange = ()=>{ state.assignments[+s.dataset.i] = s.value; renderSatinPanel(); };
+  grid.querySelectorAll('select').forEach(s=>{ s.onchange=()=>{ state.assignments[+s.dataset.i]=s.value; renderSatinPanel(); }; });
+}
+function activeNamedShuttles() {
+  const used=new Set(Object.values(state.assignments).filter(v=>v!=='background'));
+  return namedShuttles().filter(s=>used.has(s));
+}
+function renderSatinPanel() {
+  const panel=$('satinPanel'); panel.innerHTML='';
+  const patOpts=state.patterns.length
+    ? state.patterns.map(p=>`<option value="${p.id}">${p.label}</option>`).join('')
+    : '<option value="satin">Satin</option>';
+  activeNamedShuttles().forEach(s=>{
+    const div=document.createElement('div'); div.className='satin-shuttle'; div.dataset.shuttle=s;
+    div.innerHTML=`<h4 style="color:${SHUTTLE_COLORS[s]}">${SHUTTLE_LABEL[s].label}</h4>
+      <div class="satin-row">
+        <label class="toggle"><input type="checkbox" class="weaveOn"> Apply weave</label>
+        <select class="pat" disabled>${patOpts}</select>
+        <select class="nval" disabled><option>4</option><option>5</option><option>6</option><option>7</option><option selected>8</option><option>16</option></select>
+        <label class="toggle"><input type="checkbox" class="flip" disabled> Flip</label>
+      </div>
+      <div class="help">Off = solid crisp lines (recommended for fine border detail).</div>`;
+    panel.appendChild(div);
+    const on=div.querySelector('.weaveOn');
+    on.onchange=()=>{ ['.pat','.nval','.flip'].forEach(q=>div.querySelector(q).disabled=!on.checked); };
   });
 }
 
 $('shuttleCount').onchange = ()=>{ buildAssignments(); renderSwatches(); renderSatinPanel(); };
+$('detail').oninput   = ()=>{ $('detailVal').textContent  = ($('detail').value/100).toFixed(2); };
+$('inkSens').oninput  = ()=>{ $('inkSensVal').textContent = ($('inkSens').value/100).toFixed(2); };
+$('noiseMin').oninput = ()=>{ $('noiseMinVal').textContent= $('noiseMin').value; };
+$('backBtn').onclick  = ()=> setStep(1);
 
-$('detail').oninput = ()=>{ $('detailVal').textContent = ($('detail').value/100).toFixed(2); };
-$('inkSens').oninput = ()=>{ $('inkSensVal').textContent = ($('inkSens').value/100).toFixed(2); };
-
-function activeNamedShuttles(){
-  const used = new Set(Object.values(state.assignments).filter(v=>v!=='background'));
-  return namedShuttles().filter(s=>used.has(s));
-}
-
-function renderSatinPanel(){
-  const panel = $('satinPanel'); panel.innerHTML='';
-  const patternOpts = state.patterns.length
-    ? state.patterns.map(p=>`<option value="${p.id}">${p.label}</option>`).join('')
-    : '<option value="satin">Satin</option>';
-  activeNamedShuttles().forEach(s=>{
-    const div = document.createElement('div'); div.className='satin-shuttle';
-    div.dataset.shuttle = s;
-    div.innerHTML = `
-      <h4 style="color:${SHUTTLE_COLORS[s]}">${SHUTTLE_LABEL[s].label}</h4>
-      <div class="satin-row">
-        <label class="toggle"><input type="checkbox" class="weaveOn"> Apply weave</label>
-        <select class="pat" disabled>${patternOpts}</select>
-        <select class="nval" disabled>
-          <option>4</option><option>5</option><option>6</option><option>7</option><option selected>8</option><option>16</option>
-        </select>
-        <label class="toggle"><input type="checkbox" class="flip" disabled> Flip</label>
-      </div>
-      <div class="help">Off = solid crisp lines (recommended for fine borders).</div>`;
-    panel.appendChild(div);
-    const on = div.querySelector('.weaveOn');
-    on.onchange = ()=>{ ['.pat','.nval','.flip'].forEach(q=>div.querySelector(q).disabled = !on.checked); };
-  });
-}
-
-$('backBtn').onclick = ()=> setStep(1);
-
-// ---- generate (new /api/border-generate) ----
-$('generateBtn').onclick = async ()=>{
+// ── Generate ──────────────────────────────────────────────────────────────
+$('generateBtn').onclick = async () => {
   clearMsg('genMsg');
-  const btn = $('generateBtn'); btn.disabled=true; btn.classList.add('loading');
-  btn.innerHTML = '<span class="spinner"></span>Generating…';
-  try{
-    const sc = parseInt($('shuttleCount').value);
-    // assignments must cover all detected indices
-    const finalAssign = {};
-    state.colors.forEach((c,i)=>{ finalAssign[i] = state.assignments[i] || 'background'; });
+  const btn=$('generateBtn'); btn.disabled=true; btn.classList.add('loading');
+  btn.innerHTML='<span class="spinner"></span>Generating…';
+  try {
+    const sc=parseInt($('shuttleCount').value);
+    const finalAssign={};
+    state.colors.forEach((c,i)=>{ finalAssign[i]=state.assignments[i]||'background'; });
 
-    // satin settings per active shuttle
-    const sa = {};
+    const sa={};
     document.querySelectorAll('.satin-shuttle').forEach(div=>{
-      const s = div.dataset.shuttle;
-      const on = div.querySelector('.weaveOn').checked;
-      sa[s] = {
-        n: parseInt(div.querySelector('.nval').value),
-        flip: div.querySelector('.flip').checked,
-        pattern: div.querySelector('.pat').value,
-        weave_off: !on
-      };
+      const s=div.dataset.shuttle, on=div.querySelector('.weaveOn').checked;
+      sa[s]={n:parseInt(div.querySelector('.nval').value),flip:div.querySelector('.flip').checked,pattern:div.querySelector('.pat').value,weave_off:!on};
     });
 
-    const body = {
-      image_b64: state.safeImageB64,
-      full_image: state.fullImageB64 || undefined,
-      label_map: state.labelMap,
-      pins: state.pins, cards: state.cards,
-      shuttle_count: sc,
-      design_name: $('designName').value || 'border',
+    // Body shared by both endpoints
+    const body={
+      image_b64:       state.safeImageB64,
+      full_image:      state.fullImageB64||undefined,
+      label_map:       state.labelMap,
+      pins:            state.pins,
+      cards:           state.cards,
+      shuttle_count:   sc,
+      design_name:     $('designName').value||'border',
       color_assignments: finalAssign,
-      satin_settings: sa,
-      palette: state.colors.map(c=>c.rgb),
-      detail_retention: ($('detail').value/100),
-      ink_sensitivity: ($('inkSens').value/100),
-      hi_detail: $('hiDetail').checked
+      satin_settings:  sa,
+      palette:         state.colors.map(c=>c.rgb),
+      detail_retention: $('detail').value/100,
+      ink_sensitivity:  $('inkSens').value/100,
+      hi_detail:        true,
     };
 
-    const res = await fetch('/api/border-generate', {
-      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
-    });
-    const data = await res.json();
-    if(!data.success) throw new Error(data.error || 'Generation failed');
+    // Fine detail mode sends extra params + uses the enhanced endpoint
+    const isFine = state.mode === 'fine';
+    const endpoint = isFine ? '/api/border-id-generate' : '/api/border-generate';
+    if (isFine) {
+      body.noise_min_size = parseInt($('noiseMin').value);
+      body.hi_detail      = $('hiDetail').checked;
+    }
 
-    state.zipB64 = data.zip_b64; state.zipFilename = data.zip_filename;
-    renderPreviews(data);
+    const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d=await r.json();
+    if(!d.success) throw new Error(d.error||'Generation failed');
+
+    state.zipB64=d.zip_b64; state.zipFilename=d.zip_filename;
+    state.bmpB64=d.bmp_b64||{};
+    renderPreviews(d);
     setStep(3);
     $('step3').scrollIntoView({behavior:'smooth'});
-  }catch(err){
+  } catch(err) {
     showMsg('genMsg', err.message);
-  }finally{
+  } finally {
     btn.disabled=false; btn.classList.remove('loading'); btn.textContent='Generate BMP files';
   }
 };
 
-function renderPreviews(data){
-  const grid = $('previewGrid'); grid.innerHTML='';
+// ── Previews ──────────────────────────────────────────────────────────────
+function renderPreviews(data) {
+  $('modeUsed').textContent = state.mode==='fine'
+    ? '✦ Generated with Fine Detail mode — adaptive upscale, dual-threshold pooling'
+    : '● Generated with Standard mode — 4× high-resolution ink-first detection';
+  const grid=$('previewGrid'); grid.innerHTML='';
   data.files.forEach(fname=>{
-    const sname = Object.keys(SHUTTLE_LABEL).find(k=>fname.includes(k)) || 'file';
-    const info = SHUTTLE_LABEL[sname] || {label:fname, sub:''};
-    const v = data.verification[fname] || {};
-    const up = (v.pure_black!=null && v.pure_white!=null)
-      ? (100*v.pure_black/(v.pure_black+v.pure_white)).toFixed(1) : '—';
-    const card = document.createElement('div'); card.className='preview-card';
-    card.innerHTML = `
+    const sname=Object.keys(SHUTTLE_LABEL).find(k=>fname.includes(k))||'file';
+    const info=SHUTTLE_LABEL[sname]||{label:fname,sub:''};
+    const v=data.verification[fname]||{};
+    const up=(v.pure_black!=null&&v.pure_white!=null)
+      ?(100*v.pure_black/(v.pure_black+v.pure_white)).toFixed(1):'—';
+    const card=document.createElement('div'); card.className='preview-card';
+    card.innerHTML=`
       <div class="pc-head">
         <span class="pc-dot" style="background:${SHUTTLE_COLORS[sname]||'#888'}"></span>
-        <span class="pc-name">${info.label}</span><span class="pc-sub">${info.sub}</span>
+        <span class="pc-name">${info.label}</span>
+        <span class="pc-sub">${info.sub}</span>
       </div>
-      <img src="data:image/png;base64,${data.previews[fname]}">
-      <div class="pc-stat"><span>UP ${up}%</span><span class="${v.is_clean?'clean':''}">${v.is_clean?'1-bit clean':''}</span></div>`;
+      <img src="data:image/png;base64,${data.previews[fname]}" alt="${fname}">
+      <div class="pc-stat">
+        <span>UP ${up}%</span>
+        <span class="${v.is_clean?'clean':''}">${v.is_clean?'✓ 1-bit clean':''}</span>
+      </div>
+      <div class="pc-actions">
+        <button class="pc-btn" onclick="openInEditor('${fname}')">✏ BMP Editor</button>
+        <button class="pc-btn" onclick="downloadOne('${fname}')">↓ Download</button>
+      </div>`;
     grid.appendChild(card);
   });
 }
 
-$('downloadBtn').onclick = ()=>{
-  if(!state.zipB64) return;
-  const bin = atob(state.zipB64); const arr = new Uint8Array(bin.length);
+// ── Edit in BMP Editor ────────────────────────────────────────────────────
+function openInEditor(fname) {
+  const bmpData=state.bmpB64[fname]||'';
+  try {
+    sessionStorage.setItem('editor_bmp_b64', bmpData);
+    sessionStorage.setItem('editor_filename', fname);
+    sessionStorage.removeItem('editor_preview');
+  } catch(_){}
+  fetch('/api/store-bmp',{
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({bmp_b64:bmpData, filename:fname, preview:''})
+  })
+  .then(r=>r.json())
+  .then(d=>{
+    window.location.href = d.success&&d.token
+      ? `/edit?from_generator=1&token=${d.token}`
+      : '/edit?from_generator=1';
+  })
+  .catch(()=>{ window.location.href='/edit?from_generator=1'; });
+}
+
+// ── Download single ───────────────────────────────────────────────────────
+function downloadOne(fname) {
+  const b64=state.bmpB64[fname]; if(!b64) return;
+  const bin=atob(b64), arr=new Uint8Array(bin.length);
   for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
-  const blob = new Blob([arr], {type:'application/zip'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download = state.zipFilename || 'border_jacquard.zip';
-  a.click();
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([arr],{type:'image/bmp'}));
+  a.download=fname; a.click();
+}
+
+// ── Download ZIP ──────────────────────────────────────────────────────────
+$('downloadBtn').onclick = () => {
+  if(!state.zipB64) return;
+  const bin=atob(state.zipB64), arr=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([arr],{type:'application/zip'}));
+  a.download=state.zipFilename||'border_jacquard.zip'; a.click();
 };
 </script>
 </body>
