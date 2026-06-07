@@ -857,8 +857,31 @@ def _adaptive_thin(mask: np.ndarray, noise_min_size: int = 5) -> np.ndarray:
     up_pct = mask.sum() / float(mask.size)
 
     if up_pct < 0.10:
-        # Already thin / sparse — erosion would only fragment further
-        return remove_noise(mask, min_size=noise_min_size)
+        # Already thin / sparse — erosion would only fragment further.
+        # Step 1: Remove small noise artefacts.
+        result = remove_noise(mask, min_size=noise_min_size)
+        if not result.any():
+            return result
+
+        # Step 2: Check if the design is fragmented (many tiny isolated blobs).
+        # This happens when JPEG compression / detection artifacts break what
+        # should be continuous strokes into scattered dots separated by 2–6px gaps.
+        # If mean component < 30px, apply morphological closing to bridge those gaps
+        # and reconnect the design into continuous strokes before returning.
+        labeled_r, n_r = ndimage.label(result)
+        if n_r > 0:
+            comp_sizes = np.bincount(labeled_r.ravel())[1:]
+            mean_comp  = float(comp_sizes.mean())
+            if mean_comp < 30:
+                # Fragmented: bridge gaps up to 5px with morphological closing.
+                # Closing = dilate then erode with the same kernel — fills gaps
+                # without permanently expanding the boundary of solid regions.
+                struct = np.ones((11, 11), dtype=bool)   # 5px radius kernel
+                result = ndimage.binary_closing(result, structure=struct)
+                # Clean any tiny artefacts left by the closing operation
+                result = remove_noise(result, min_size=noise_min_size)
+
+        return result
 
     # Design is thick — compute how well erosion thins it
     eroded        = ndimage.binary_erosion(mask)
