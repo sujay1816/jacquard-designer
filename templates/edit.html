@@ -1051,6 +1051,17 @@ const _pasteOffscreen = document.createElement('canvas');
 const _hlist    = document.getElementById('hlist');
 const _undoBtn  = document.querySelector('.hbtn[onclick="undo()"]');
 const _redoBtn  = document.querySelector('.hbtn[onclick="redo()"]');
+// Remaining hot-path element refs
+const _canvasWrap = document.getElementById('canvas-wrap');
+const _selInfo    = document.getElementById('sel-info');
+const _toast      = document.getElementById('toast');
+const _spinner    = document.getElementById('spinner');
+const _fpPattern  = document.getElementById('fp-pattern');
+const _fpN        = document.getElementById('fp-n');
+const _headerSub  = document.getElementById('header-sub');
+const _tbtnGrid   = document.getElementById('tbtn-grid');
+// All toolbar buttons — cached so setTool() doesn't querySelectorAll every switch
+const _toolBtns   = document.querySelectorAll('.tbtn[id^="tbtn-"]');
 
 // requestAnimationFrame throttle — prevents render() being called faster
 // than the display refresh rate (Mac Retina fires mousemove at up to 120Hz
@@ -1087,7 +1098,7 @@ function applyZoom() {
   renderGrid();
   // Center canvas when smaller than viewport
   const area = _canvasArea;
-  const wrap = document.getElementById('canvas-wrap');
+  const wrap = _canvasWrap;
   if (area && wrap) {
     const aw = area.clientWidth, ah = area.clientHeight;
     wrap.style.marginLeft = sw < aw ? Math.max(20, (aw - sw) / 2) + 'px' : '20px';
@@ -1140,7 +1151,7 @@ function initImage(pixels, w, h, name) {
   pushHist('Original');
 
   document.getElementById('upload-overlay').style.display = 'none';
-  document.getElementById('canvas-wrap').style.display    = 'block';
+  _canvasWrap.style.display    = 'block';
 
   setTimeout(fitToWindow, 50); // after DOM reflow
   render();
@@ -1641,12 +1652,11 @@ function setTool(t) {
     // switching away from select — keep selection but stop drawing it
   }
   S.tool=t;
-  document.querySelectorAll('.tbtn[id^="tbtn-"]').forEach(b=>b.classList.remove('on'));
+  _toolBtns.forEach(b=>b.classList.remove('on'));
   const b=document.getElementById('tbtn-'+t); if(b) b.classList.add('on');
   MC.style.cursor={pencil:'crosshair',eraser:'cell',fill:'copy',line:'crosshair',rect:'crosshair',pan:'grab',satin:'cell',select:'crosshair','weave-fill':'crosshair','invert-region':'crosshair','smart-fill':'crosshair'}[t]||'crosshair';
   const toolNames={pencil:'Pencil',eraser:'Eraser',fill:'Flood Fill',line:'Line',rect:'Rectangle',pan:'Pan',satin:'Satin Brush',select:'Select','weave-fill':'Weave Fill (click a region)','invert-region':'Invert Region (click any region)','smart-fill':'Smart Fill (click a region)'};
-  const hn = document.getElementById('header-sub');
-  if (hn) hn.textContent = toolNames[t] || 'BMP Editor';
+  if (_headerSub) _headerSub.textContent = toolNames[t] || 'BMP Editor';
 }
 
 function setCol(c) {
@@ -1657,7 +1667,7 @@ function setCol(c) {
 
 function toggleGrid() {
   S.showGrid = !S.showGrid;
-  document.getElementById('tbtn-grid').classList.toggle('on', S.showGrid);
+  _tbtnGrid.classList.toggle('on', S.showGrid);
   renderGrid();
 }
 
@@ -1820,13 +1830,12 @@ function sendToGenerator() {
 // ═══════════════════════════════════════════════════
 // UI HELPERS
 // ═══════════════════════════════════════════════════
-function setSpin(on) { document.getElementById('spinner').classList.toggle('show',on); }
+function setSpin(on) { _spinner.classList.toggle('show', on); }
 
 let toastT=null;
 function toast(msg) {
-  const el=document.getElementById('toast');
-  el.textContent=msg; el.classList.add('on');
-  clearTimeout(toastT); toastT=setTimeout(()=>el.classList.remove('on'),2800);
+  _toast.textContent=msg; _toast.classList.add('on');
+  clearTimeout(toastT); toastT=setTimeout(()=>_toast.classList.remove('on'),2800);
 }
 
 // ═══════════════════════════════════════════════════
@@ -1834,8 +1843,8 @@ function toast(msg) {
 // ═══════════════════════════════════════════════════
 // Ensures S.fillPat is computed for current canvas size + pattern settings
 function ensureFillPat() {
-  const pat = document.getElementById('fp-pattern')?.value || 'satin';
-  const n   = parseInt(document.getElementById('fp-n')?.value || '8');
+  const pat = _fpPattern?.value || 'satin';
+  const n   = parseInt(_fpN?.value || '8');
   if (!S.fillPat || S.fillPat.length !== S.W*S.H ||
       S.fillPatName !== pat || S.fillPatN !== n) {
     S.fillPat     = generateFillJS(pat, n, S.W, S.H);
@@ -1922,8 +1931,8 @@ function generateFillJS(pat, n, W, H) {
 function updateFillPreview() {
   const cv = document.getElementById('fp-preview');
   if (!cv) return;
-  const pat = document.getElementById('fp-pattern').value;
-  const n   = parseInt(document.getElementById('fp-n').value);
+  const pat = _fpPattern.value;
+  const n   = parseInt(_fpN.value);
   const W = cv.width, H = cv.height;
   const ctx2 = cv.getContext('2d');
   const arr = generateFillJS(pat, n, W, H);
@@ -2332,8 +2341,8 @@ function invertRegionAt(cx, cy) {
 
 async function applyFillPattern() {
   if (!S.pixels) { toast('No file loaded'); return; }
-  const pat = document.getElementById('fp-pattern').value;
-  const n   = parseInt(document.getElementById('fp-n').value);
+  const pat = _fpPattern.value;
+  const n   = parseInt(_fpN.value);
   setSpin(true);
   try {
     const blob = await pxToBlob();
@@ -2568,13 +2577,12 @@ function toggleSwapButtons() {
 
 // ── Selection info panel ──────────────────────────
 function updateSelInfo() {
-  const el = document.getElementById('sel-info');
-  if (!el) return;
+  if (!_selInfo) return;
   if (!S.selActive || !S.sel) {
-    el.innerHTML = 'No selection.<br>Use the ⬚ Select tool to drag a region.';
+    _selInfo.innerHTML = 'No selection.<br>Use the ⬚ Select tool to drag a region.';
   } else {
     const w = S.sel.x1 - S.sel.x0 + 1, h = S.sel.y1 - S.sel.y0 + 1;
-    el.innerHTML = `Selected: <strong style="color:var(--gold2)">${w}×${h} px</strong><br>
+    _selInfo.innerHTML = `Selected: <strong style="color:var(--gold2)">${w}×${h} px</strong><br>
       at (${S.sel.x0},${S.sel.y0}) → (${S.sel.x1},${S.sel.y1})`;
   }
 }
@@ -2986,10 +2994,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 3. Fill pattern preview + listeners
   updateFillPreview();
-  document.getElementById('fp-pattern')?.addEventListener('change', () => {
+  _fpPattern?.addEventListener('change', () => {
     S.fillPat = null; updateFillPreview();
   });
-  document.getElementById('fp-n')?.addEventListener('input', () => {
+  _fpN?.addEventListener('input', () => {
     S.fillPat = null; updateFillPreview();
   });
 
