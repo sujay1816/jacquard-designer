@@ -1047,6 +1047,10 @@ const _cBlack         = document.getElementById('c-black');
 const _cWhite         = document.getElementById('c-white');
 // Reusable offscreen canvas for paste preview — avoids createElement every frame
 const _pasteOffscreen = document.createElement('canvas');
+// History panel + undo/redo button refs
+const _hlist    = document.getElementById('hlist');
+const _undoBtn  = document.querySelector('.hbtn[onclick="undo()"]');
+const _redoBtn  = document.querySelector('.hbtn[onclick="redo()"]');
 
 // requestAnimationFrame throttle — prevents render() being called faster
 // than the display refresh rate (Mac Retina fires mousemove at up to 120Hz
@@ -1336,7 +1340,7 @@ function restoreHistEntry(i) {
     MC.height = OC.height = S.H = h.h;
     applyZoom();
   }
-  render(); updateStats(); renderHist(); updateUndoRedoBtns();
+  render(); updateStats(); renderHistCurOnly(); updateUndoRedoBtns();
 }
 
 function undo() {
@@ -1356,31 +1360,42 @@ function redo() {
 }
 
 function updateUndoRedoBtns() {
-  const undoBtn = document.querySelector('.hbtn[onclick="undo()"]');
-  const redoBtn = document.querySelector('.hbtn[onclick="redo()"]');
-  if (undoBtn) {
+  if (_undoBtn) {
     const can = S.pixels && S.hi > 0;
-    undoBtn.style.opacity = can ? '1' : '0.35';
-    undoBtn.style.cursor  = can ? 'pointer' : 'not-allowed';
+    _undoBtn.style.opacity = can ? '1' : '0.35';
+    _undoBtn.style.cursor  = can ? 'pointer' : 'not-allowed';
   }
-  if (redoBtn) {
+  if (_redoBtn) {
     const can = S.pixels && S.hi < S.history.length - 1;
-    redoBtn.style.opacity = can ? '1' : '0.35';
-    redoBtn.style.cursor  = can ? 'pointer' : 'not-allowed';
+    _redoBtn.style.opacity = can ? '1' : '0.35';
+    _redoBtn.style.cursor  = can ? 'pointer' : 'not-allowed';
   }
 }
 
 function renderHist() {
-  const list = document.getElementById('hlist');
-  list.innerHTML = '';
-  [...S.history].reverse().forEach((h, ri) => {
-    const i = S.history.length - 1 - ri;
+  // Full rebuild — only called when entries are added (pushHist).
+  // Uses DocumentFragment so the DOM is touched exactly once, not 50 times.
+  const frag = document.createDocumentFragment();
+  for (let i = S.history.length - 1; i >= 0; i--) {
+    const h  = S.history[i];
     const el = document.createElement('div');
     el.className = 'hitem' + (i === S.hi ? ' cur' : '');
-    el.innerHTML = `<span>${h.label}</span><div class="hdot"></div>`;
-    el.onclick = () => { S.hi=i; restoreHistEntry(i); };
-    list.appendChild(el);
-  });
+    const sp  = document.createElement('span'); sp.textContent = h.label;
+    const dot = document.createElement('div');  dot.className  = 'hdot';
+    el.appendChild(sp); el.appendChild(dot);
+    el.onclick = () => { S.hi = i; restoreHistEntry(i); };
+    frag.appendChild(el);
+  }
+  _hlist.innerHTML = '';
+  _hlist.appendChild(frag);
+}
+
+function renderHistCurOnly() {
+  // Fast path for undo / redo / history-click — entries don't change,
+  // only the 'cur' marker moves. Avoids rebuilding all DOM nodes.
+  const items = _hlist.children, n = S.history.length;
+  for (let ri = 0; ri < items.length; ri++)
+    items[ri].classList.toggle('cur', (n - 1 - ri) === S.hi);
 }
 
 // ═══════════════════════════════════════════════════
@@ -1420,16 +1435,25 @@ function line(x0,y0,x1,y1,btn) {
   for(;;){brush(x0,y0);if(x0===x1&&y0===y1)break;const e2=2*e;if(e2>-dy){e-=dy;x0+=sx;}if(e2<dx){e+=dx;y0+=sy;}}
 }
 
-function fill(sx,sy,fv) {
-  const tgt=gpx(sx,sy); if(tgt===fv) return;
-  const stk=[[sx,sy]], vis=new Uint8Array(S.W*S.H);
-  while(stk.length){
-    const [x,y]=stk.pop();
-    if(x<0||x>=S.W||y<0||y>=S.H) continue;
-    const idx=y*S.W+x; if(vis[idx]) continue;
-    if(gpx(x,y)!==tgt) continue;
-    vis[idx]=1; spx(x,y,fv);
-    stk.push([x+1,y],[x-1,y],[x,y+1],[x,y-1]);
+function fill(sx, sy, fv) {
+  const tgt = gpx(sx, sy); if (tgt === fv) return;
+  const W = S.W, H = S.H;
+  const vis = new Uint8Array(W * H);
+  // Use a flat integer stack (linear indices) — avoids allocating a new
+  // [x,y] array for every pixel visited, matching the pattern used by
+  // fillRegionAt/invertRegionAt which already use Int32Array queues.
+  const stk = [sy * W + sx];
+  vis[sy * W + sx] = 1;
+  while (stk.length) {
+    const idx = stk.pop();
+    const x = idx % W, y = (idx / W) | 0;
+    if (gpx(x, y) !== tgt) continue;
+    spx(x, y, fv);
+    const r = idx + 1, l = idx - 1, d = idx + W, u = idx - W;
+    if (x + 1 < W && !vis[r]) { vis[r] = 1; stk.push(r); }
+    if (x - 1 >= 0 && !vis[l]) { vis[l] = 1; stk.push(l); }
+    if (y + 1 < H && !vis[d]) { vis[d] = 1; stk.push(d); }
+    if (y - 1 >= 0 && !vis[u]) { vis[u] = 1; stk.push(u); }
   }
 }
 
@@ -1683,7 +1707,7 @@ function adj(op, delta) {
 async function pxToBlob() {
   return new Promise(res=>{
     const oc=Object.assign(document.createElement('canvas'),{width:S.W,height:S.H});
-    oc.getContext('2d').putImageData(new ImageData(S.pixels.slice(),S.W,S.H),0,0);
+    oc.getContext('2d').putImageData(new ImageData(S.pixels,S.W,S.H),0,0);
     oc.toBlob(res,'image/png');
   });
 }
@@ -1779,7 +1803,7 @@ function sendToGenerator() {
   // The Generator takes a source IMAGE to re-detect; a PNG is the right format
   // here (the loom-ready 1-bit BMP is what Download produces).
   const oc=Object.assign(document.createElement('canvas'),{width:S.W,height:S.H});
-  oc.getContext('2d').putImageData(new ImageData(S.pixels.slice(),S.W,S.H),0,0);
+  oc.getContext('2d').putImageData(new ImageData(S.pixels,S.W,S.H),0,0);
   oc.toBlob(blob=>{
     const reader=new FileReader();
     reader.onload=e=>{
