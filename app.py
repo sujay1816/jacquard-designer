@@ -10,6 +10,7 @@ from bmp_engine import (detect_colors, generate_bmps, verify_bmp, enhance_image,
                         assess_image_quality, extract_outline,
                         generate_fill_pattern, FILL_PATTERNS, write_1bit_bmp)
 from border_engine import generate_border_bmps, detect_border
+from border_id_engine import generate_border_id_bmps
 
 app = Flask(__name__)
 app.secret_key = 'jq-designer-2024'
@@ -1039,3 +1040,163 @@ if __name__ == '__main__':
     _os.environ.setdefault('LOKY_MAX_CPU_COUNT', '1')
     _os.environ.setdefault('OMP_NUM_THREADS',    '1')
     app.run(debug=False, port=5000, use_reloader=False, threaded=True)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BORDER IDENTIFICATION  (/border-id) — enhanced fine-detail generation
+# Detection reuses /api/border-detect (unchanged).
+# Generation uses border_id_engine: adaptive scale, dual-threshold pooling,
+# pre-pool closing.
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route('/border-id')
+def border_id_page():
+    """Enhanced border identification page (fine-detail mode)."""
+    from flask import make_response
+    resp = make_response(render_template('border_id.html'))
+    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    resp.headers['Pragma']        = 'no-cache'
+    resp.headers['Expires']       = '0'
+    return resp
+
+
+@app.route('/api/border-id-generate', methods=['POST'])
+def api_border_id_generate():
+    """
+    Enhanced BMP generation for border identification.
+
+    Accepts same JSON as /api/border-generate, plus:
+      noise_min_size : int 1–6   minimum feature size at output resolution
+
+    Response shape matches /api/border-generate exactly.
+    """
+    try:
+        if not request.is_json:
+            return _json_error('Request must be JSON.')
+        data = request.get_json(silent=True)
+        if data is None:
+            return _json_error('Invalid or empty JSON body.')
+
+        for field in ('image_b64', 'pins', 'cards', 'shuttle_count', 'color_assignments'):
+            if field not in data:
+                return _json_error(f'Missing required field: {field}')
+
+        try:
+            pins          = int(data['pins'])
+            cards         = int(data['cards'])
+            shuttle_count = int(data['shuttle_count'])
+        except (ValueError, TypeError) as e:
+            return _json_error(f'Invalid numeric field: {e}')
+
+        if pins  < 10: return _json_error('Pins must be at least 10.')
+        if cards < 10: return _json_error('Cards must be at least 10.')
+        if shuttle_count not in (1, 2, 3, 4):
+            return _json_error('Shuttle count must be 1, 2, 3, or 4.')
+
+        src_img = None
+        if data.get('full_image'):
+            try:
+                src_img = Image.open(
+                    io.BytesIO(base64.b64decode(data['full_image']))).convert('RGB')
+            except Exception:
+                src_img = None
+        if src_img is None:
+            try:
+                src_img = Image.open(
+                    io.BytesIO(base64.b64decode(data['image_b64']))).convert('RGB')
+            except Exception:
+                return _json_error('Could not decode image data.')
+
+        design_name = str(data.get('design_name', 'border_id')).strip() or 'border_id'
+        design_name = ''.join(c for c in design_name if c.isalnum() or c in '_- ')
+        design_name = design_name.replace(' ', '_') or 'border_id'
+
+        try:
+            color_assignments = {int(k): str(v)
+                                 for k, v in data['color_assignments'].items()}
+        except (ValueError, TypeError) as e:
+            return _json_error(f'Invalid color_assignments: {e}')
+
+        raw_satin      = data.get('satin_settings', {})
+        satin_settings = {}
+        for k, v in raw_satin.items():
+            try:
+                n = int(v.get('n', 8))
+            except (ValueError, TypeError):
+                return _json_error(f'Satin n for "{k}" must be a whole number.')
+            if n not in FILL_PATTERNS and n not in {4,5,6,7,8,16}:
+                n = 8
+            min_h   = max(1, min(99999, int(v.get('min_height', 9999))))
+            pattern = str(v.get('pattern', 'satin')).lower().strip()
+            if pattern not in FILL_PATTERNS:
+                pattern = 'satin'
+            satin_settings[str(k)] = {
+                'n': n, 'flip': bool(v.get('flip', False)),
+                'min_height': min_h, 'pattern': pattern,
+                'weave_off': bool(v.get('weave_off', False)),
+            }
+
+        label_map = None
+        if data.get('label_map'):
+            try:
+                lm_img    = Image.open(
+                    io.BytesIO(base64.b64decode(data['label_map']))).convert('L')
+                label_map = np.array(lm_img)
+            except Exception:
+                label_map = None
+
+        palette_rgb = data.get('palette') or None
+
+        try:    detail_retention = max(0.0, min(0.9, float(data.get('detail_retention', 0.12))))
+        except: detail_retention = 0.12
+
+        try:    ink_sensitivity = max(0.25, min(3.0, float(data.get('ink_sensitivity', 1.0))))
+        except: ink_sensitivity = 1.0
+
+        try:    noise_min_size = max(1, min(8, int(data.get('noise_min_size', 1))))
+        except: noise_min_size = 1
+
+        hi_detail = bool(data.get('hi_detail', True))
+
+        bmp_files = generate_border_id_bmps(
+            image=src_img, pins=pins, cards=cards,
+            shuttle_count=shuttle_count,
+            color_assignments=color_assignments,
+            satin_settings=satin_settings,
+            design_name=design_name,
+            label_map=label_map, palette_rgb=palette_rgb,
+            detail_retention=detail_retention,
+            ink_sensitivity=ink_sensitivity,
+            noise_min_size=noise_min_size,
+            hi_detail=hi_detail,
+        )
+
+        verification = {f: verify_bmp(b) for f, b in bmp_files.items()}
+
+        zip_buf = io.BytesIO()
+        with zipfile.ZipFile(zip_buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for fname, bdata in bmp_files.items():
+                zf.writestr(fname, bdata)
+        zip_b64 = base64.b64encode(zip_buf.getvalue()).decode()
+
+        previews = {}; bmp_b64 = {}
+        for fname, bdata in bmp_files.items():
+            thumb = Image.open(io.BytesIO(bdata)).convert('RGB')
+            thumb.thumbnail((300, 300), Image.NEAREST)
+            buf = io.BytesIO(); thumb.save(buf, format='PNG')
+            previews[fname] = base64.b64encode(buf.getvalue()).decode()
+            bmp_b64[fname]  = base64.b64encode(bdata).decode()
+
+        return jsonify({
+            'success': True, 'zip_b64': zip_b64,
+            'zip_filename': f'{design_name}_jacquard.zip',
+            'files': list(bmp_files.keys()),
+            'verification': verification,
+            'previews': previews, 'bmp_b64': bmp_b64,
+        })
+
+    except ValueError as e:
+        return _json_error(str(e))
+    except Exception as e:
+        import traceback
+        return _json_error(f'Border identification failed: {e}')
