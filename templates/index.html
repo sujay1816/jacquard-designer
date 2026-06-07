@@ -2497,10 +2497,11 @@ function openInEditor(fname, previewB64) {
     sessionStorage.setItem('editor_preview',  previewB64 || '');
   } catch(_) {}
 
-  // Also persist on the server for the token-based fast path.
-  // Navigate in the SAME TAB via window.location.href — Safari blocks
-  // window.open() called from inside async callbacks (popup blocker),
-  // but location.href is always allowed regardless of call site.
+  // Open a blank new tab SYNCHRONOUSLY — must happen before any async
+  // call, otherwise popup blockers (Safari, Chrome) will suppress it.
+  // We then navigate the already-opened tab once we have the token URL.
+  const newTab = window.open('', '_blank');
+
   fetch('/api/store-bmp', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -2508,13 +2509,15 @@ function openInEditor(fname, previewB64) {
   })
   .then(r => r.json())
   .then(d => {
-    window.location.href = d.success && d.token
+    const url = d.success && d.token
       ? '/edit?from_generator=1&token=' + d.token
       : '/edit?from_generator=1';
+    if (newTab) newTab.location.href = url;
+    else window.open(url, '_blank');
   })
   .catch(() => {
-    // Server unavailable — sessionStorage already has the data
-    window.location.href = '/edit?from_generator=1';
+    if (newTab) newTab.location.href = '/edit?from_generator=1';
+    else window.open('/edit?from_generator=1', '_blank');
   });
 }
 
