@@ -1035,6 +1035,19 @@ const ox = OC.getContext('2d');
 // Cached DOM refs — avoids getElementById on every mouse-move event
 const _coordBar = document.getElementById('coord-bar');
 
+// Additional cached refs for hot-path functions
+const _canvasArea     = document.getElementById('canvas-area');
+const _PC             = document.getElementById('paste-canvas');
+const _zoomLabel      = document.getElementById('zoom-label');
+const _stSize         = document.getElementById('st-size');
+const _stUp           = document.getElementById('st-up');
+const _stPct          = document.getElementById('st-pct');
+const _stClean        = document.getElementById('st-clean');
+const _cBlack         = document.getElementById('c-black');
+const _cWhite         = document.getElementById('c-white');
+// Reusable offscreen canvas for paste preview — avoids createElement every frame
+const _pasteOffscreen = document.createElement('canvas');
+
 // requestAnimationFrame throttle — prevents render() being called faster
 // than the display refresh rate (Mac Retina fires mousemove at up to 120Hz
 // but only needs 60 renders/sec). Pixel writes still happen every event;
@@ -1064,12 +1077,12 @@ function applyZoom() {
   MC.style.height = sh + 'px';
   OC.style.width  = sw + 'px';
   OC.style.height = sh + 'px';
-  document.getElementById('zoom-label').textContent =
+  _zoomLabel.textContent =
     z < 1 ? Math.round(z * 100) + '%'
            : (Math.round(z * 10) / 10) + '×';
   renderGrid();
   // Center canvas when smaller than viewport
-  const area = document.getElementById('canvas-area');
+  const area = _canvasArea;
   const wrap = document.getElementById('canvas-wrap');
   if (area && wrap) {
     const aw = area.clientWidth, ah = area.clientHeight;
@@ -1440,7 +1453,7 @@ function onMD(e) {
   // If we have a floating paste preview, mouse-down commits or drags it
   if (S.pastePos !== null) {
     // Check if click is inside paste area
-    const PC = document.getElementById('paste-canvas');
+    const PC = _PC;
     const pw = S.clipboard ? S.clipboard.w : 0;
     const ph = S.clipboard ? S.clipboard.h : 0;
     const inPaste = x >= S.pastePos.x && x < S.pastePos.x+pw
@@ -1455,7 +1468,7 @@ function onMD(e) {
     }
   }
 
-  if (S.tool==='pan') { S.panStart={mx:e.clientX,my:e.clientY,sx:document.getElementById('canvas-area').scrollLeft,sy:document.getElementById('canvas-area').scrollTop}; return; }
+  if (S.tool==='pan') { S.panStart={mx:e.clientX,my:e.clientY,sx:_canvasArea.scrollLeft,sy:_canvasArea.scrollTop}; return; }
 
   if (S.tool==='select') {
     S.selStart={x,y}; S.sel=null; S.selActive=false;
@@ -1491,9 +1504,8 @@ function onMM(e) {
   }
 
   if (S.tool==='pan' && S.panStart) {
-    const a=document.getElementById('canvas-area');
-    a.scrollLeft=S.panStart.sx-(e.clientX-S.panStart.mx);
-    a.scrollTop =S.panStart.sy-(e.clientY-S.panStart.my);
+    _canvasArea.scrollLeft=S.panStart.sx-(e.clientX-S.panStart.mx);
+    _canvasArea.scrollTop =S.panStart.sy-(e.clientY-S.panStart.my);
     return;
   }
 
@@ -1549,7 +1561,7 @@ function onML() { if(S.painting){pushHist(S.tool==='satin' ? 'Satin brush' : 'Dr
 
 function onWheel(e) {
   e.preventDefault();
-  const area = document.getElementById('canvas-area');
+  const area = _canvasArea;
   const rect = MC.getBoundingClientRect();
   // Mouse position relative to canvas in BMP pixels before zoom
   const bmpX = (e.clientX - rect.left) / S.zoom;
@@ -1588,7 +1600,7 @@ function zoomStep(d) {
 }
 function fitToWindow() {
   if (!S.pixels) return;
-  const a = document.getElementById('canvas-area');
+  const a = _canvasArea;
   const sx = (a.clientWidth  - 40) / S.W;
   const sy = (a.clientHeight - 40) / S.H;
   const sc = Math.min(sx, sy);
@@ -1615,8 +1627,8 @@ function setTool(t) {
 
 function setCol(c) {
   S.drawCol=c;
-  document.getElementById('c-black').classList.toggle('on',c==='black');
-  document.getElementById('c-white').classList.toggle('on',c==='white');
+  _cBlack.classList.toggle('on',c==='black');
+  _cWhite.classList.toggle('on',c==='white');
 }
 
 function toggleGrid() {
@@ -1700,12 +1712,11 @@ function updateStats() {
   let up=0,nb=0;
   for(let i=0;i<S.pixels.length;i+=4){const v=S.pixels[i];if(v===0)up++;else if(v!==255)nb++;}
   const t=S.W*S.H;
-  document.getElementById('st-size').textContent =`${S.W}×${S.H}`;
-  document.getElementById('st-up').textContent   =up.toLocaleString();
-  document.getElementById('st-pct').textContent  =(100*up/t).toFixed(1)+'%';
-  const el=document.getElementById('st-clean');
-  el.textContent=nb===0?'✓ Clean':`✗ ${nb} grey px`;
-  el.className='sv '+(nb===0?'ok':'bad');
+  _stSize.textContent =`${S.W}×${S.H}`;
+  _stUp.textContent   =up.toLocaleString();
+  _stPct.textContent  =(100*up/t).toFixed(1)+'%';
+  _stClean.textContent=nb===0?'✓ Clean':`✗ ${nb} grey px`;
+  _stClean.className  ='sv '+(nb===0?'ok':'bad');
 }
 
 // ═══════════════════════════════════════════════════
@@ -2638,32 +2649,34 @@ function startPaste() {
 
 function drawPastePreview() {
   if (!S.clipboard||!S.pastePos) return;
-  const PC = document.getElementById('paste-canvas');
   const {w,h} = S.clipboard;
   const z = S.zoom;
   const sw=Math.round(S.W*z), sh=Math.round(S.H*z);
-  PC.width=sw; PC.height=sh;
-  PC.style.width=sw+'px'; PC.style.height=sh+'px';
-  PC.style.display='block';
-  const pctx=PC.getContext('2d');
+  // Only resize the paste canvas when its dimensions actually change
+  if (_PC.width !== sw || _PC.height !== sh) {
+    _PC.width=sw; _PC.height=sh;
+    _PC.style.width=sw+'px'; _PC.style.height=sh+'px';
+  }
+  _PC.style.display='block';
+  const pctx=_PC.getContext('2d');
   pctx.clearRect(0,0,sw,sh);
-  // Draw the clipboard content at pastePos with checkerboard for white pixels
-  const id = new ImageData(S.clipboard.pixels.slice(), w, h);
-  const tmpC=Object.assign(document.createElement('canvas'),{width:w,height:h});
-  tmpC.getContext('2d').putImageData(id,0,0);
+  // Reuse the module-level offscreen canvas instead of createElement per frame.
+  // Use S.clipboard.pixels directly — putImageData only reads, no copy needed.
+  if (_pasteOffscreen.width !== w || _pasteOffscreen.height !== h) {
+    _pasteOffscreen.width=w; _pasteOffscreen.height=h;
+  }
+  _pasteOffscreen.getContext('2d').putImageData(new ImageData(S.clipboard.pixels, w, h), 0, 0);
   const px=Math.round(S.pastePos.x*z), py=Math.round(S.pastePos.y*z);
   const pw=Math.round(w*z), ph=Math.round(h*z);
   pctx.save();
   pctx.imageSmoothingEnabled=false;
-  // Tinted border
   pctx.strokeStyle='rgba(200,169,110,0.9)'; pctx.lineWidth=1.5;
   pctx.setLineDash([4,3]);
   pctx.strokeRect(px+0.5,py+0.5,pw,ph);
   pctx.setLineDash([]);
-  pctx.drawImage(tmpC, px, py, pw, ph);
+  pctx.drawImage(_pasteOffscreen, px, py, pw, ph);
   pctx.restore();
-  // Update cursor hint
-  PC.style.cursor='move';
+  _PC.style.cursor='move';
 }
 
 function commitPaste() {
@@ -2684,8 +2697,7 @@ function commitPaste() {
 
 function cancelPaste() {
   S.pastePos=null; S.pasteDrag=null;
-  const PC=document.getElementById('paste-canvas');
-  if (PC) { PC.style.display='none'; PC.width=1; }
+  _PC.style.display='none'; _PC.width=1;
   updateSelInfo();
 }
 
