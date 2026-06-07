@@ -322,6 +322,19 @@
       background: #0a0a0a;
       overflow: auto;
     }
+    /* Drag-a-file-onto-the-canvas visual feedback (while editing) */
+    #canvas-area.drag-active::after {
+      content: '⬇ Drop to replace image';
+      position: fixed;
+      top: 48px; left: 52px; right: 230px; bottom: 30px;
+      background: rgba(200,169,110,0.12);
+      border: 2px dashed var(--gold);
+      color: var(--gold);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-family: 'DM Mono', monospace;
+      pointer-events: none;
+      z-index: 50;
+    }
 
     /* ── Bottom status bar ────────────────────────────────────────── */
     #bottom-bar {
@@ -455,8 +468,8 @@
   <div id="header-file" style="cursor:pointer" onclick="document.getElementById('file-input2').click()" title="Click to load a different file">No file loaded</div>
   <div class="h-spacer"></div>
   <div id="spinner"></div>
-  <button class="hbtn" onclick="undo()">↩ Undo</button>
-  <button class="hbtn" onclick="redo()">↪ Redo</button>
+  <button class="hbtn" onclick="undo()" title="Undo (Ctrl+Z)">↩ Undo</button>
+  <button class="hbtn" onclick="redo()" title="Redo (Ctrl+Y / Ctrl+Shift+Z)">↪ Redo</button>
   <button class="hbtn" onclick="downloadBMP()">↓ Download BMP</button>
   <button class="hbtn gold" onclick="sendToGenerator()">→ Back to Generator</button>
   <a href="/"      class="hbtn">⬡ Generator</a>
@@ -472,8 +485,8 @@
   <button class="tbtn"    id="tbtn-line"   onclick="setTool('line')"   data-tip="Straight line (L)"><svg width="16" height="16" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.8"><line x1="3" y1="13" x2="13" y2="3"/></svg></button>
   <button class="tbtn"    id="tbtn-rect"   onclick="setTool('rect')"   data-tip="Filled rectangle (R)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="10" height="8" rx="1"/></svg></button>
   <button class="tbtn"    id="tbtn-select" onclick="setTool('select')" data-tip="Select rectangle — drag to select, then Copy (Ctrl+C) (S)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2,1.5"><rect x="2" y="2" width="12" height="12" rx="1"/></svg></button>
-  <button class="tbtn" id="tbtn-morph" onclick="openPopup('morph',this)" data-tip="Morphological tools — Dilate, Erode, Close Gaps, Clean Noise"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><circle cx="8" cy="8" r="6" stroke-dasharray="2,2"/></svg></button>
-  <button class="tbtn" id="tbtn-weave" onclick="openPopup('weave',this)" data-tip="Weave / Fill Pattern — paint satin, twill, honeycomb and more"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="3" height="3" rx=".4"/><rect x="6" y="1" width="3" height="3" rx=".4" opacity=".4"/><rect x="11" y="1" width="3" height="3" rx=".4"/><rect x="1" y="6" width="3" height="3" rx=".4" opacity=".4"/><rect x="6" y="6" width="3" height="3" rx=".4"/><rect x="11" y="6" width="3" height="3" rx=".4" opacity=".4"/><rect x="1" y="11" width="3" height="3" rx=".4"/><rect x="6" y="11" width="3" height="3" rx=".4" opacity=".4"/><rect x="11" y="11" width="3" height="3" rx=".4"/></svg></button>
+  <button class="tbtn" id="tbtn-morph" onclick="openPopup('morph',this)" data-tip="Morphological tools — Dilate, Erode, Close Gaps, Clean Noise (M)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><circle cx="8" cy="8" r="6" stroke-dasharray="2,2"/></svg></button>
+  <button class="tbtn" id="tbtn-weave" onclick="openPopup('weave',this)" data-tip="Weave / Fill Pattern — paint satin, twill, honeycomb and more (Q)"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="3" height="3" rx=".4"/><rect x="6" y="1" width="3" height="3" rx=".4" opacity=".4"/><rect x="11" y="1" width="3" height="3" rx=".4"/><rect x="1" y="6" width="3" height="3" rx=".4" opacity=".4"/><rect x="6" y="6" width="3" height="3" rx=".4"/><rect x="11" y="6" width="3" height="3" rx=".4" opacity=".4"/><rect x="1" y="11" width="3" height="3" rx=".4"/><rect x="6" y="11" width="3" height="3" rx=".4" opacity=".4"/><rect x="11" y="11" width="3" height="3" rx=".4"/></svg></button>
   <button class="tbtn" id="tbtn-fill-int" onclick="openPopup('fillint',this)" data-tip="Fill Interiors (J) — flood-fill enclosed design regions with a weave pattern">⬡</button>
   <div class="tsep"></div>
   <button class="tbtn"    id="tbtn-weave-fill" onclick="openPopup('weavefill',this)" data-tip="Weave Fill (V) — opens pattern selector; arm then click any enclosed region">⬡✎</button>
@@ -492,9 +505,9 @@
 
 <!-- ─── CANVAS AREA ─────────────────────────────────────────── -->
 <div id="canvas-area"
-     ondragover="event.preventDefault();document.getElementById('upload-drop').classList.add('over')"
-     ondragleave="document.getElementById('upload-drop').classList.remove('over')"
-     ondrop="onDrop(event)">
+     ondragover="event.preventDefault();document.getElementById('upload-drop').classList.add('over');if(S.pixels)_canvasArea.classList.add('drag-active');"
+     ondragleave="document.getElementById('upload-drop').classList.remove('over');_canvasArea.classList.remove('drag-active');"
+     ondrop="onDrop(event);_canvasArea.classList.remove('drag-active');">
 
   <!-- Upload overlay -->
   <div id="upload-overlay">
@@ -1054,6 +1067,8 @@ const _redoBtn  = document.querySelector('.hbtn[onclick="redo()"]');
 // Remaining hot-path element refs
 const _canvasWrap = document.getElementById('canvas-wrap');
 const _selInfo    = document.getElementById('sel-info');
+const _selPanel   = document.getElementById('pbody-selection');
+const _selChev    = document.getElementById('pchev-selection');
 const _toast      = document.getElementById('toast');
 const _spinner    = document.getElementById('spinner');
 const _fpPattern  = document.getElementById('fp-pattern');
@@ -1513,7 +1528,7 @@ function onMD(e) {
     }
   }
 
-  if (S.tool==='pan') { S.panStart={mx:e.clientX,my:e.clientY,sx:_canvasArea.scrollLeft,sy:_canvasArea.scrollTop}; return; }
+  if (S.tool==='pan') { S.panStart={mx:e.clientX,my:e.clientY,sx:_canvasArea.scrollLeft,sy:_canvasArea.scrollTop}; MC.style.cursor='grabbing'; return; }
 
   if (S.tool==='select') {
     S.selStart={x,y}; S.sel=null; S.selActive=false;
@@ -1564,7 +1579,12 @@ function onMM(e) {
     updateSelInfo(); drawSelectionRect(); return;
   }
 
-  if (!S.painting) return;
+  if (!S.painting) {
+    // Show live preview for line and rect tools while dragging
+    if (S.tool==='line' && S.lineStart) { drawLinePreview(x, y); return; }
+    if (S.tool==='rect' && S.rectStart) { drawRectPreview(x, y); return; }
+    return;
+  }
   if (S.tool==='pencil'||S.tool==='eraser') { line(S.lx,S.ly,x,y,S._btn); S.lx=x; S.ly=y; renderRAF(); }
   if (S.tool==='satin' && S.painting) { satinLine(S.lx,S.ly,x,y,S._btn); S.lx=x; S.ly=y; renderRAF(); }
 }
@@ -1576,7 +1596,7 @@ function onMU(e) {
   // End paste drag
   if (S.pasteDrag) { S.pasteDrag=null; return; }
 
-  if (S.tool==='pan') { S.panStart=null; return; }
+  if (S.tool==='pan') { S.panStart=null; MC.style.cursor='grab'; return; }
 
   if (S.tool==='select') {
     S.selStart=null;
@@ -2576,6 +2596,13 @@ function updateSelInfo() {
     const w = S.sel.x1 - S.sel.x0 + 1, h = S.sel.y1 - S.sel.y0 + 1;
     _selInfo.innerHTML = `Selected: <strong style="color:var(--gold2)">${w}×${h} px</strong><br>
       at (${S.sel.x0},${S.sel.y0}) → (${S.sel.x1},${S.sel.y1})`;
+    // Auto-open the Selection panel when a selection is first made
+    if (_selPanel && _selPanel.dataset.open !== 'true') {
+      _selPanel.dataset.open    = 'true';
+      _selPanel.style.maxHeight = '2000px';
+      _selPanel.style.overflow  = 'visible';
+      if (_selChev) _selChev.textContent = '▾';
+    }
   }
 }
 
@@ -2605,6 +2632,39 @@ function drawSelectionRect() {
 setInterval(() => {
   if (S.selActive) { _marchOffset = (_marchOffset+1)%8; drawSelectionRect(); }
 }, 100);
+
+// ── Line drag preview ─────────────────────────────
+// Draws a dashed gold guide line on the overlay so the user can see
+// where the line will land before releasing the mouse button.
+function drawLinePreview(x, y) {
+  drawSelectionRect();          // redraws grid + any active selection first
+  if (!S.lineStart) return;
+  const z = S.zoom;
+  ox.strokeStyle = 'rgba(255,210,60,0.85)';
+  ox.lineWidth   = 1;
+  ox.setLineDash([4, 3]);
+  ox.beginPath();
+  ox.moveTo(Math.round(S.lineStart.x * z) + 0.5, Math.round(S.lineStart.y * z) + 0.5);
+  ox.lineTo(Math.round(x              * z) + 0.5, Math.round(y              * z) + 0.5);
+  ox.stroke();
+  ox.setLineDash([]);
+}
+
+// ── Rect drag preview ─────────────────────────────
+function drawRectPreview(x, y) {
+  drawSelectionRect();
+  if (!S.rectStart) return;
+  const z   = S.zoom;
+  const rx0 = Math.round(Math.min(S.rectStart.x, x)     * z);
+  const ry0 = Math.round(Math.min(S.rectStart.y, y)     * z);
+  const rx1 = Math.round((Math.max(S.rectStart.x, x)+1) * z);
+  const ry1 = Math.round((Math.max(S.rectStart.y, y)+1) * z);
+  ox.strokeStyle = 'rgba(255,210,60,0.85)';
+  ox.lineWidth   = 1;
+  ox.setLineDash([4, 3]);
+  ox.strokeRect(rx0 + 0.5, ry0 + 0.5, rx1 - rx0, ry1 - ry0);
+  ox.setLineDash([]);
+}
 
 // ── Select All ────────────────────────────────────
 function selectAll() {
@@ -2874,17 +2934,17 @@ document.addEventListener('keydown', e=>{
   switch(e.key){
     case 's': case 'S': setTool('select'); break;
     case 'p': case 'b': setTool('pencil'); break;
-    case 'e':           setTool('eraser'); break;
-    case 'f':           setTool('fill');   break;
-    case 'l':           setTool('line');   break;
-    case 'r':           setTool('rect');   break;
-    case 'h':           setTool('pan');    break;
-    case 'g':           toggleGrid();      break;
+    case 'e': case 'E': setTool('eraser'); break;
+    case 'f': case 'F': setTool('fill');   break;
+    case 'l': case 'L': setTool('line');   break;
+    case 'r': case 'R': setTool('rect');   break;
+    case 'h': case 'H': setTool('pan');    break;
+    case 'g': case 'G': toggleGrid();      break;
     case 'c': case 'C': openCanvasSizePopup(null); break;
     case '0':           fitToWindow();     break;
     case '+': case '=': zoomStep(+1);      break;
     case '-':           zoomStep(-1);      break;
-    case 'x':           setCol(S.drawCol==='black'?'white':'black'); break;
+    case 'x': case 'X': setCol(S.drawCol==='black'?'white':'black'); break;
     case 'w': case 'W': setTool('satin'); break;
     case 'm': case 'M': { const b=document.getElementById('tbtn-morph'); if(b) openPopup('morph',b); } break;
     case 'q': case 'Q': { const b=document.getElementById('tbtn-weave'); if(b) openPopup('weave',b); } break;
@@ -2899,6 +2959,9 @@ document.addEventListener('keydown', e=>{
       else if (_activePopup)   { closePopup(_activePopup); }
       else { const p=document.getElementById('cs-popup'); if(p) p.style.display='none'; }
       if (S.selActive) clearSelection();
+      // Cancel any in-progress line or rect (clear start point + overlay preview)
+      S.lineStart = null; S.rectStart = null;
+      drawSelectionRect();   // redraws grid + selection; removes line/rect ghost
       break;
     case 'Enter':
       if (S.pastePos !== null) { e.preventDefault(); commitPaste(); }
