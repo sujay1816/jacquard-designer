@@ -1062,6 +1062,11 @@ const _headerSub  = document.getElementById('header-sub');
 const _tbtnGrid   = document.getElementById('tbtn-grid');
 // All toolbar buttons — cached so setTool() doesn't querySelectorAll every switch
 const _toolBtns   = document.querySelectorAll('.tbtn[id^="tbtn-"]');
+// Reference image panel — zoom/pan functions call these on every wheel + mousemove
+const _refImg       = document.getElementById('ref-img');
+const _refWrap      = document.getElementById('ref-img-wrap');
+const _refZoomLabel = document.getElementById('ref-zoom-label');
+const _refResetBtn  = document.getElementById('ref-reset-zoom');
 
 // requestAnimationFrame throttle — prevents render() being called faster
 // than the display refresh rate (Mac Retina fires mousemove at up to 120Hz
@@ -2383,18 +2388,17 @@ function loadRefImage(file) {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = ev => {
-    const img  = document.getElementById('ref-img');
     const hint = document.getElementById('ref-upload-hint');
     const fn   = document.getElementById('ref-filename');
     const dim  = document.getElementById('ref-dimensions');
-    img.onload = () => {
-      if (dim) dim.textContent = img.naturalWidth + '×' + img.naturalHeight;
+    _refImg.onload = () => {
+      if (dim) dim.textContent = _refImg.naturalWidth + '×' + _refImg.naturalHeight;
       // Reset zoom to 1× whenever a new image is loaded
       resetRefZoom();
     };
-    img.src = ev.target.result;
-    img.style.display = 'block';
-    document.getElementById('ref-img-wrap').classList.add('ref-has-image');
+    _refImg.src = ev.target.result;
+    _refImg.style.display = 'block';
+    _refWrap.classList.add('ref-has-image');
     if (hint) hint.style.display = 'none';
     if (fn)   fn.textContent = file.name;
     // Show panel if not already visible
@@ -2405,8 +2409,7 @@ function loadRefImage(file) {
 }
 
 function setRefOpacity(val) {
-  const img = document.getElementById('ref-img');
-  if (img) img.style.opacity = (val / 100).toFixed(2);
+  if (_refImg) _refImg.style.opacity = (val / 100).toFixed(2);
 }
 
 // ── Drag to move (titlebar) ─────────────────────────────
@@ -2456,24 +2459,20 @@ let _refPanY    = 0;
 let _refPanDrag = null;
 
 function applyRefTransform() {
-  const img   = document.getElementById('ref-img');
-  const wrap  = document.getElementById('ref-img-wrap');
-  const label = document.getElementById('ref-zoom-label');
-  const btn   = document.getElementById('ref-reset-zoom');
-  if (!img || !wrap) return;
+  if (!_refImg || !_refWrap) return;
 
   if (_refZoom <= 1.0) {
-    img.style.transform = '';
-    wrap.classList.remove('ref-zoomed', 'ref-panning');
-    if (label) { label.textContent = '1×'; label.style.display = 'none'; }
-    if (btn)   btn.style.display = 'none';
+    _refImg.style.transform = '';
+    _refWrap.classList.remove('ref-zoomed', 'ref-panning');
+    if (_refZoomLabel) { _refZoomLabel.textContent = '1×'; _refZoomLabel.style.display = 'none'; }
+    if (_refResetBtn)  _refResetBtn.style.display = 'none';
   } else {
-    img.style.transform =
+    _refImg.style.transform =
       `translate(${_refPanX.toFixed(1)}px,${_refPanY.toFixed(1)}px) scale(${_refZoom.toFixed(3)})`;
-    wrap.classList.add('ref-zoomed');
-    wrap.classList.toggle('ref-panning', !!_refPanDrag);
-    if (label) { label.textContent = _refZoom.toFixed(1) + '×'; label.style.display = 'block'; }
-    if (btn)   btn.style.display = 'inline-block';
+    _refWrap.classList.add('ref-zoomed');
+    _refWrap.classList.toggle('ref-panning', !!_refPanDrag);
+    if (_refZoomLabel) { _refZoomLabel.textContent = _refZoom.toFixed(1) + '×'; _refZoomLabel.style.display = 'block'; }
+    if (_refResetBtn)  _refResetBtn.style.display = 'inline-block';
   }
 }
 
@@ -2492,13 +2491,11 @@ function resetRefZoom() {
 }
 
 function handleRefWheel(e) {
-  const img = document.getElementById('ref-img');
-  if (!img || img.style.display === 'none') return;
+  if (!_refImg || _refImg.style.display === 'none') return;
   e.preventDefault();
   e.stopPropagation();   // don't propagate to canvas-zoom
 
-  const wrap = document.getElementById('ref-img-wrap');
-  const rect = wrap.getBoundingClientRect();
+  const rect = _refWrap.getBoundingClientRect();
 
   // Mouse position relative to the element centre (transform-origin: 50% 50%)
   const mx = e.clientX - rect.left  - rect.width  / 2;
@@ -2522,8 +2519,7 @@ function handleRefWheel(e) {
 
 function handleRefImgMousedown(e) {
   if (_refZoom <= 1.0) return;
-  const img = document.getElementById('ref-img');
-  if (!img || img.style.display === 'none') return;
+  if (!_refImg || _refImg.style.display === 'none') return;
   e.preventDefault();
   e.stopPropagation();   // don't start panel-drag
   _refPanDrag = { sx: e.clientX, sy: e.clientY, px: _refPanX, py: _refPanY };
@@ -2536,8 +2532,7 @@ function handleRefImgMousemove(e) {
   if (!_refPanDrag) return;
   _refPanX = _refPanDrag.px + (e.clientX - _refPanDrag.sx);
   _refPanY = _refPanDrag.py + (e.clientY - _refPanDrag.sy);
-  const wrap = document.getElementById('ref-img-wrap');
-  clampRefPan(wrap.clientWidth, wrap.clientHeight);
+  clampRefPan(_refWrap.clientWidth, _refWrap.clientHeight);
   applyRefTransform();
 }
 
@@ -3007,7 +3002,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 4. Reference panel — drop target + zoom/pan events
   const refPanel = document.getElementById('ref-panel');
-  const refWrap  = document.getElementById('ref-img-wrap');
   if (refPanel) {
     refPanel.addEventListener('dragover', e => {
       e.preventDefault(); e.stopPropagation();
@@ -3023,13 +3017,13 @@ document.addEventListener('DOMContentLoaded', () => {
       if (f && f.type.startsWith('image/')) loadRefImage(f);
     });
   }
-  if (refWrap) {
+  if (_refWrap) {
     // Scroll-wheel zoom (passive:false so we can preventDefault)
-    refWrap.addEventListener('wheel', handleRefWheel, { passive: false });
+    _refWrap.addEventListener('wheel', handleRefWheel, { passive: false });
     // Drag-to-pan when zoomed in
-    refWrap.addEventListener('mousedown', handleRefImgMousedown);
+    _refWrap.addEventListener('mousedown', handleRefImgMousedown);
     // Double-click resets zoom to 1×
-    refWrap.addEventListener('dblclick', resetRefZoom);
+    _refWrap.addEventListener('dblclick', resetRefZoom);
   }
 
   // 5. Toolbar tooltips
