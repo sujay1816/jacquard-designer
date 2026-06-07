@@ -1545,8 +1545,8 @@ function onMD(e) {
     S.painting=true; S.lx=x; S.ly=y;
     paintSatinBrush(x,y); render(); return;
   }
-  if (S.tool==='line') { S.lineStart={x,y}; return; }
-  if (S.tool==='rect') { S.rectStart={x,y}; return; }
+  if (S.tool==='line') { S.lineStart={x,y}; MC.style.cursor='copy'; return; }
+  if (S.tool==='rect') { S.rectStart={x,y}; MC.style.cursor='copy'; return; }
   S.painting=true; S.lx=x; S.ly=y; brush(x,y,e.button); render();
 }
 
@@ -1609,12 +1609,12 @@ function onMU(e) {
     return;
   }
 
-  if (S.tool==='line'&&S.lineStart) { line(S.lineStart.x,S.lineStart.y,x,y); pushHist('Line'); S.lineStart=null; render(); updateStats(); return; }
+  if (S.tool==='line'&&S.lineStart) { line(S.lineStart.x,S.lineStart.y,x,y); pushHist('Line'); S.lineStart=null; MC.style.cursor='crosshair'; render(); updateStats(); return; }
   if (S.tool==='rect'&&S.rectStart) {
     const x0=Math.min(S.rectStart.x,x),x1=Math.max(S.rectStart.x,x),y0=Math.min(S.rectStart.y,y),y1=Math.max(S.rectStart.y,y);
     for(let ry=y0;ry<=y1;ry++) for(let rx=x0;rx<=x1;rx++) spx(rx,ry,dv(S._btn));
     pushHist('Rectangle');
-    S.rectStart=null; render(); updateStats(); return;
+    S.rectStart=null; MC.style.cursor='crosshair'; render(); updateStats(); return;
   }
   if (S.painting) {
     pushHist(S.tool==='satin' ? 'Satin brush' : 'Draw');
@@ -1622,7 +1622,11 @@ function onMU(e) {
   }
 }
 
-function onML() { if(S.painting){pushHist(S.tool==='satin' ? 'Satin brush' : 'Draw');S.painting=false;updateStats();} }
+function onML() {
+  if (S.painting) { pushHist(S.tool==='satin' ? 'Satin brush' : 'Draw'); S.painting=false; updateStats(); }
+  // If panning, cancel the active drag so re-entry doesn't snap from a stale origin
+  if (S.tool==='pan' && S.panStart) { S.panStart=null; MC.style.cursor='grab'; }
+}
 
 function onWheel(e) {
   e.preventDefault();
@@ -1680,7 +1684,11 @@ function fitToWindow() {
 // ═══════════════════════════════════════════════════
 function setTool(t) {
   if (S.tool !== t) {
-    // switching away from select — keep selection but stop drawing it
+    // Clear any stale line/rect start-point and its overlay preview
+    if (S.lineStart || S.rectStart) {
+      S.lineStart = null; S.rectStart = null;
+      drawSelectionRect(); // removes ghost from overlay
+    }
   }
   S.tool=t;
   _toolBtns.forEach(b=>b.classList.remove('on'));
@@ -2960,8 +2968,11 @@ document.addEventListener('keydown', e=>{
       else { const p=document.getElementById('cs-popup'); if(p) p.style.display='none'; }
       if (S.selActive) clearSelection();
       // Cancel any in-progress line or rect (clear start point + overlay preview)
-      S.lineStart = null; S.rectStart = null;
-      drawSelectionRect();   // redraws grid + selection; removes line/rect ghost
+      if (S.lineStart || S.rectStart) {
+        S.lineStart = null; S.rectStart = null;
+        MC.style.cursor = 'crosshair';
+        drawSelectionRect();   // redraws grid + selection; removes line/rect ghost
+      }
       break;
     case 'Enter':
       if (S.pastePos !== null) { e.preventDefault(); commitPaste(); }
