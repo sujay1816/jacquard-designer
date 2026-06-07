@@ -1249,6 +1249,7 @@ def generate_bmps(
     outline_white: dict = None,           # {shuttle_name: True/False} — turn outer face white
     invert_output: dict = None,           # {shuttle_name: True/False} — invert entire BMP (black↔white)
     bg_texture: dict = None,              # {shuttle_name: int} — diagonal period for background satin (0=off)
+    stroke_mode: bool = True,             # 2/3/4 shuttle: thin each shuttle mask to 1px outline ring
 ) -> dict:
     """
     Generate all BMP files for a jacquard design.
@@ -1301,6 +1302,20 @@ def generate_bmps(
     for name in list(masks.keys()):
         if name != 'background':
             masks[name] = remove_noise(masks[name], min_size=noise_min_size)
+
+    # 5b. Stroke mode — thin each named shuttle mask to its 1px boundary ring.
+    #     Active by default for 2/3/4-shuttle generation. Produces clean thin
+    #     outline strokes instead of solid filled regions, so the rani can carry
+    #     near-full plain weave coverage and the design boundary is clearly defined.
+    #     Not applied to 1-shuttle mode (emboss handles that separately).
+    if stroke_mode and shuttle_count >= 2:
+        for sname in list(masks.keys()):
+            if sname == 'background':
+                continue
+            m = masks[sname]
+            if m.any():
+                outline, _ = extract_outline(m, thickness=1)
+                masks[sname] = outline
 
     results = {}
 

@@ -1015,6 +1015,16 @@
         </label>
       </div>
 
+      <div class="emboss-row visible" id="strokeModeRow">
+        <label class="emboss-label">
+          <input type="checkbox" id="strokeMode" checked>
+          <span class="emboss-text">
+            <strong>✦ Stroke mode</strong>
+            <span class="emboss-desc">2/3/4 shuttle — thins each design thread to a 1px outline stroke. Produces a clean rani with near-full plain weave background. Turn off for solid filled regions.</span>
+          </span>
+        </label>
+      </div>
+
       <div class="emboss-row visible" id="supersampleRow">
         <label class="emboss-label">
           <input type="checkbox" id="supersampleMode">
@@ -1909,6 +1919,13 @@ function renderSatinSettings() {
     }
   }
 
+  // Stroke mode row: visible for 2/3/4 shuttle, hidden for 1 shuttle
+  const strokeModeRow = document.getElementById('strokeModeRow');
+  if (strokeModeRow) {
+    if (state.shuttleCount >= 2) strokeModeRow.classList.add('visible');
+    else strokeModeRow.classList.remove('visible');
+  }
+
   if (saSection) saSection.style.display = 'block';
 
   // ── Build full shuttle list including Rani ──────────────────────────────
@@ -2282,6 +2299,11 @@ async function generateBMPs() {
     && document.getElementById('embossMode')
     && document.getElementById('embossMode').checked;
 
+  // Stroke mode — default ON for 2/3/4 shuttle
+  const strokeModeChecked = state.shuttleCount >= 2
+    && document.getElementById('strokeMode')
+    && document.getElementById('strokeMode').checked;
+
   // Final color assignments.
   // Colour 0 (background) always stays as background.
   // The LAST detected colour (highest index) is intentionally left unassigned
@@ -2376,6 +2398,7 @@ async function generateBMPs() {
         invert_output:   Object.keys(invertOutputSettings).length > 0 ? invertOutputSettings : null,
         bg_texture:      Object.keys(bgTextureSettings).length  > 0 ? bgTextureSettings  : null,
         emboss:      embossChecked,
+        stroke_mode: strokeModeChecked,
         supersample: document.getElementById('supersampleMode')?.checked || false,
         full_image:  state.fullImageB64 || undefined,
       }),

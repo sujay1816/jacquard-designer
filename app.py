@@ -340,6 +340,8 @@ def api_generate():
         outline_white   = data.get('outline_white',   None)
         invert_output   = data.get('invert_output',   None)
         bg_texture      = data.get('bg_texture',      None)
+        # Stroke mode (default True for 2/3/4 shuttle): thin design to 1px outline ring
+        stroke_mode = bool(data.get('stroke_mode', True))
 
         bmp_files = generate_bmps(
             image=full_img if supersample else img,
@@ -356,6 +358,7 @@ def api_generate():
             outline_white=outline_white,
             invert_output=invert_output,
             bg_texture=bg_texture,
+            stroke_mode=stroke_mode,
         )
 
         # ── Verify ────────────────────────────────────────────────────────────
@@ -718,6 +721,15 @@ def api_bmp_process():
             # fill: 0=UP, 1=DOWN  |  mask: True=design pixel
             # Apply: where mask=True, use fill pattern; where mask=False, keep DOWN
             result_mask = mask & (fill == 0)
+
+        elif op == 'fill_rani_weave':
+            # Rani Weave Fill: fill all white (DOWN) pixels with 1/1 plain weave
+            # while preserving every existing black (UP) pixel unchanged.
+            # Used on rani BMPs to add the plain weave background after generation.
+            Y_pw, X_pw = np.mgrid[0:H, 0:W]
+            plain_weave_pixels = (Y_pw + X_pw) % 2 == 0   # True = would fire in plain weave
+            # Keep existing black + add plain weave to white areas
+            result_mask = mask | plain_weave_pixels
 
         else:
             return _json_error(f'Unknown operation: {op}')
