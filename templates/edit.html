@@ -1032,12 +1032,27 @@ const OC = document.getElementById('ov-canvas');
 const cx = MC.getContext('2d');
 const ox = OC.getContext('2d');
 
+// Cached DOM refs — avoids getElementById on every mouse-move event
+const _coordBar = document.getElementById('coord-bar');
+
+// requestAnimationFrame throttle — prevents render() being called faster
+// than the display refresh rate (Mac Retina fires mousemove at up to 120Hz
+// but only needs 60 renders/sec). Pixel writes still happen every event;
+// only the canvas repaint is batched to the next animation frame.
+let _rafPending = false;
+function renderRAF() {
+  if (!_rafPending) {
+    _rafPending = true;
+    requestAnimationFrame(() => { _rafPending = false; render(); });
+  }
+}
+
 // ═══════════════════════════════════════════════════
 // RENDER
 // ═══════════════════════════════════════════════════
 function render() {
   if (!S.pixels) return;
-  cx.putImageData(new ImageData(S.pixels.slice(), S.W, S.H), 0, 0);
+  cx.putImageData(new ImageData(S.pixels, S.W, S.H), 0, 0);
   renderGrid();
   if (S.selActive) drawSelectionRect();
 }
@@ -1064,30 +1079,29 @@ function applyZoom() {
 }
 
 function renderGrid() {
-  // Always clear first
   ox.clearRect(0, 0, OC.width, OC.height);
   if (!S.showGrid || !S.pixels) return;
   const z = S.zoom;
   if (z < 4) return;
-  // Resize OC to match screen pixels so 1px lines are sharp
   const sw = Math.round(S.W * z), sh = Math.round(S.H * z);
-  if (OC.width !== sw || OC.height !== sh) {
-    OC.width  = sw;
-    OC.height = sh;
-  }
+  if (OC.width !== sw || OC.height !== sh) { OC.width = sw; OC.height = sh; }
   ox.clearRect(0, 0, sw, sh);
   ox.strokeStyle = z >= 8 ? 'rgba(200,169,110,0.5)' : 'rgba(200,169,110,0.3)';
   ox.lineWidth = 1;
-  // Vertical lines
+  // ── Batch all vertical lines into one path (was one stroke() per line) ──
+  ox.beginPath();
   for (let x = 0; x <= S.W; x++) {
     const sx = Math.round(x * z) + 0.5;
-    ox.beginPath(); ox.moveTo(sx, 0); ox.lineTo(sx, sh); ox.stroke();
+    ox.moveTo(sx, 0); ox.lineTo(sx, sh);
   }
-  // Horizontal lines
+  ox.stroke();
+  // ── Batch all horizontal lines into one path ──────────────────────────
+  ox.beginPath();
   for (let y = 0; y <= S.H; y++) {
     const sy = Math.round(y * z) + 0.5;
-    ox.beginPath(); ox.moveTo(0, sy); ox.lineTo(sw, sy); ox.stroke();
+    ox.moveTo(0, sy); ox.lineTo(sw, sy);
   }
+  ox.stroke();
 }
 
 function resetZoom() {
@@ -1466,7 +1480,7 @@ function onMD(e) {
 function onMM(e) {
   if (!S.pixels) return;
   const {x,y}=coords(e);
-  document.getElementById('coord-bar').textContent=`x:${x} y:${y}`;
+  _coordBar.textContent=`x:${x} y:${y}`;
 
   // Paste drag
   if (S.pasteDrag) {
@@ -1494,8 +1508,8 @@ function onMM(e) {
   }
 
   if (!S.painting) return;
-  if (S.tool==='pencil'||S.tool==='eraser') { line(S.lx,S.ly,x,y,S._btn); S.lx=x; S.ly=y; render(); }
-  if (S.tool==='satin' && S.painting) { satinLine(S.lx,S.ly,x,y,S._btn); S.lx=x; S.ly=y; render(); }
+  if (S.tool==='pencil'||S.tool==='eraser') { line(S.lx,S.ly,x,y,S._btn); S.lx=x; S.ly=y; renderRAF(); }
+  if (S.tool==='satin' && S.painting) { satinLine(S.lx,S.ly,x,y,S._btn); S.lx=x; S.ly=y; renderRAF(); }
 }
 
 function onMU(e) {
