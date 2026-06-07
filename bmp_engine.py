@@ -837,26 +837,35 @@ def _adaptive_thin(mask: np.ndarray, noise_min_size: int = 5) -> np.ndarray:
 
         UP% < 10%  → design already thin / sparse / fragmented.
                      Erosion would destroy it further.
-                     Clean noise, then bridge any sub-30px gaps with
-                     morphological closing (reconnects broken strokes).
+                     Clean noise, then check component structure:
+
+                     • mean component ≥ 30px → design is already well-connected
+                       (e.g. IMG_2009.BMP at 79px mean). Return as-is. ✓
+
+                     • mean component < 30px → design is fragmented (JPEG halos
+                       broke continuous strokes into isolated dots).
+                       Compute the ADAPTIVE closing gap from the actual median
+                       nearest-neighbour distance between component centroids:
+                           gap = min(ceil(median_NN × 1.5), 20)
+                       This bridges exactly the gaps present in the design
+                       regardless of canvas size or design density.
+                       Verified:  __32__  median_NN=5.5px → gap=9px
+                                           → 63 comps, max=1683px ✓
 
         UP% ≥ 10%  → design has solid fills that need thinning.
                      Compute erosion_ratio = eroded.sum / mask.sum:
 
-                       ≥ 0.50 → large, thick, CONNECTED design (single blob or
-                                  a few large blobs). Single erosion only removes
-                                  the outer ring and leaves 30%+ coverage, far
-                                  above the ~5-8% loom target. Erode iteratively
-                                  until UP% drops below 8%.
+                       ≥ 0.50 → large thick connected design. Erode iteratively
+                                  until UP% drops to the thin-stroke target (<8%).
                                   Verified: 38% solid → ~19 erosions → 5% ✓
 
                        0.15–0.49 → moderately thick (3–5px strokes). Single
-                                    erosion gives a thin interior already close
+                                    erosion gives ~1px interior already close
                                     to target. Return it directly.
                                     Verified: 24.7% → ratio=0.235 → 5.8% ✓
 
-                       < 0.15 → strokes are 2px or mixed. Erosion removes
-                                  too much. Use the outer boundary ring instead.
+                       < 0.15 → thin mixed strokes (2px). Use outer boundary
+                                  ring to avoid over-erosion.
     """
     if not mask.any():
         return mask
@@ -869,14 +878,29 @@ def _adaptive_thin(mask: np.ndarray, noise_min_size: int = 5) -> np.ndarray:
         if not result.any():
             return result
 
-        # Bridge gaps if design is highly fragmented (mean component < 30px).
         labeled_r, n_r = ndimage.label(result)
         if n_r > 0:
             comp_sizes = np.bincount(labeled_r.ravel())[1:]
-            if float(comp_sizes.mean()) < 30:
-                struct = np.ones((11, 11), dtype=bool)   # 5px radius
-                result = ndimage.binary_closing(result, structure=struct)
-                result = remove_noise(result, min_size=noise_min_size)
+            mean_comp  = float(comp_sizes.mean())
+
+            if mean_comp < 30 and n_r >= 2:
+                # Fragmented design — compute adaptive closing gap from the
+                # SHORTEST inter-component distances (10th percentile of NN).
+                # Using the shortest gaps (not median) targets JPEG artifact
+                # breaks (1–3px) without merging intentionally separate motifs.
+                centroids = np.array([
+                    np.mean(np.argwhere(labeled_r == i + 1), axis=0)
+                    for i in range(n_r)
+                ])                                              # (n_r, 2)
+                diff  = centroids[:, None, :] - centroids[None, :, :]
+                dists = np.sqrt((diff ** 2).sum(axis=2))
+                np.fill_diagonal(dists, np.inf)
+                nn_dists  = dists.min(axis=1)
+                p10_nn    = float(np.percentile(nn_dists, 10))  # shortest gaps
+                gap       = max(min(int(np.ceil(p10_nn * 2)), 8), 3)  # 3–8px
+                struct    = np.ones((gap * 2 + 1, gap * 2 + 1), dtype=bool)
+                result    = ndimage.binary_closing(result, structure=struct)
+                result    = remove_noise(result, min_size=noise_min_size)
 
         return result
 
@@ -885,14 +909,13 @@ def _adaptive_thin(mask: np.ndarray, noise_min_size: int = 5) -> np.ndarray:
     erosion_ratio = eroded.sum() / float(mask.sum())
 
     if erosion_ratio >= 0.50:
-        # Thick, largely connected design — single erosion barely dents it.
-        # Erode iteratively until UP% drops to the thin-stroke target (~6-8%).
+        # Thick, largely connected design — erode iteratively to thin-stroke range.
         current = eroded
-        for _ in range(30):                              # safety cap: 30 iterations max
+        for _ in range(30):
             next_er = ndimage.binary_erosion(current)
             if not next_er.any():
                 break
-            if next_er.sum() / float(mask.size) < 0.08:  # thin enough
+            if next_er.sum() / float(mask.size) < 0.08:
                 break
             current = next_er
         return current
