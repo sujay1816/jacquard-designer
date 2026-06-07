@@ -1405,20 +1405,83 @@ def generate_bmps(
         if name != 'background':
             masks[name] = remove_noise(masks[name], min_size=noise_min_size)
 
-    # 5b. Stroke mode — thin each named shuttle mask to ~1px strokes.
-    #     Applies to ALL shuttle counts when stroke_mode=True.
-    #     For 1-shuttle with emboss=True the emboss path handles outline
-    #     extraction itself, so we skip to avoid double-thinning.
-    #     Uses _adaptive_thin which detects source stroke thickness and
-    #     erodes accordingly (thick source → erode to interior; thin → outline ring).
+    # 5b. Stroke mode — produce clean 1px outline strokes for each shuttle.
+    #
+    #     The user's workflow: "generate the outline first, then the engine
+    #     removes it" — meaning: obtain a SOLID design mask first, then keep
+    #     only its 1px boundary ring, then apply satin to that ring.
+    #
+    #     Problem with the label_map-based mask: KMeans with n_colors=(shuttles+1)
+    #     splits design pixels across 2+ clusters (design + anti-alias halos),
+    #     so the assigned shuttle mask is typically 2–4% UP (sparse fragments).
+    #     Thinning a 2% sparse mask produces garbage regardless of algorithm.
+    #
+    #     Fix — two-pass approach:
+    #       Pass 1 (solid mask): re-run 2-colour detection on the resized image.
+    #                            2 colours = background vs ALL design pixels.
+    #                            This captures every design pixel in one solid
+    #                            cluster, even the anti-aliased JPEG halos.
+    #       Pass 2 (outline):   extract the 1px boundary ring of the solid mask.
+    #                            The ring is thin (~5% UP) and follows the actual
+    #                            design shape, not scattered fragments.
+    #
+    #     For 3/4-shuttle:  each named shuttle still uses its own label_map
+    #     mask (user explicitly assigned colours). Only shuttle masks that are
+    #     too sparse (UP < 5%) are upgraded to the 2-colour solid outline.
+    #
+    #     For 1-shuttle + emboss=True:  emboss handles outline extraction
+    #     itself; skip stroke mode to avoid double-processing.
     _do_stroke = stroke_mode and not (shuttle_count == 1 and emboss)
     if _do_stroke:
+        # Run fresh 2-colour detection once — used as fallback for sparse masks
+        _solid_2c = None
+        _solid_2c_err = None
+        try:
+            _, _, _lm2, _ = detect_colors(resized, 2, edge_recovery=True)
+            _solid_2c = remove_noise(_lm2 == 1, min_size=noise_min_size)
+        except Exception as _e:
+            _solid_2c_err = _e   # silent; fall back to label_map mask
+
         for sname in list(masks.keys()):
             if sname == 'background':
                 continue
             m = masks[sname]
-            if m.any():
-                masks[sname] = _adaptive_thin(m, noise_min_size)
+            if not m.any():
+                continue
+
+            up_pct = m.sum() / float(m.size)
+
+            if up_pct < 0.05 and _solid_2c is not None and _solid_2c.any():
+                # Mask is too sparse — KMeans missed most design pixels.
+                # Use the solid 2-colour design mask instead.
+                # For 2-shuttle this is the whole design.
+                # For 3/4-shuttle we restrict to the region the label_map
+                # already assigned (plus a small dilation to recover halos).
+                if shuttle_count == 2:
+                    solid = _solid_2c
+                else:
+                    # Dilate label_map region by 3px to recover nearby pixels
+                    _dilated = ndimage.binary_dilation(
+                        m, structure=np.ones((7, 7), dtype=bool))
+                    solid = _solid_2c & _dilated
+                    if not solid.any():
+                        solid = _solid_2c   # fallback to full
+            else:
+                solid = m   # label_map mask is good enough
+
+            # Extract the 1px boundary ring of the solid mask.
+            # This is the "outline first" step: the ring follows the true
+            # design boundary and is naturally ~5% UP for typical designs.
+            if solid.sum() / float(solid.size) >= 0.05:
+                # Solid design present — extract outline ring
+                outline, _ = extract_outline(solid, thickness=1)
+                if outline.any():
+                    masks[sname] = remove_noise(outline, min_size=max(noise_min_size, 3))
+                else:
+                    masks[sname] = _adaptive_thin(solid, noise_min_size)
+            else:
+                # Solid too sparse — fall back to adaptive thinning
+                masks[sname] = _adaptive_thin(solid, noise_min_size)
 
     results = {}
 
