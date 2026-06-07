@@ -98,6 +98,23 @@
   .actions{display:flex;gap:12px;margin-top:18px;flex-wrap:wrap;}
   .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(26,22,16,0.4);border-top-color:#1a1610;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;margin-right:8px;}
   @keyframes spin{to{transform:rotate(360deg);}}
+  /* ── Suggestion card ─────────────────────────────────────────────────── */
+  .sug-card{background:rgba(200,169,110,0.06);border:1px solid var(--gold);border-radius:var(--radius);padding:14px 16px;margin-top:14px;}
+  .sug-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  .sug-card-title{color:var(--gold2);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;}
+  .sug-dismiss{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:0 4px;line-height:1;}
+  .sug-dismiss:hover{color:var(--cream);}
+  .sug-row{display:grid;grid-template-columns:130px 56px 1fr auto;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid rgba(200,169,110,0.08);}
+  .sug-row:last-child{border-bottom:none;}
+  .sug-key{color:var(--muted);font-size:11px;letter-spacing:.5px;text-transform:uppercase;}
+  .sug-val{color:var(--gold2);font-size:13px;font-weight:500;text-align:right;}
+  .sug-why{color:var(--muted);font-size:10px;line-height:1.4;}
+  .sug-apply-one{background:transparent;border:1px solid var(--border2);color:var(--muted);padding:3px 10px;border-radius:4px;cursor:pointer;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.5px;white-space:nowrap;transition:var(--transition);}
+  .sug-apply-one:hover{border-color:var(--gold);color:var(--gold);}
+  .sug-apply-all{margin-top:12px;width:100%;padding:9px;background:rgba(200,169,110,0.12);border:1px solid var(--gold);border-radius:6px;color:var(--gold2);font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:var(--transition);}
+  .sug-apply-all:hover{background:rgba(200,169,110,0.22);}
+  .sug-loading{color:var(--muted);font-size:11px;margin-top:12px;display:flex;align-items:center;gap:8px;}
+  .sug-spinner{width:10px;height:10px;border:1.5px solid var(--border2);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;}
 </style>
 </head>
 <body>
@@ -131,6 +148,46 @@
         <img id="thumb" style="display:none">
       </div>
       <input type="file" id="fileInput" accept="image/*" style="display:none">
+
+      <!-- Smart suggestions (appear after upload, before Detect) -->
+      <div id="suggestWrap" style="display:none">
+        <div class="sug-loading" id="suggestLoading" style="display:none">
+          <span class="sug-spinner"></span> Analysing image…
+        </div>
+        <div class="sug-card" id="suggestCard" style="display:none">
+          <div class="sug-card-head">
+            <span class="sug-card-title">✦ Suggested settings for this image</span>
+            <button class="sug-dismiss" onclick="dismissSuggestions()" title="Dismiss">✕</button>
+          </div>
+          <div class="sug-row">
+            <span class="sug-key">Pins</span>
+            <span class="sug-val" id="sug-val-pins">—</span>
+            <span class="sug-why" id="sug-why-pins"></span>
+            <button class="sug-apply-one" onclick="applyOneSuggestion('pins')">Apply</button>
+          </div>
+          <div class="sug-row">
+            <span class="sug-key">Ink sensitivity</span>
+            <span class="sug-val" id="sug-val-ink">—</span>
+            <span class="sug-why" id="sug-why-ink"></span>
+            <button class="sug-apply-one" onclick="applyOneSuggestion('ink')">Apply</button>
+          </div>
+          <div class="sug-row">
+            <span class="sug-key">Detail retention</span>
+            <span class="sug-val" id="sug-val-detail">—</span>
+            <span class="sug-why" id="sug-why-detail"></span>
+            <button class="sug-apply-one" onclick="applyOneSuggestion('detail')">Apply</button>
+          </div>
+          <div class="sug-row">
+            <span class="sug-key">Min feature size</span>
+            <span class="sug-val" id="sug-val-noise">—</span>
+            <span class="sug-why" id="sug-why-noise"></span>
+            <button class="sug-apply-one" onclick="applyOneSuggestion('noise')">Apply</button>
+          </div>
+          <button class="sug-apply-all" id="applyAllBtn" onclick="applyAllSuggestions()">
+            ✦ Apply all suggestions
+          </button>
+        </div>
+      </div>
 
       <div class="row" style="margin-top:18px;">
         <div>
@@ -317,10 +374,94 @@ dz.ondrop = e=>{ e.preventDefault(); dz.classList.remove('drag'); if(e.dataTrans
 fi.onchange = ()=>{ if(fi.files[0]) loadFile(fi.files[0]); };
 
 function loadFile(f) {
-  state.file=f;
-  const t=$('thumb'); t.src=URL.createObjectURL(f); t.style.display='block';
-  dz.querySelector('.big').textContent=f.name;
-  $('detectBtn').disabled=false;
+  state.file = f;
+  const t = $('thumb'); t.src = URL.createObjectURL(f); t.style.display = 'block';
+  dz.querySelector('.big').textContent = f.name;
+  $('detectBtn').disabled = false;
+  fetchSuggestions(f);   // kick off analysis immediately
+}
+
+// ── Smart suggestions ──────────────────────────────────────────────────────
+const _sug = {};   // stores latest suggestion values
+
+async function fetchSuggestions(file) {
+  $('suggestCard').style.display   = 'none';
+  $('suggestLoading').style.display = 'flex';
+  $('suggestWrap').style.display   = 'block';
+  try {
+    const fd = new FormData(); fd.append('image', file);
+    const r  = await fetch('/api/border-suggest', {method:'POST', body:fd});
+    const d  = await r.json();
+    if (!d.success) throw new Error(d.error || 'analysis failed');
+
+    Object.assign(_sug, d);
+
+    $('sug-val-pins').textContent    = d.pins;
+    $('sug-why-pins').textContent    = d.reasons.pins;
+    $('sug-val-ink').textContent     = d.ink_sensitivity.toFixed(2);
+    $('sug-why-ink').textContent     = d.reasons.ink_sensitivity;
+    $('sug-val-detail').textContent  = d.detail_retention.toFixed(2);
+    $('sug-why-detail').textContent  = d.reasons.detail_retention;
+    $('sug-val-noise').textContent   = d.noise_min_size;
+    $('sug-why-noise').textContent   = d.reasons.noise_min_size;
+
+    $('suggestLoading').style.display = 'none';
+    $('suggestCard').style.display    = 'block';
+  } catch(_) {
+    $('suggestWrap').style.display = 'none';
+  }
+}
+
+function applyOneSuggestion(key) {
+  if (!_sug.pins) return;
+  if (key === 'pins') {
+    $('pins').value = _sug.pins;
+    flashEl($('pins'));
+  }
+  if (key === 'ink') {
+    const v = Math.round(_sug.ink_sensitivity * 100);
+    $('inkSens').value = v; $('inkSensVal').textContent = _sug.ink_sensitivity.toFixed(2);
+    flashEl($('inkSens'));
+  }
+  if (key === 'detail') {
+    _applyDetailVal(_sug.detail_retention);
+    flashEl($('detail'));
+  }
+  if (key === 'noise' && $('noiseMin')) {
+    $('noiseMin').value = _sug.noise_min_size;
+    $('noiseMinVal').textContent = _sug.noise_min_size;
+    flashEl($('noiseMin'));
+  }
+}
+
+function applyAllSuggestions() {
+  if (!_sug.pins) return;
+  $('pins').value = _sug.pins;
+  const inkV = Math.round(_sug.ink_sensitivity * 100);
+  $('inkSens').value = inkV; $('inkSensVal').textContent = _sug.ink_sensitivity.toFixed(2);
+  _applyDetailVal(_sug.detail_retention);
+  if ($('noiseMin')) { $('noiseMin').value = _sug.noise_min_size; $('noiseMinVal').textContent = _sug.noise_min_size; }
+  // flash the card border to confirm
+  const card = $('suggestCard');
+  card.style.borderColor = 'var(--gold2)';
+  card.style.boxShadow   = '0 0 0 2px rgba(232,201,142,0.25)';
+  setTimeout(() => { card.style.borderColor = ''; card.style.boxShadow = ''; }, 1400);
+}
+
+function _applyDetailVal(val) {
+  // Clamp to current slider range (standard: 0-60, fine: 0-25)
+  const maxV = parseInt($('detail').max);
+  const sliderV = Math.min(Math.round(val * 100), maxV);
+  $('detail').value = sliderV;
+  $('detailVal').textContent = (sliderV / 100).toFixed(2);
+}
+
+function dismissSuggestions() { $('suggestWrap').style.display = 'none'; }
+
+function flashEl(el) {
+  if (!el) return;
+  el.style.outline = '2px solid var(--gold)';
+  setTimeout(() => { el.style.outline = ''; }, 900);
 }
 
 function setStep(n) {

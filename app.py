@@ -11,6 +11,7 @@ from bmp_engine import (detect_colors, generate_bmps, verify_bmp, enhance_image,
                         generate_fill_pattern, FILL_PATTERNS, write_1bit_bmp)
 from border_engine import generate_border_bmps, detect_border
 from border_id_engine import generate_border_id_bmps
+from enhanced_engine import preprocess_fabric_image, analyze_border_image
 
 app = Flask(__name__)
 app.secret_key = 'jq-designer-2024'
@@ -162,7 +163,8 @@ def api_detect_colors():
 
         # ── Optional image enhancement ───────────────────────────────────────
         if request.form.get('enhance', 'false').lower() == 'true':
-            img = enhance_image(img)
+            img = preprocess_fabric_image(img)   # lighting normalisation + texture suppression
+            img = enhance_image(img)             # sharpen / contrast (existing step)
 
         # ── Detect colours ───────────────────────────────────────────────────
         resized = img.resize((pins, cards), Image.LANCZOS)
@@ -1196,3 +1198,42 @@ def api_border_id_generate():
     except Exception as e:
         import traceback
         return _json_error(f'Border identification failed: {e}')
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BORDER SUGGEST  — smart slider recommendations from image analysis
+# Lightweight: no KMeans, no detection. Just reads the image and returns values.
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route('/api/border-suggest', methods=['POST'])
+def api_border_suggest():
+    """
+    Analyze a border image and return suggested slider values.
+
+    Form field: image (file)
+
+    Response:
+        pins            : int
+        ink_sensitivity : float
+        detail_retention: float
+        noise_min_size  : int
+        reasons         : {key: str}
+    """
+    try:
+        if 'image' not in request.files:
+            return _json_error('No image file uploaded.')
+        file = request.files['image']
+        if not file.filename:
+            return _json_error('No file selected.')
+
+        try:
+            img = Image.open(file.stream)
+            img = ImageOps.exif_transpose(img).convert('RGB')
+        except Exception:
+            return _json_error('Could not read the uploaded image.')
+
+        result = analyze_border_image(img)
+        return jsonify({'success': True, **result})
+
+    except Exception as e:
+        return _json_error(f'Analysis failed: {e}')
