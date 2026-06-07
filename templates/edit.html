@@ -1821,21 +1821,17 @@ function downloadBMP() {
 
 function sendToGenerator() {
   if (!S.pixels) { toast('No file loaded'); return; }
-  // The Generator takes a source IMAGE to re-detect; a PNG is the right format
-  // here (the loom-ready 1-bit BMP is what Download produces).
-  const oc=Object.assign(document.createElement('canvas'),{width:S.W,height:S.H});
+  // The Generator takes a source IMAGE to re-detect; a PNG is the right format.
+  // Use toDataURL() (synchronous) instead of toBlob→FileReader (async chain)
+  // so window.open() is called inside the direct user gesture — Safari won't block it.
+  const oc = Object.assign(document.createElement('canvas'),{width:S.W,height:S.H});
   oc.getContext('2d').putImageData(new ImageData(S.pixels,S.W,S.H),0,0);
-  oc.toBlob(blob=>{
-    const reader=new FileReader();
-    reader.onload=e=>{
-      try {
-        sessionStorage.setItem('from_editor_b64', e.target.result.split(',')[1]);
-        window.open('/?from_editor=1', '_blank');
-        toast('Opened Generator — loading edited image…');
-      } catch { downloadBMP(); alert('Downloaded the BMP — upload it to the Generator manually.'); }
-    };
-    reader.readAsDataURL(blob);
-  },'image/png');
+  try {
+    const b64 = oc.toDataURL('image/png').split(',')[1];
+    sessionStorage.setItem('from_editor_b64', b64);
+    window.open('/?from_editor=1', '_blank');
+    toast('Opened Generator — loading edited image…');
+  } catch { downloadBMP(); alert('Downloaded the BMP — upload it to the Generator manually.'); }
 }
 
 // ═══════════════════════════════════════════════════
