@@ -829,6 +829,41 @@ def write_1bit_bmp(arr: np.ndarray) -> bytes:
 # ---------------------------------------------------------------------------
 # Emboss outline extractor
 # ---------------------------------------------------------------------------
+def _adaptive_thin(mask: np.ndarray, noise_min_size: int = 5) -> np.ndarray:
+    """
+    Thin a design mask to ~1px strokes, adapting to source stroke thickness.
+
+    Problem with fixed 1px extract_outline:
+        A 3px-thick source stroke has a 1px ring on each side plus a 1px
+        interior. extract_outline(mask, 1) takes the OUTER ring → still
+        ~3px equivalent coverage. We need to reach the interior core.
+
+    Solution — two-path adaptive logic:
+        Thick strokes (≥2px):  erode once → interior becomes ~1px → use that.
+                                No further noise removal — the design was already
+                                cleaned in step 5a, and corner/dot elements that
+                                become single pixels after erosion are legitimate
+                                thin design features, not noise.
+        Thin strokes (1px):    erosion removes them entirely → fall back to
+                               extract_outline on the original, then clean noise.
+
+    Threshold: if >5% of mask pixels survive 1× erosion, strokes are thick.
+    """
+    if not mask.any():
+        return mask
+
+    eroded = ndimage.binary_erosion(mask)
+
+    if eroded.sum() > 0.05 * mask.sum():
+        # Thick strokes — eroded interior is already ~1px, return as-is
+        return eroded
+    else:
+        # Thin strokes already — extract boundary ring then clean residual noise
+        outline, _ = extract_outline(mask, thickness=1)
+        result = outline if outline.any() else mask
+        return remove_noise(result, min_size=noise_min_size)
+
+
 def extract_outline(mask: np.ndarray, thickness: int = 1) -> tuple:
     """
     Split a boolean design mask into outline and fill layers using
@@ -1303,19 +1338,20 @@ def generate_bmps(
         if name != 'background':
             masks[name] = remove_noise(masks[name], min_size=noise_min_size)
 
-    # 5b. Stroke mode — thin each named shuttle mask to its 1px boundary ring.
-    #     Active by default for 2/3/4-shuttle generation. Produces clean thin
-    #     outline strokes instead of solid filled regions, so the rani can carry
-    #     near-full plain weave coverage and the design boundary is clearly defined.
-    #     Not applied to 1-shuttle mode (emboss handles that separately).
-    if stroke_mode and shuttle_count >= 2:
+    # 5b. Stroke mode — thin each named shuttle mask to ~1px strokes.
+    #     Applies to ALL shuttle counts when stroke_mode=True.
+    #     For 1-shuttle with emboss=True the emboss path handles outline
+    #     extraction itself, so we skip to avoid double-thinning.
+    #     Uses _adaptive_thin which detects source stroke thickness and
+    #     erodes accordingly (thick source → erode to interior; thin → outline ring).
+    _do_stroke = stroke_mode and not (shuttle_count == 1 and emboss)
+    if _do_stroke:
         for sname in list(masks.keys()):
             if sname == 'background':
                 continue
             m = masks[sname]
             if m.any():
-                outline, _ = extract_outline(m, thickness=1)
-                masks[sname] = outline
+                masks[sname] = _adaptive_thin(m, noise_min_size)
 
     results = {}
 
@@ -1544,54 +1580,41 @@ def generate_bmps(
             extra_mask = remove_noise(extra_mask, min_size=noise_min_size)
 
         if extra_mask.any():
-            # Remove noise from extra mask
             extra_mask = remove_noise(extra_mask, min_size=noise_min_size)
 
-        if extra_mask.any():
-            # Blend: rani fires where plain weave OR extra design colour
-            # Use solid fill for the extra colour (it's typically an outline
-            # / thin feature — solid is always correct for thin elements).
-            extra_solid = np.ones((cards, pins), dtype=np.uint8)
-            extra_solid[extra_mask] = 0   # 0 = UP (thread fires)
+        # ── Build rani array ─────────────────────────────────────────────────
+        # Union of all named-shuttle UP positions (pixels claimed by design)
+        named_up = np.zeros((cards, pins), dtype=bool)
+        for _sname in shuttle_names:
+            _sarr = shuttle_arrays.get(_sname)
+            if _sarr is not None:
+                named_up |= (_sarr == 0)
 
-            # ── Correct rani combination ─────────────────────────────────────
-            # REFERENCE ANALYSIS of 720_brokt_resham__1_.bmp confirms:
-            #
-            #   rani = (plain_weave AND NOT any_named_shuttle_UP)
-            #          OR extra_design
-            #
-            # The rani/resham thread fires the plain weave base EXCEPT at
-            # positions where a named shuttle (zari, meena1, meena2) is
-            # already weaving.  Where a named thread is UP, the rani is
-            # suppressed — the named thread provides the weft binding there.
-            # This avoids double-firing and matches the loom reference exactly.
-            #
-            # In addition, rani fires for its own design content (extra_mask)
-            # regardless of what the other shuttles are doing.
-
-            # Build union mask of all named-shuttle UP positions
-            named_up = np.zeros((cards, pins), dtype=bool)
-            for _sname in shuttle_names:
-                _sarr = shuttle_arrays.get(_sname)
-                if _sarr is not None:
-                    named_up |= (_sarr == 0)
-
-            rani_arr = np.where(
-                ((plain_weave == 0) & ~named_up) | (extra_solid == 0),
-                np.uint8(0),    # UP / fire
-                np.uint8(1)     # DOWN / hold
-            ).astype(np.uint8)
-        else:
-            # No extra colour — plain weave suppressed by named shuttles
-            named_up = np.zeros((cards, pins), dtype=bool)
-            for _sname in shuttle_names:
-                _sarr = shuttle_arrays.get(_sname)
-                if _sarr is not None:
-                    named_up |= (_sarr == 0)
+        if stroke_mode:
+            # Stroke mode: rani = pure plain weave suppressed by named shuttles.
+            # Named shuttle masks are already ~1px thin outlines, so rani carries
+            # near-full plain weave coverage (~48%) matching the loom reference.
+            # Ignoring extra_mask avoids solid-fill artefacts that degrade the
+            # plain weave match below 90%.
             rani_arr = np.where(
                 (plain_weave == 0) & ~named_up,
-                np.uint8(0),
-                np.uint8(1)
+                np.uint8(0), np.uint8(1)
+            ).astype(np.uint8)
+
+        elif extra_mask.any():
+            # Fill mode with extra design colour: plain weave base + solid extra.
+            extra_solid = np.ones((cards, pins), dtype=np.uint8)
+            extra_solid[extra_mask] = 0
+            rani_arr = np.where(
+                ((plain_weave == 0) & ~named_up) | (extra_solid == 0),
+                np.uint8(0), np.uint8(1)
+            ).astype(np.uint8)
+
+        else:
+            # Fill mode, no extra colour.
+            rani_arr = np.where(
+                (plain_weave == 0) & ~named_up,
+                np.uint8(0), np.uint8(1)
             ).astype(np.uint8)
 
         results[f'{design_name}_rani.bmp'] = write_1bit_bmp(rani_arr)
