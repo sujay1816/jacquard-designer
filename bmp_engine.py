@@ -1615,12 +1615,7 @@ def generate_bmps(
 
             if outline_white and outline_white.get(sname):
                 arr = apply_outer_face_white(arr, design_mask=mask.flatten())
-            # Hollow fill is skipped when stroke_mode is ON: Option 3 already
-            # treats the design interior intentionally (PW stipple inside strokes).
-            # Applying hollow fill on top would re-fill those areas solid black,
-            # undoing the thinning and pushing UP% back to 35%+.
-            if not stroke_mode:
-                arr = _apply_shuttle_hollow(arr, sname, hollow_weave_settings, design_mask=mask.flatten())
+            arr = _apply_shuttle_hollow(arr, sname, hollow_weave_settings, design_mask=mask.flatten())
             if invert_output and invert_output.get(sname):
                 arr = np.where(arr == 0, np.uint8(1), np.uint8(0))
             shuttle_arrays[sname] = arr
