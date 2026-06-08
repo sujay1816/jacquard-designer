@@ -212,6 +212,38 @@ def generate_plain_weave(width: int, height: int) -> np.ndarray:
     return ((rows[:, np.newaxis] + cols[np.newaxis, :]) % 2).astype(np.uint8)
 
 
+def generate_rani_weave(width: int, height: int, pattern: str = 'plain') -> np.ndarray:
+    """
+    Generate a rani background weave pattern.
+    Returns uint8: 0 = UP (fires), 1 = DOWN. ~50% coverage for all patterns.
+
+    Patterns:
+      'plain' — 1/1 plain weave, checkerboard (default)
+      'twill' — 2/2 twill, diagonal texture
+      'matt'  — 2/2 matt/hopsack, 2x2 block texture
+    """
+    rows = np.arange(height, dtype=np.int32)[:, np.newaxis]
+    cols = np.arange(width,  dtype=np.int32)[np.newaxis, :]
+    if pattern == 'twill':
+        fires = ((rows + cols) % 4) < 2
+    elif pattern == 'matt':
+        fires = ((rows // 2) + (cols // 2)) % 2 == 0
+    else:
+        fires = (rows + cols) % 2 == 0
+    return np.where(fires, np.uint8(0), np.uint8(1))
+
+
+def generate_rotated_satin(n: int, angle: float, width: int, height: int) -> np.ndarray:
+    """
+    Generate a satin pattern whose float direction is rotated by angle radians.
+    Returns uint8: 0 = UP (fires), 1 = DOWN. Used for curvilinear satin.
+    """
+    rows = np.arange(height, dtype=np.float32)[:, np.newaxis]
+    cols = np.arange(width,  dtype=np.float32)[np.newaxis, :]
+    rotated = (cols * np.cos(angle) + rows * np.sin(angle)).astype(np.int32)
+    return np.where(rotated % n == 0, np.uint8(0), np.uint8(1))
+
+
 # ---------------------------------------------------------------------------
 # Noise removal — vectorised connected-component filter
 # ---------------------------------------------------------------------------
@@ -1352,6 +1384,10 @@ def generate_bmps(
     invert_output: dict = None,           # {shuttle_name: True/False} — invert entire BMP (black↔white)
     bg_texture: dict = None,              # {shuttle_name: int} — diagonal period for background satin (0=off)
     stroke_mode: bool = True,             # 2/3/4 shuttle: thin each shuttle mask to 1px outline ring
+    reed: int = 80,                       # loom reed count (60/80/100) — controls hi-res internal processing
+    stroke_thickness: int = 1,            # outline ring width in pixels (1-5)
+    rani_weave: str = 'plain',            # rani background pattern: plain / twill / matt
+    curvilinear_satin: bool = False,      # align satin direction to local stroke orientation per region
 ) -> dict:
     """
     Generate all BMP files for a jacquard design.
@@ -1379,7 +1415,24 @@ def generate_bmps(
     # LANCZOS resize preserves thin grid lines and sharp edges without bleeding
     resized = image.resize((pins, cards), Image.LANCZOS)
 
-    # 2. Label map
+    # 1b. Reed-scale hi-res block.
+    #     Reed 100 is the reference quality — no upscaling needed.
+    #     Reed 80 → process 25% larger internally (scale=1.25).
+    #     Reed 60 → process 67% larger internally (scale=1.67).
+    #     The source image is resized to hi-res for detection and mask
+    #     extraction, then the mask is downsampled back to (pins×cards)
+    #     via LANCZOS for the final BMP. This gives sharper curves and
+    #     better edge approximation at any fixed pin count.
+    _reed_scale = 100.0 / max(int(reed), 1)
+    if _reed_scale > 1.01:
+        _hi_pins  = round(pins  * _reed_scale)
+        _hi_cards = round(cards * _reed_scale)
+        _resized_hi = resized.resize((_hi_pins, _hi_cards), Image.LANCZOS)
+        _hi_noise   = round(noise_min_size * _reed_scale)
+    else:
+        _hi_pins, _hi_cards = pins, cards
+        _resized_hi = resized
+        _hi_noise   = noise_min_size
     if label_map is None:
         n_detect = shuttle_count + 1
         _, _, label_map, _ = detect_colors(resized, n_detect)
@@ -1436,20 +1489,20 @@ def generate_bmps(
     #     1-shuttle + emboss=True: emboss handles outline itself; skip here.
     _do_stroke = stroke_mode and not (shuttle_count == 1 and emboss)
     if _do_stroke:
-        # 2-colour detection for Tier-2 fallback (run once, reused for all shuttles)
+        # 2-colour detection at hi-res for better solid mask quality
         _solid_2c = None
         try:
-            _, _, _lm2, _ = detect_colors(resized, 2, edge_recovery=True)
-            _solid_2c = remove_noise(_lm2 == 1, min_size=noise_min_size)
+            _, _, _lm2, _ = detect_colors(_resized_hi, 2, edge_recovery=True)
+            _solid_2c = remove_noise(_lm2 == 1, min_size=_hi_noise)
         except Exception:
             pass
 
-        # Plain-weave grid for interior fill
-        _rows = np.arange(cards)[:, None]
-        _cols = np.arange(pins)[None, :]
-        _pw_grid = ((_rows + _cols) % 2 == 0)
+        # Plain-weave grid for interior fill (at hi-res)
+        _rows_hi = np.arange(_hi_cards)[:, None]
+        _cols_hi = np.arange(_hi_pins)[None, :]
+        _pw_grid_hi = ((_rows_hi + _cols_hi) % 2 == 0)
 
-        _close3 = np.ones((3, 3), dtype=bool)   # fills 1px satin gaps
+        _close3 = np.ones((3, 3), dtype=bool)
 
         for sname in list(masks.keys()):
             if sname == 'background':
@@ -1460,40 +1513,50 @@ def generate_bmps(
 
             up_pct = m.sum() / float(m.size)
 
-            # ── Tier 1 / Tier 2 solid selection ──────────────────────────────
+            # ── Tier 1 / Tier 2 solid selection (at hi-res) ──────────────────
             if up_pct >= 0.10:
-                # label_map has good coverage → close satin gaps and use it
-                solid = ndimage.binary_closing(m, structure=_close3)
+                # Upsample label_map mask to hi-res for better processing
+                if _reed_scale > 1.01:
+                    _m_img = Image.fromarray(m.astype(np.uint8) * 255, 'L')
+                    m_hi = np.array(_m_img.resize((_hi_pins, _hi_cards), Image.LANCZOS)) > 127
+                else:
+                    m_hi = m
+                solid = ndimage.binary_closing(m_hi, structure=_close3)
             elif _solid_2c is not None and _solid_2c.any():
-                # label_map too sparse → use 2-colour result
                 if shuttle_count == 2:
                     solid = ndimage.binary_closing(_solid_2c, structure=_close3)
                 else:
-                    _dil = ndimage.binary_dilation(m, structure=np.ones((7, 7), dtype=bool))
+                    _dil = ndimage.binary_dilation(m if not _reed_scale > 1.01 else
+                           (np.array(Image.fromarray(m.astype(np.uint8)*255,'L')
+                                     .resize((_hi_pins,_hi_cards),Image.LANCZOS))>127),
+                           structure=np.ones((7, 7), dtype=bool))
                     _s2  = _solid_2c & _dil
                     solid = ndimage.binary_closing(_s2 if _s2.any() else _solid_2c,
                                                    structure=_close3)
             else:
-                # Both failed — use label_map as-is
-                solid = m
+                solid = m if not _reed_scale > 1.01 else (
+                    np.array(Image.fromarray(m.astype(np.uint8)*255,'L')
+                             .resize((_hi_pins,_hi_cards),Image.LANCZOS)) > 127)
 
             if not solid.any():
                 continue
 
-            # ── Option 3: outline + interior fill ────────────────────────────
-            outline, interior = extract_outline(solid, thickness=1)
+            # ── Option 3: outline + interior fill (at hi-res) ────────────────
+            outline, interior = extract_outline(solid, thickness=stroke_thickness)
 
             if outline.any():
-                # Clean small outline fragments (noise from JPEG halos)
-                outline_clean = remove_noise(outline, min_size=max(noise_min_size, 3))
-                # Interior fill: isolated 1px pixels — DO NOT pass through
-                # remove_noise (they are all size=1 and would all be deleted).
-                interior_fill = interior & _pw_grid
-                # Combine: outline (with satin) + interior (with PW stipple)
-                masks[sname] = outline_clean | interior_fill
+                outline_clean = remove_noise(outline, min_size=max(_hi_noise, 3))
+                interior_fill = interior & _pw_grid_hi
+                combined_hi   = outline_clean | interior_fill
             else:
-                # Solid too thin even for a 1px outline — thin adaptively
-                masks[sname] = _adaptive_thin(solid, noise_min_size)
+                combined_hi = _adaptive_thin(solid, _hi_noise)
+
+            # Downsample combined mask from hi-res to target (pins × cards)
+            if _reed_scale > 1.01:
+                _c_img = Image.fromarray(combined_hi.astype(np.uint8) * 255, 'L')
+                masks[sname] = np.array(_c_img.resize((pins, cards), Image.LANCZOS)) > 127
+            else:
+                masks[sname] = combined_hi
 
     results = {}
 
@@ -1557,7 +1620,7 @@ def generate_bmps(
             results[f'{design_name}_zari.bmp'] = write_1bit_bmp(zari_arr)
 
             # rani = outline pixels (solid, always thin) + plain weave base
-            plain_weave  = generate_plain_weave(pins, cards)
+            plain_weave  = generate_rani_weave(pins, cards, pattern=rani_weave)
             outline_solid = np.ones((cards, pins), dtype=np.uint8)
             outline_solid[outline_mask] = 0   # solid fill for outline ring
             # OR-combine: fire where either plain weave OR outline fires
@@ -1610,8 +1673,40 @@ def generate_bmps(
                     mask, satin, s['n'],
                     satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
             else:
-                arr = smart_fill(mask, satin, s['n'],
-                                 satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
+                # Reed enhancement for stroke mode OFF: upsample mask to hi-res,
+                # clean edges, downsample back — gives sharper design boundaries.
+                if not stroke_mode and _reed_scale > 1.01:
+                    _m_img = Image.fromarray(mask.astype(np.uint8) * 255, 'L')
+                    _mask_hi = np.array(
+                        _m_img.resize((_hi_pins, _hi_cards), Image.LANCZOS)) > 127
+                    _mask_hi = remove_noise(_mask_hi, min_size=_hi_noise)
+                    _m_dn = Image.fromarray(_mask_hi.astype(np.uint8) * 255, 'L')
+                    mask = np.array(_m_dn.resize((pins, cards), Image.LANCZOS)) > 127
+                    masks[sname] = mask  # update for hollow fill reference
+
+                # Curvilinear satin: align satin direction with local stroke orientation.
+                # For each connected region in the mask, compute the principal axis
+                # via PCA and rotate the satin pattern to match.
+                if curvilinear_satin and mask.any():
+                    labeled_cs, n_cs = ndimage.label(mask)
+                    arr = np.ones((cards, pins), dtype=np.uint8)  # all DOWN
+                    for _ci in range(1, n_cs + 1):
+                        _comp = labeled_cs == _ci
+                        _ys, _xs = np.where(_comp)
+                        if len(_ys) < 3:
+                            _angle = 0.0
+                        else:
+                            _cx = _xs - _xs.mean(); _cy = _ys - _ys.mean()
+                            _cov = np.cov(np.vstack([_cx, _cy]))
+                            _evals, _evecs = np.linalg.eigh(_cov)
+                            _angle = float(np.arctan2(_evecs[1, -1], _evecs[0, -1]))
+                        _rot_satin = generate_rotated_satin(s['n'], _angle, pins, cards)
+                        _c_arr = smart_fill(_comp, _rot_satin, s['n'],
+                                            satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
+                        arr[_comp] = _c_arr[_comp]
+                else:
+                    arr = smart_fill(mask, satin, s['n'],
+                                     satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
 
             if outline_white and outline_white.get(sname):
                 arr = apply_outer_face_white(arr, design_mask=mask.flatten())
@@ -1686,7 +1781,7 @@ def generate_bmps(
         # 3-shuttle example: nColors=4 → bg + zari + meena + extra → rani
         # 4-shuttle example: nColors=5 → bg + zari + meena1 + meena2 + extra → rani
 
-        plain_weave = generate_plain_weave(pins, cards)
+        plain_weave = generate_rani_weave(pins, cards, pattern=rani_weave)
 
         # ── Guaranteed full-design coverage for rani ─────────────────────────
         # The user requirement: rani must capture ALL design pixels not assigned

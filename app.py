@@ -343,6 +343,25 @@ def api_generate():
         # Stroke mode (default True for 2/3/4 shuttle): thin design to 1px outline ring
         stroke_mode = bool(data.get('stroke_mode', True))
 
+        # New enhancement parameters
+        reed              = max(1,  min(200, int(data.get('reed', 80))))
+        stroke_thickness  = max(1,  min(5,   int(data.get('stroke_thickness', 1))))
+        rani_weave        = str(data.get('rani_weave', 'plain'))
+        if rani_weave not in ('plain', 'twill', 'matt'):
+            rani_weave = 'plain'
+        curvilinear_satin = bool(data.get('curvilinear_satin', False))
+
+        # Auto-preprocessing: apply JPEG deblock + enhance when artifacts detected.
+        # Runs a quick quality check on the image and auto-enhances if needed.
+        try:
+            from bmp_engine import assess_image_quality
+            _q = assess_image_quality(img)
+            if _q.get('jpeg_artifacts', 0) > 15 or _q.get('noise_level', 0) > 20:
+                img = preprocess_fabric_image(img)
+                img = enhance_image(img)
+        except Exception:
+            pass
+
         bmp_files = generate_bmps(
             image=full_img if supersample else img,
             pins=pins,
@@ -359,6 +378,10 @@ def api_generate():
             invert_output=invert_output,
             bg_texture=bg_texture,
             stroke_mode=stroke_mode,
+            reed=reed,
+            stroke_thickness=stroke_thickness,
+            rani_weave=rani_weave,
+            curvilinear_satin=curvilinear_satin,
         )
 
         # ── Verify ────────────────────────────────────────────────────────────

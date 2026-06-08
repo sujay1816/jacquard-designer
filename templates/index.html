@@ -856,6 +856,22 @@
         gap: 10px;
         cursor: pointer;
       }
+      .reed-btn {
+        padding: 4px 14px;
+        border-radius: 6px;
+        border: 1px solid #444;
+        background: #222;
+        color: #aaa;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .reed-btn.active {
+        background: #b8973a;
+        border-color: #b8973a;
+        color: #111;
+        font-weight: 600;
+      }
       .emboss-label input[type=checkbox] {
         width: 16px; height: 16px;
         margin-top: 3px;
@@ -1023,6 +1039,22 @@
             <span class="emboss-desc">2/3/4 shuttle — thins each design thread to a 1px outline stroke. Produces a clean rani with near-full plain weave background. Turn off for solid filled regions.</span>
           </span>
         </label>
+        <div id="strokeWidthRow" style="margin-top:8px;padding-left:28px;display:flex;align-items:center;gap:10px;">
+          <label style="font-size:11px;color:#ccc;white-space:nowrap;">Stroke width</label>
+          <input type="range" id="strokeThickness" min="1" max="5" value="1" style="flex:1;max-width:120px;"
+                 oninput="document.getElementById('strokeThicknessVal').textContent=this.value+'px'">
+          <span id="strokeThicknessVal" style="font-size:11px;color:#aaa;min-width:28px;">1px</span>
+        </div>
+      </div>
+
+      <div class="emboss-row visible" id="curvilinearRow">
+        <label class="emboss-label">
+          <input type="checkbox" id="curvilinearSatin">
+          <span class="emboss-text">
+            <strong>〜 Curvilinear satin</strong>
+            <span class="emboss-desc">Aligns satin float direction with the curvature of each design element — petals and curves shimmer along their own axis.</span>
+          </span>
+        </label>
       </div>
 
       <div class="emboss-row visible" id="supersampleRow">
@@ -1082,6 +1114,19 @@
           <label>Cards (Height)</label>
           <input type="number" id="cards" placeholder="Auto" min="10" max="9999" oninput="autoCalcCards()">
           <span class="field-hint" id="cards-hint">Auto-calculated from pins × (image h/w)</span>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Reed Count</label>
+          <div style="display:flex;gap:6px;margin-top:4px;">
+            <button type="button" class="reed-btn" data-reed="60" onclick="setReed(60,this)">60</button>
+            <button type="button" class="reed-btn active" data-reed="80" onclick="setReed(80,this)">80</button>
+            <button type="button" class="reed-btn" data-reed="100" onclick="setReed(100,this)">100</button>
+          </div>
+          <input type="hidden" id="reedCount" value="80">
+          <span class="field-hint">Threads/inch — higher reed = sharper internal processing</span>
         </div>
       </div>
 
@@ -1363,6 +1408,12 @@ function autoCalcDimensions(forceUpdate) {
 
 // Alias — called when pins value changes manually
 function autoCalcCards() { autoCalcDimensions(false); }
+
+function setReed(value, btn) {
+  document.getElementById('reedCount').value = value;
+  document.querySelectorAll('.reed-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+}
 
 const state = {
   imageFile: null,
@@ -1850,8 +1901,16 @@ function renderShuttleZones() {
         <div class="shuttle-dot" style="background:${SHUTTLE_COLORS.rani}"></div>
         <div>
           <div class="shuttle-zone-title">RANI (AUTO)</div>
-          <div class="shuttle-zone-hint">Plain weave — auto-generated.<br>Suppressed where other shuttles are UP.</div>
+          <div class="shuttle-zone-hint">Background weave — auto-generated.<br>Suppressed where other shuttles are UP.</div>
         </div>
+      </div>
+      <div style="padding:6px 8px 4px;display:flex;align-items:center;gap:8px;">
+        <label style="font-size:11px;color:#aaa;white-space:nowrap;">Weave</label>
+        <select id="raniWeaveSelect" style="font-size:11px;padding:2px 4px;background:#222;color:#ccc;border:1px solid #444;border-radius:4px;">
+          <option value="plain">Plain (1/1)</option>
+          <option value="twill">Twill (2/2)</option>
+          <option value="matt">Matt (2/2 basket)</option>
+        </select>
       </div>
     `;
     container.appendChild(raniZone);
@@ -2401,6 +2460,10 @@ async function generateBMPs() {
         stroke_mode: strokeModeChecked,
         supersample: document.getElementById('supersampleMode')?.checked || false,
         full_image:  state.fullImageB64 || undefined,
+        reed:              parseInt(document.getElementById('reedCount')?.value || '80', 10),
+        stroke_thickness:  parseInt(document.getElementById('strokeThickness')?.value || '1', 10),
+        rani_weave:        document.getElementById('raniWeaveSelect')?.value || 'plain',
+        curvilinear_satin: document.getElementById('curvilinearSatin')?.checked || false,
       }),
     });
 
