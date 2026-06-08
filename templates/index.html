@@ -951,6 +951,94 @@
       background: #888; transition: transform 0.2s, background 0.2s;
     }
     .hf-toggle-track.on .hf-toggle-thumb { transform: translateX(16px); background: #1a1510; }
+
+    /* ── Preset buttons ─────────────────────────────────────────────── */
+    .preset-row { display:flex; gap:6px; margin-bottom:10px; }
+    .preset-btn {
+      flex:1; padding:7px 4px; font-size:10px; font-family:'DM Mono',monospace;
+      border:1px solid var(--border2); background:var(--surface2);
+      color:var(--muted); border-radius:var(--radius); cursor:pointer;
+      transition:all 0.18s; text-align:center; letter-spacing:0.03em;
+    }
+    .preset-btn:hover { border-color:var(--gold); color:var(--gold); }
+    .preset-btn.active { border-color:var(--gold); background:rgba(200,169,110,0.12); color:var(--gold2); }
+    .preset-label { font-size:9px; color:var(--muted); letter-spacing:0.06em;
+      text-transform:uppercase; margin-bottom:6px; margin-top:12px; }
+
+    /* ── Advanced options collapsible ───────────────────────────────── */
+    .advanced-toggle {
+      display:flex; align-items:center; gap:6px; cursor:pointer;
+      font-size:10px; color:var(--muted); letter-spacing:0.06em;
+      text-transform:uppercase; padding:6px 0; user-select:none;
+      border-top:1px solid var(--border); margin-top:8px;
+    }
+    .advanced-toggle:hover { color:var(--gold); }
+    .advanced-arrow { transition:transform 0.2s; display:inline-block; }
+    .advanced-arrow.open { transform:rotate(90deg); }
+    .advanced-section { overflow:hidden; max-height:0; transition:max-height 0.3s ease; }
+    .advanced-section.open { max-height:400px; }
+
+    /* ── Settings summary bar ───────────────────────────────────────── */
+    .settings-summary {
+      margin-top:8px; padding:8px 10px; background:var(--surface2);
+      border:1px solid var(--border); border-radius:var(--radius);
+      font-size:10px; font-family:'DM Mono',monospace;
+      color:var(--muted); line-height:1.6; display:none;
+    }
+    .settings-summary.visible { display:block; }
+    .ss-tag {
+      display:inline-block; margin:2px 3px 2px 0;
+      padding:2px 7px; border-radius:20px; font-size:9px;
+      background:rgba(200,169,110,0.1); border:1px solid rgba(200,169,110,0.25);
+      color:var(--gold);
+    }
+    .ss-tag.off { background:rgba(255,255,255,0.04); border-color:var(--border2); color:var(--muted); }
+
+    /* ── Coverage / physical context in output cards ────────────────── */
+    .coverage-line {
+      padding:6px 12px; border-top:1px solid var(--border);
+      font-size:10px; font-family:'DM Mono',monospace; color:var(--muted);
+      display:flex; gap:12px; flex-wrap:wrap;
+    }
+    .coverage-stat { display:flex; flex-direction:column; gap:1px; }
+    .coverage-stat-label { font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; }
+    .coverage-stat-val { color:var(--gold2); font-weight:600; font-size:11px; }
+
+    /* ── Live coverage estimate ─────────────────────────────────────── */
+    .coverage-estimate {
+      margin-top:8px; padding:8px 10px; background:var(--surface2);
+      border:1px solid var(--border); border-radius:var(--radius);
+      font-size:10px; font-family:'DM Mono',monospace; color:var(--muted);
+      display:none;
+    }
+    .coverage-estimate.visible { display:block; }
+    .ce-row { display:flex; justify-content:space-between; margin:2px 0; }
+    .ce-label { color:var(--muted); }
+    .ce-val { color:var(--gold); font-weight:600; }
+
+    /* ── Auto-enhance notice ────────────────────────────────────────── */
+    .enhance-notice {
+      margin-top:6px; padding:5px 8px; border-radius:5px; font-size:10px;
+      font-family:'DM Mono',monospace; display:none;
+    }
+    .enhance-notice.on  { display:block; background:rgba(106,158,106,0.12); color:#8abd8a; border:1px solid rgba(106,158,106,0.25); }
+    .enhance-notice.off { display:block; background:rgba(200,169,110,0.08); color:var(--muted); border:1px solid var(--border); }
+
+    /* ── Weave swatch previews ──────────────────────────────────────── */
+    .weave-swatch-row { display:flex; gap:10px; margin-top:6px; padding:0 2px; }
+    .weave-swatch-item { display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer; }
+    .weave-swatch-item canvas { border-radius:3px; border:1px solid var(--border2); image-rendering:pixelated; }
+    .weave-swatch-item span { font-size:9px; color:var(--muted); }
+    .weave-swatch-item.active canvas { border-color:var(--gold); }
+    .weave-swatch-item.active span { color:var(--gold); }
+
+    /* ── Keyboard shortcut hint ─────────────────────────────────────── */
+    .kbd-hint { font-size:9px; color:var(--border2); font-family:'DM Mono',monospace; margin-left:4px; }
+    kbd {
+      display:inline-block; padding:1px 4px; border-radius:3px;
+      border:1px solid var(--border2); background:var(--surface2);
+      font-size:9px; font-family:'DM Mono',monospace; color:var(--muted);
+    }
   </style>
 </head>
 <body>
@@ -1031,9 +1119,17 @@
         </label>
       </div>
 
+      <!-- ── Quick presets ──────────────────────────────────────── -->
+      <div class="preset-label">Quick Presets</div>
+      <div class="preset-row">
+        <button type="button" class="preset-btn" id="preset-lineart" onclick="applyPreset('lineart')" title="Clean black-on-white line art">✏ Line Art</button>
+        <button type="button" class="preset-btn" id="preset-photo"   onclick="applyPreset('photo')"   title="Real fabric or JPEG photo">📷 Fabric Photo</button>
+        <button type="button" class="preset-btn" id="preset-detail"  onclick="applyPreset('detail')"  title="Maximum sharpness and detail">🔬 Fine Detail</button>
+      </div>
+
       <div class="emboss-row visible" id="strokeModeRow">
         <label class="emboss-label">
-          <input type="checkbox" id="strokeMode" checked>
+          <input type="checkbox" id="strokeMode" checked onchange="updateSettingsSummary()">
           <span class="emboss-text">
             <strong>✦ Stroke mode</strong>
             <span class="emboss-desc">Thins each design thread to a 1px outline stroke. Produces a clean rani with near-full plain weave background. Turn off for solid filled regions.</span>
@@ -1042,29 +1138,37 @@
         <div id="strokeWidthRow" style="margin-top:8px;padding-left:28px;display:flex;align-items:center;gap:10px;">
           <label style="font-size:11px;color:#ccc;white-space:nowrap;">Stroke width</label>
           <input type="range" id="strokeThickness" min="1" max="5" value="1" style="flex:1;max-width:120px;"
-                 oninput="document.getElementById('strokeThicknessVal').textContent=this.value+'px'">
+                 oninput="document.getElementById('strokeThicknessVal').textContent=this.value+'px';updateSettingsSummary()">
           <span id="strokeThicknessVal" style="font-size:11px;color:#aaa;min-width:28px;">1px</span>
         </div>
       </div>
 
-      <div class="emboss-row visible" id="curvilinearRow">
-        <label class="emboss-label">
-          <input type="checkbox" id="curvilinearSatin">
-          <span class="emboss-text">
-            <strong>〜 Curvilinear satin</strong>
-            <span class="emboss-desc">Aligns satin float direction with the curvature of each design element — petals and curves shimmer along their own axis.</span>
-          </span>
-        </label>
+      <!-- ── Advanced options (collapsible) ────────────────────── -->
+      <div class="advanced-toggle" onclick="toggleAdvanced()" id="advancedToggle">
+        <span class="advanced-arrow" id="advancedArrow">›</span>
+        <span>Advanced Options</span>
+        <span id="advancedBadge" style="margin-left:auto;font-size:9px;color:var(--border2)"></span>
       </div>
+      <div class="advanced-section" id="advancedSection">
+        <div class="emboss-row visible" id="curvilinearRow">
+          <label class="emboss-label">
+            <input type="checkbox" id="curvilinearSatin" onchange="updateSettingsSummary()">
+            <span class="emboss-text">
+              <strong>〜 Curvilinear satin</strong>
+              <span class="emboss-desc">Aligns satin float direction with the curvature of each design element — petals and curves shimmer along their own axis.</span>
+            </span>
+          </label>
+        </div>
 
-      <div class="emboss-row visible" id="supersampleRow">
-        <label class="emboss-label">
-          <input type="checkbox" id="supersampleMode">
-          <span class="emboss-text">
-            <strong>🔬 Fine detail mode</strong>
-            <span class="emboss-desc">Detects at 4× resolution then downsamples — preserves thin gaps between petals, lattice lines, and fine interior details at low pin counts.</span>
-          </span>
-        </label>
+        <div class="emboss-row visible" id="supersampleRow">
+          <label class="emboss-label">
+            <input type="checkbox" id="supersampleMode" onchange="updateSettingsSummary()">
+            <span class="emboss-text">
+              <strong>🔬 Fine detail mode</strong>
+              <span class="emboss-desc">Detects at 4× resolution then downsamples — preserves thin gaps between petals, lattice lines, and fine interior details at low pin counts.</span>
+            </span>
+          </label>
+        </div>
       </div>
 
       <div id="qualityPanel" class="quality-panel">
@@ -1131,14 +1235,22 @@
         </div>
       </div>
 
+      <!-- Live coverage estimate (shown after detection) -->
+      <div class="coverage-estimate" id="coverageEstimate">
+        <div style="font-size:9px;color:var(--muted);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:5px;">Estimated Design Coverage</div>
+        <div id="coverageRows"></div>
+        <div style="font-size:9px;color:var(--border2);margin-top:4px;">Based on colour detection · actual output varies with weave settings</div>
+      </div>
+
       <div class="enhance-row">
         <label class="enhance-label">
-          <input type="checkbox" id="enhanceImage" checked>
+          <input type="checkbox" id="enhanceImage" checked onchange="updateSettingsSummary()">
           <span class="enhance-text">
             <strong>✨ Enhance image quality</strong>
             <span class="enhance-desc">Fabric photo mode — normalises lighting gradients, suppresses weave texture, then sharpens. Recommended for real fabric photos.</span>
           </span>
         </label>
+        <div class="enhance-notice" id="enhanceNotice"></div>
       </div>
     </div>
 
@@ -1182,6 +1294,12 @@
         <span id="generate-btn-text">Generate BMP Files</span>
       </button>
       <div class="msg msg-error" id="generate-error"></div>
+      <!-- Settings summary bar -->
+      <div class="settings-summary visible" id="settingsSummary"></div>
+      <!-- Keyboard hint -->
+      <div style="margin-top:8px;text-align:center;font-size:9px;color:var(--border2);font-family:'DM Mono',monospace;">
+        <kbd>D</kbd> Detect &nbsp; <kbd>G</kbd> Generate &nbsp; <kbd>Esc</kbd> Cancel
+      </div>
     </div>
 
   </div>
@@ -1295,10 +1413,24 @@ async function assessImageQuality(file) {
     const allGood = data.suggestions.length === 1 && data.suggestions[0].includes('good');
     sugEl.className = 'quality-suggestions' + (allGood ? ' good' : '');
 
-    // Auto-tick enhance if quality issues are detected
+    // Auto-tick enhance if quality issues detected; auto-untick for clean line art
+    const noticeEl = document.getElementById('enhanceNotice');
     if (data.jpeg_artifacts > 15 || data.noise_level > 20 || data.dynamic_range < 40) {
       document.getElementById('enhanceImage').checked = true;
+      if (noticeEl) {
+        noticeEl.className = 'enhance-notice on';
+        noticeEl.textContent = '✓ Auto-enabled — JPEG artifacts or noise detected';
+      }
+    } else if (data.jpeg_artifacts < 5 && data.blur_score > 2000) {
+      document.getElementById('enhanceImage').checked = false;
+      if (noticeEl) {
+        noticeEl.className = 'enhance-notice off';
+        noticeEl.textContent = '— Line art detected — Enhance disabled (not needed)';
+      }
+    } else {
+      if (noticeEl) noticeEl.className = 'enhance-notice';
     }
+    updateSettingsSummary();
   } catch(e) { console.warn('Quality assessment error:', e); }
 }
 
@@ -1423,6 +1555,7 @@ function setReed(value, btn) {
     slider.value = recommended;
     label.textContent = recommended + 'px';
   }
+  updateSettingsSummary();
 }
 
 const state = {
@@ -1661,6 +1794,7 @@ function setShuttles(n) {
     b.classList.toggle('active', parseInt(b.dataset.n) === n);
   });
   checkDetectReady();
+  updateSettingsSummary();
 }
 
 function checkDetectReady() {
@@ -1674,6 +1808,8 @@ function checkDetectReady() {
 }
 
 document.getElementById('pins').addEventListener('input', checkDetectReady);
+// Initialise summary on load
+updateSettingsSummary();
 
 // =====================================================================
 // Step indicator
@@ -1783,6 +1919,8 @@ function renderColorAssignment(data) {
   document.getElementById('color-assignment').style.display = 'block';
   document.getElementById('output-section').style.display = 'none';
   document.getElementById('generate-section').style.display = 'block';
+  updateSettingsSummary();
+  updateLiveCoverage();
 
   // Preview images
   document.getElementById('orig-preview').src = `data:image/png;base64,${data.original_image}`;
@@ -1868,11 +2006,13 @@ function renderShuttleZones() {
     zone.dataset.shuttle = shuttleName;
 
     const color = SHUTTLE_COLORS[shuttleName] || '#888';
-    const hint = shuttleName === 'background'
-      ? 'Fabric base — not exported'
-      : shuttleName === 'rani'
-      ? 'Auto-generated — plain weave'
-      : 'Drag colour(s) here';
+    const SHUTTLE_HINTS = {
+      zari:       'Metallic thread (gold/silver) — forms the design',
+      meena1:     'Coloured silk — accent and detail areas',
+      meena2:     'Second coloured thread — additional accents',
+      background: 'Suppressed — no thread fires here',
+    };
+    const hint = SHUTTLE_HINTS[shuttleName] || 'Drag colour(s) here';
 
     zone.innerHTML = `
       <div class="shuttle-zone-header">
@@ -1911,19 +2051,32 @@ function renderShuttleZones() {
         <div class="shuttle-dot" style="background:${SHUTTLE_COLORS.rani}"></div>
         <div>
           <div class="shuttle-zone-title">RANI (AUTO)</div>
-          <div class="shuttle-zone-hint">Background weave — auto-generated.<br>Suppressed where other shuttles are UP.</div>
+          <div class="shuttle-zone-hint">Silk base thread — auto-generated background weave.</div>
         </div>
       </div>
-      <div style="padding:6px 8px 4px;display:flex;align-items:center;gap:8px;">
-        <label style="font-size:11px;color:#aaa;white-space:nowrap;">Weave</label>
-        <select id="raniWeaveSelect" style="font-size:11px;padding:2px 4px;background:#222;color:#ccc;border:1px solid #444;border-radius:4px;">
-          <option value="plain">Plain (1/1)</option>
-          <option value="twill">Twill (2/2)</option>
-          <option value="matt">Matt (2/2 basket)</option>
-        </select>
+      <div style="padding:4px 8px 6px;">
+        <div style="font-size:9px;color:var(--muted);letter-spacing:0.05em;text-transform:uppercase;margin-bottom:5px;">Background Weave Pattern</div>
+        <div class="weave-swatch-row" id="weaveSatchRow">
+          <div class="weave-swatch-item active" onclick="selectRaniWeave('plain',this)" title="1/1 plain weave — standard">
+            <canvas id="swatch-plain" width="28" height="28"></canvas><span>Plain</span>
+          </div>
+          <div class="weave-swatch-item" onclick="selectRaniWeave('twill',this)" title="2/2 twill — diagonal texture">
+            <canvas id="swatch-twill" width="28" height="28"></canvas><span>Twill</span>
+          </div>
+          <div class="weave-swatch-item" onclick="selectRaniWeave('matt',this)" title="2/2 matt basket — block texture">
+            <canvas id="swatch-matt" width="28" height="28"></canvas><span>Matt</span>
+          </div>
+        </div>
+        <input type="hidden" id="raniWeaveSelect" value="plain">
       </div>
     `;
     container.appendChild(raniZone);
+    // Render swatches after insertion
+    setTimeout(() => {
+      renderWeaveSwatch('swatch-plain', 'plain');
+      renderWeaveSwatch('swatch-twill', 'twill');
+      renderWeaveSwatch('swatch-matt',  'matt');
+    }, 0);
   }
 
   refreshZoneChips();
@@ -1933,6 +2086,7 @@ function assignColor(colorIdx, shuttleName) {
   state.colorAssignments[colorIdx] = shuttleName;
   renderColorsGrid();
   refreshZoneChips();
+  updateLiveCoverage();
 }
 
 function removeColorFromZone(colorIdx) {
@@ -2535,6 +2689,23 @@ function renderOutputPreviews(data) {
           ? `✓ Clean — ${v.pure_black.toLocaleString()} black / ${v.pure_white.toLocaleString()} white — 0 grey pixels`
           : `⚠ ${v.other_pixels} non-B/W pixels found`}
       </div>
+      ${(()=>{
+        const total = (v.pure_black||0)+(v.pure_white||0);
+        const covPct = total>0 ? (v.pure_black/total*100).toFixed(1) : '—';
+        const reed = parseInt(document.getElementById('reedCount')?.value||'80');
+        const wIn = (state.pins/reed).toFixed(1);
+        const hIn = (state.cards/reed).toFixed(1);
+        return `<div class="coverage-line">
+          <div class="coverage-stat">
+            <span class="coverage-stat-label">UP Coverage</span>
+            <span class="coverage-stat-val">${covPct}%</span>
+          </div>
+          <div class="coverage-stat">
+            <span class="coverage-stat-label">At Reed ${reed}</span>
+            <span class="coverage-stat-val">${wIn}" × ${hIn}"</span>
+          </div>
+        </div>`;
+      })()}
       <div style="padding:8px 12px;border-top:1px solid var(--border)">
         <button onclick="openInEditor('${fname}', '${preview}')"
           style="width:100%;padding:6px;background:transparent;border:1px solid var(--border2);
@@ -2669,7 +2840,180 @@ document.addEventListener('keydown', function(e) {
       overlay.classList.remove('show');
     }
   }
+  // Global keyboard shortcuts — only when not typing in an input
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.key === 'd' || e.key === 'D') {
+    const btn = document.getElementById('detect-btn');
+    if (btn && !btn.disabled && state.imageFile) detectColors();
+  }
+  if (e.key === 'g' || e.key === 'G') {
+    const section = document.getElementById('generate-section');
+    if (section && section.style.display !== 'none') generateBMPs();
+  }
 });
+
+// ── Advanced options toggle ──────────────────────────────────────────────
+function toggleAdvanced() {
+  const section = document.getElementById('advancedSection');
+  const arrow   = document.getElementById('advancedArrow');
+  const isOpen  = section.classList.toggle('open');
+  arrow.classList.toggle('open', isOpen);
+  updateAdvancedBadge();
+}
+function updateAdvancedBadge() {
+  const badge = document.getElementById('advancedBadge');
+  if (!badge) return;
+  const curv = document.getElementById('curvilinearSatin')?.checked;
+  const fine = document.getElementById('supersampleMode')?.checked;
+  const active = [curv && 'Curvilinear', fine && 'Fine Detail'].filter(Boolean);
+  badge.textContent = active.length ? active.join(' · ') : '';
+  badge.style.color = active.length ? 'var(--gold)' : 'var(--border2)';
+}
+
+// ── Presets ──────────────────────────────────────────────────────────────
+function applyPreset(type) {
+  // Clear active state
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('preset-' + type)?.classList.add('active');
+
+  const strokeEl   = document.getElementById('strokeMode');
+  const enhanceEl  = document.getElementById('enhanceImage');
+  const fineEl     = document.getElementById('supersampleMode');
+  const curviEl    = document.getElementById('curvilinearSatin');
+  const noticeEl   = document.getElementById('enhanceNotice');
+
+  if (type === 'lineart') {
+    if (strokeEl)  strokeEl.checked  = true;
+    if (enhanceEl) enhanceEl.checked = false;
+    if (fineEl)    fineEl.checked    = false;
+    if (curviEl)   curviEl.checked   = false;
+    setReed(80, document.querySelector('.reed-btn[data-reed="80"]'));
+    if (noticeEl) { noticeEl.className='enhance-notice off'; noticeEl.textContent='Line Art preset — Enhance disabled'; }
+  } else if (type === 'photo') {
+    if (strokeEl)  strokeEl.checked  = true;
+    if (enhanceEl) enhanceEl.checked = true;
+    if (fineEl)    fineEl.checked    = false;
+    if (curviEl)   curviEl.checked   = false;
+    setReed(80, document.querySelector('.reed-btn[data-reed="80"]'));
+    if (noticeEl) { noticeEl.className='enhance-notice on'; noticeEl.textContent='Fabric Photo preset — Enhance enabled'; }
+  } else if (type === 'detail') {
+    if (strokeEl)  strokeEl.checked  = true;
+    if (enhanceEl) enhanceEl.checked = false;
+    if (fineEl)    fineEl.checked    = true;
+    if (curviEl)   curviEl.checked   = true;
+    setReed(100, document.querySelector('.reed-btn[data-reed="100"]'));
+    // Open advanced section to show the active options
+    const section = document.getElementById('advancedSection');
+    const arrow   = document.getElementById('advancedArrow');
+    if (section && !section.classList.contains('open')) {
+      section.classList.add('open');
+      arrow.classList.add('open');
+    }
+    if (noticeEl) { noticeEl.className='enhance-notice off'; noticeEl.textContent='Fine Detail preset — Reed 100, Fine Detail + Curvilinear active'; }
+  }
+  updateAdvancedBadge();
+  updateSettingsSummary();
+}
+
+// ── Settings summary bar ─────────────────────────────────────────────────
+function updateSettingsSummary() {
+  const el = document.getElementById('settingsSummary');
+  if (!el) return;
+
+  const reed      = document.getElementById('reedCount')?.value || '80';
+  const stroke    = document.getElementById('strokeMode')?.checked;
+  const thickness = document.getElementById('strokeThickness')?.value || '1';
+  const curvi     = document.getElementById('curvilinearSatin')?.checked;
+  const fine      = document.getElementById('supersampleMode')?.checked;
+  const enhance   = document.getElementById('enhanceImage')?.checked;
+  const shuttles  = state.shuttleCount || 1;
+  const rani      = document.getElementById('raniWeaveSelect')?.value || 'plain';
+  const raniLabel = {plain:'Plain',twill:'Twill',matt:'Matt'}[rani] || rani;
+
+  const tag = (text, on) =>
+    `<span class="ss-tag${on?'':' off'}">${text}</span>`;
+
+  el.innerHTML = [
+    tag(`Reed ${reed}`, true),
+    tag(`${shuttles} Shuttle${shuttles>1?'s':''}`, true),
+    tag(`Stroke ${stroke ? thickness+'px':'OFF'}`, stroke),
+    tag(`Enhance ${enhance?'ON':'OFF'}`, enhance),
+    tag(`Curvilinear ${curvi?'ON':'OFF'}`, curvi),
+    tag(`Fine Detail ${fine?'ON':'OFF'}`, fine),
+    tag(`Rani: ${raniLabel}`, true),
+  ].join('');
+
+  updateAdvancedBadge();
+}
+
+// ── Live coverage estimate ───────────────────────────────────────────────
+function updateLiveCoverage() {
+  const el = document.getElementById('coverageEstimate');
+  const rowEl = document.getElementById('coverageRows');
+  if (!el || !rowEl || !state.labelMap || !state.labelMap.length) return;
+
+  const lm = state.labelMap;
+  const total = lm.flat ? lm.flat().length : lm.length * (lm[0]?.length || 1);
+  if (!total) return;
+
+  // Count pixels per label index
+  const counts = {};
+  const flat = lm.flat ? lm.flat() : lm;
+  for (const v of flat) counts[v] = (counts[v]||0) + 1;
+
+  // Map label index to shuttle name
+  const rows = [];
+  for (const [idxStr, name] of Object.entries(state.colorAssignments||{})) {
+    if (name === 'background') continue;
+    const idx = parseInt(idxStr);
+    const cnt = counts[idx] || 0;
+    const pct = (cnt/total*100).toFixed(1);
+    const color = SHUTTLE_COLORS[name] || '#888';
+    rows.push(`<div class="ce-row">
+      <span class="ce-label" style="display:flex;align-items:center;gap:5px;">
+        <span style="width:8px;height:8px;border-radius:50%;background:${color};display:inline-block;flex-shrink:0;"></span>
+        ${name.toUpperCase()}
+      </span>
+      <span class="ce-val">${pct}%</span>
+    </div>`);
+  }
+
+  if (rows.length) {
+    rowEl.innerHTML = rows.join('');
+    el.classList.add('visible');
+  }
+}
+
+// ── Weave swatch renderer ─────────────────────────────────────────────────
+function renderWeaveSwatch(canvasId, pattern) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const id = ctx.createImageData(W, H);
+  const scale = 4;  // each weave cell = 4px on canvas
+  for (let r = 0; r < H; r++) {
+    for (let c = 0; c < W; c++) {
+      const pr = Math.floor(r / scale), pc = Math.floor(c / scale);
+      let fires = false;
+      if (pattern === 'plain') fires = (pr + pc) % 2 === 0;
+      else if (pattern === 'twill') fires = ((pr + pc) % 4) < 2;
+      else if (pattern === 'matt')  fires = ((Math.floor(pr/2) + Math.floor(pc/2)) % 2) === 0;
+      const px = (r * W + c) * 4;
+      const v = fires ? 30 : 220;
+      id.data[px]=id.data[px+1]=id.data[px+2]=v; id.data[px+3]=255;
+    }
+  }
+  ctx.putImageData(id, 0, 0);
+}
+
+function selectRaniWeave(pattern, itemEl) {
+  const hidden = document.getElementById('raniWeaveSelect');
+  if (hidden) hidden.value = pattern;
+  document.querySelectorAll('.weave-swatch-item').forEach(el => el.classList.remove('active'));
+  if (itemEl) itemEl.classList.add('active');
+  updateSettingsSummary();
+}
 
   // ── Lightbox ────────────────────────────────────────────────────────────
   function openLightbox(src, label) {
