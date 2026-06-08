@@ -1383,7 +1383,7 @@ def generate_bmps(
     outline_white: dict = None,           # {shuttle_name: True/False} — turn outer face white
     invert_output: dict = None,           # {shuttle_name: True/False} — invert entire BMP (black↔white)
     bg_texture: dict = None,              # {shuttle_name: int} — diagonal period for background satin (0=off)
-    stroke_mode: bool = True,             # 2/3/4 shuttle: thin each shuttle mask to 1px outline ring
+    stroke_mode: bool = True,             # all shuttles: thin each shuttle mask to 1px outline ring
     reed: int = 80,                       # loom reed count (60/80/100) — controls hi-res internal processing
     stroke_thickness: int = 1,            # outline ring width in pixels (1-5)
     rani_weave: str = 'plain',            # rani background pattern: plain / twill / matt

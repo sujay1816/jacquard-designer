@@ -1036,7 +1036,7 @@
           <input type="checkbox" id="strokeMode" checked>
           <span class="emboss-text">
             <strong>✦ Stroke mode</strong>
-            <span class="emboss-desc">2/3/4 shuttle — thins each design thread to a 1px outline stroke. Produces a clean rani with near-full plain weave background. Turn off for solid filled regions.</span>
+            <span class="emboss-desc">Thins each design thread to a 1px outline stroke. Produces a clean rani with near-full plain weave background. Turn off for solid filled regions.</span>
           </span>
         </label>
         <div id="strokeWidthRow" style="margin-top:8px;padding-left:28px;display:flex;align-items:center;gap:10px;">
@@ -1121,6 +1121,7 @@
         <div class="field">
           <label>Reed Count</label>
           <div style="display:flex;gap:6px;margin-top:4px;">
+            <button type="button" class="reed-btn" data-reed="40" onclick="setReed(40,this)">40</button>
             <button type="button" class="reed-btn" data-reed="60" onclick="setReed(60,this)">60</button>
             <button type="button" class="reed-btn active" data-reed="80" onclick="setReed(80,this)">80</button>
             <button type="button" class="reed-btn" data-reed="100" onclick="setReed(100,this)">100</button>
@@ -1413,6 +1414,15 @@ function setReed(value, btn) {
   document.getElementById('reedCount').value = value;
   document.querySelectorAll('.reed-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
+  // Auto-recommend stroke thickness: coarser reed = larger pixel = thicker stroke needed
+  // Reed 40 → 3px, Reed 60 → 2px, Reed 80/100 → 1px
+  const recommended = value <= 40 ? 3 : value <= 60 ? 2 : 1;
+  const slider = document.getElementById('strokeThickness');
+  const label  = document.getElementById('strokeThicknessVal');
+  if (slider && label) {
+    slider.value = recommended;
+    label.textContent = recommended + 'px';
+  }
 }
 
 const state = {
@@ -1978,12 +1988,12 @@ function renderSatinSettings() {
     }
   }
 
-  // Stroke mode row: visible for 2/3/4 shuttle, hidden for 1 shuttle
+  // Stroke mode row: visible for ALL shuttle counts
+  // Default: ON for 2/3/4 shuttle, OFF for 1 shuttle (emboss handles outline for 1-shuttle)
   const strokeModeRow = document.getElementById('strokeModeRow');
-  if (strokeModeRow) {
-    if (state.shuttleCount >= 2) strokeModeRow.classList.add('visible');
-    else strokeModeRow.classList.remove('visible');
-  }
+  if (strokeModeRow) strokeModeRow.classList.add('visible');
+  const strokeModeEl = document.getElementById('strokeMode');
+  if (strokeModeEl) strokeModeEl.checked = state.shuttleCount >= 2;
 
   if (saSection) saSection.style.display = 'block';
 
@@ -2358,10 +2368,8 @@ async function generateBMPs() {
     && document.getElementById('embossMode')
     && document.getElementById('embossMode').checked;
 
-  // Stroke mode — default ON for 2/3/4 shuttle
-  const strokeModeChecked = state.shuttleCount >= 2
-    && document.getElementById('strokeMode')
-    && document.getElementById('strokeMode').checked;
+  // Stroke mode — available for all shuttle counts
+  const strokeModeChecked = document.getElementById('strokeMode')?.checked || false;
 
   // Final color assignments.
   // Colour 0 (background) always stays as background.
