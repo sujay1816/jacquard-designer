@@ -1405,42 +1405,51 @@ def generate_bmps(
         if name != 'background':
             masks[name] = remove_noise(masks[name], min_size=noise_min_size)
 
-    # 5b. Stroke mode — Option 3 outline + interior fill.
+    # 5b. Stroke mode — Option 3: outline ring (satin) + interior fill (plain weave).
     #
-    #     Pipeline (per shuttle):
-    #       1. Get SOLID design mask from 2-colour detection.
-    #          2 colours = background vs ALL design → captures every design pixel
-    #          including JPEG anti-alias halos missed by the 3-colour KMeans.
-    #       2. Extract boundary ring (outline) + interior of that solid mask.
-    #       3. Zari fires:
-    #            • outline ring  → satin weave  (smart_fill sees contiguous runs)
-    #            • interior fill → plain weave  (every-other-pixel of the interior;
-    #                              smart_fill sees isolated pixels → solid fill,
-    #                              which IS plain weave at 1px pitch)
-    #       4. Rani fires plain weave everywhere the zari doesn't.
+    #     SOLID MASK SELECTION (most important step):
+    #       The raw label_map mask from KMeans is unreliable — it may be too
+    #       sparse (2–4%) if JPEG halos land in the wrong cluster, or too large
+    #       (50%+) if the 2-colour detection includes shadowed background pixels.
+    #       We use a two-tier approach:
     #
-    #     Result on fabric:
-    #       Background  — silk plain weave (rani)
-    #       Design edge — metallic satin diagonal floats (zari outline)
-    #       Design body — metallic plain-weave stipple (zari interior fill)
+    #       Tier 1 (label_map UP ≥ 10%):  label_map has enough pixels → close
+    #         satin gaps with a 3×3 morph-close and use it as the solid shape.
+    #         Small closing fills the gaps the satin pattern left without
+    #         expanding the design boundary significantly.
     #
-    #     For 1-shuttle + emboss=True: emboss handles outline itself; skip here.
+    #       Tier 2 (label_map UP < 10%):  label_map is too sparse → use the
+    #         2-colour re-detection (background vs all design) which captures
+    #         every design pixel in one cluster, then morph-close it.
+    #
+    #     OUTLINE + INTERIOR (Option 3):
+    #       outline       = 1px boundary ring of solid  → satin floats on fabric
+    #       interior_fill = every-other interior pixel  → metallic PW stipple
+    #
+    #       interior_fill pixels are isolated single pixels (1px each).
+    #       remove_noise would delete them if applied to the combined mask.
+    #       FIX: apply remove_noise to the outline ONLY, then re-add interior_fill.
+    #
+    #     SUPERSAMPLE bypass fix: supersample generates from raw label_map
+    #     and ignores mask updates; disabled when stroke_mode=True (line below).
+    #
+    #     1-shuttle + emboss=True: emboss handles outline itself; skip here.
     _do_stroke = stroke_mode and not (shuttle_count == 1 and emboss)
     if _do_stroke:
-        # Always run 2-colour detection to get the best possible solid mask.
-        # 2 colours merges all design shades into one cluster, giving a clean
-        # solid shape even when KMeans with more colours leaves gaps.
+        # 2-colour detection for Tier-2 fallback (run once, reused for all shuttles)
         _solid_2c = None
         try:
             _, _, _lm2, _ = detect_colors(resized, 2, edge_recovery=True)
             _solid_2c = remove_noise(_lm2 == 1, min_size=noise_min_size)
         except Exception:
-            pass   # silent fallback to label_map mask
+            pass
 
-        # Plain-weave grid used for interior fill
-        _rows = np.arange(cards)[:, None]   # (cards,1)
-        _cols = np.arange(pins)[None, :]    # (1,pins)
-        _pw_grid = ((_rows + _cols) % 2 == 0)  # True = fires in plain weave
+        # Plain-weave grid for interior fill
+        _rows = np.arange(cards)[:, None]
+        _cols = np.arange(pins)[None, :]
+        _pw_grid = ((_rows + _cols) % 2 == 0)
+
+        _close3 = np.ones((3, 3), dtype=bool)   # fills 1px satin gaps
 
         for sname in list(masks.keys()):
             if sname == 'background':
@@ -1449,34 +1458,41 @@ def generate_bmps(
             if not m.any():
                 continue
 
-            # Choose solid mask: prefer 2-colour result; fall back to label_map mask
-            if _solid_2c is not None and _solid_2c.any():
+            up_pct = m.sum() / float(m.size)
+
+            # ── Tier 1 / Tier 2 solid selection ──────────────────────────────
+            if up_pct >= 0.10:
+                # label_map has good coverage → close satin gaps and use it
+                solid = ndimage.binary_closing(m, structure=_close3)
+            elif _solid_2c is not None and _solid_2c.any():
+                # label_map too sparse → use 2-colour result
                 if shuttle_count == 2:
-                    solid = _solid_2c   # full 2-colour design for 2-shuttle
+                    solid = ndimage.binary_closing(_solid_2c, structure=_close3)
                 else:
-                    # 3/4-shuttle: restrict to region near this shuttle's colour
-                    _dilated = ndimage.binary_dilation(
-                        m, structure=np.ones((7, 7), dtype=bool))
-                    solid = _solid_2c & _dilated
-                    if not solid.any():
-                        solid = m   # fallback
+                    _dil = ndimage.binary_dilation(m, structure=np.ones((7, 7), dtype=bool))
+                    _s2  = _solid_2c & _dil
+                    solid = ndimage.binary_closing(_s2 if _s2.any() else _solid_2c,
+                                                   structure=_close3)
             else:
-                solid = m   # 2-colour detection failed; use label_map mask
+                # Both failed — use label_map as-is
+                solid = m
 
             if not solid.any():
                 continue
 
-            # Extract boundary ring and interior of the solid design shape
+            # ── Option 3: outline + interior fill ────────────────────────────
             outline, interior = extract_outline(solid, thickness=1)
 
             if outline.any():
-                # Interior fill: every-other-pixel of the interior (plain weave pitch)
+                # Clean small outline fragments (noise from JPEG halos)
+                outline_clean = remove_noise(outline, min_size=max(noise_min_size, 3))
+                # Interior fill: isolated 1px pixels — DO NOT pass through
+                # remove_noise (they are all size=1 and would all be deleted).
                 interior_fill = interior & _pw_grid
-                # Combined mask: satin on outline + PW-pitch fill on interior
-                combined = outline | interior_fill
-                masks[sname] = remove_noise(combined, min_size=max(noise_min_size, 3))
+                # Combine: outline (with satin) + interior (with PW stipple)
+                masks[sname] = outline_clean | interior_fill
             else:
-                # Degenerate solid (too thin for outline) — use adaptive thinning
+                # Solid too thin even for a 1px outline — thin adaptively
                 masks[sname] = _adaptive_thin(solid, noise_min_size)
 
     results = {}
