@@ -1515,7 +1515,7 @@ def generate_bmps(
             # ── Emboss OFF (default): zari = all design, no rani ────────────
             # Use supersampling for light-bg designs when requested,
             # to preserve fine interior gaps at low pin counts.
-            if supersample and _is_light_bg:
+            if supersample and _is_light_bg and not stroke_mode:
                 _n_colors = max(label_map.max() + 1, 2) if label_map is not None else 2
                 _ss_arr = _supersample_to_bmp(
                     image, pins, cards, _n_colors,
