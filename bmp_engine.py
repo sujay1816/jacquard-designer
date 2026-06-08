@@ -1225,26 +1225,11 @@ def apply_hollow_weave(arr: np.ndarray,
             pat = np.where(pat == 0, np.uint8(1), np.uint8(0))
 
     flat_new       = orig_flat.copy()
-    outline_pixels = set()
 
     for region in qualifying:
-        region_set = set(region)
-
         # Fill region with weave (or solid black)
         for p in region:
             flat_new[p] = pat[p]
-
-        # Collect border: original design pixels adjacent to this region → white
-        for p in region:
-            px, py = p % W, p // W
-            for nb in (p-W if py>0 else -1, p+W if py<H-1 else -1,
-                       p-1 if px>0 else -1, p+1 if px<W-1 else -1):
-                if nb >= 0 and nb not in region_set and orig_flat[nb] == 0:
-                    outline_pixels.add(nb)
-
-    # Turn all outline pixels white
-    for p in outline_pixels:
-        flat_new[p] = 1
 
     return flat_new.reshape(H, W).astype(np.uint8)
 
