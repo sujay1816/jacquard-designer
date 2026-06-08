@@ -1497,6 +1497,10 @@ def generate_bmps(
         except Exception:
             pass
 
+        # Store solid masks (at target resolution) for curvilinear satin PCA.
+        # Curvilinear satin needs solid petal shapes — not the thin outline ring.
+        _solid_masks = {}
+
         # Plain-weave grid for interior fill (at hi-res)
         _rows_hi = np.arange(_hi_cards)[:, None]
         _cols_hi = np.arange(_hi_pins)[None, :]
@@ -1540,6 +1544,13 @@ def generate_bmps(
 
             if not solid.any():
                 continue
+
+            # Store solid at target resolution for curvilinear satin PCA
+            if _reed_scale > 1.01:
+                _s_img = Image.fromarray(solid.astype(np.uint8) * 255, 'L')
+                _solid_masks[sname] = np.array(_s_img.resize((pins, cards), Image.LANCZOS)) > 127
+            else:
+                _solid_masks[sname] = solid.copy()
 
             # ── Option 3: outline + interior fill (at hi-res) ────────────────
             outline, interior = extract_outline(solid, thickness=stroke_thickness)
@@ -1685,25 +1696,35 @@ def generate_bmps(
                     masks[sname] = mask  # update for hollow fill reference
 
                 # Curvilinear satin: align satin direction with local stroke orientation.
-                # For each connected region in the mask, compute the principal axis
-                # via PCA and rotate the satin pattern to match.
+                # PCA is computed on the SOLID design shape (closed petal/leaf regions),
+                # NOT on the thin outline ring. The thin mask has hundreds of tiny
+                # fragments that give meaningless PCA angles. The solid has coherent
+                # elongated shapes whose principal axis correctly represents the
+                # stroke direction. All thin mask pixels within each solid region
+                # then receive that region's satin angle.
                 if curvilinear_satin and mask.any():
-                    labeled_cs, n_cs = ndimage.label(mask)
+                    _solid_ref = _solid_masks.get(sname, mask) if _do_stroke else mask
+                    _labeled_solid, n_cs = ndimage.label(_solid_ref)
                     arr = np.ones((cards, pins), dtype=np.uint8)  # all DOWN
                     for _ci in range(1, n_cs + 1):
-                        _comp = labeled_cs == _ci
-                        _ys, _xs = np.where(_comp)
+                        # Thin mask pixels that fall inside this solid region
+                        _comp_mask = mask & (_labeled_solid == _ci)
+                        if not _comp_mask.any():
+                            continue
+                        # PCA on the solid region shape for orientation
+                        _ys, _xs = np.where(_solid_ref & (_labeled_solid == _ci))
                         if len(_ys) < 3:
                             _angle = 0.0
                         else:
-                            _cx = _xs - _xs.mean(); _cy = _ys - _ys.mean()
+                            _cx = _xs.astype(float) - _xs.mean()
+                            _cy = _ys.astype(float) - _ys.mean()
                             _cov = np.cov(np.vstack([_cx, _cy]))
                             _evals, _evecs = np.linalg.eigh(_cov)
                             _angle = float(np.arctan2(_evecs[1, -1], _evecs[0, -1]))
                         _rot_satin = generate_rotated_satin(s['n'], _angle, pins, cards)
-                        _c_arr = smart_fill(_comp, _rot_satin, s['n'],
+                        _c_arr = smart_fill(_comp_mask, _rot_satin, s['n'],
                                             satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
-                        arr[_comp] = _c_arr[_comp]
+                        arr[_comp_mask] = _c_arr[_comp_mask]
                 else:
                     arr = smart_fill(mask, satin, s['n'],
                                      satin_min_height=s.get('min_height', _SATIN_MIN_HEIGHT))
