@@ -1386,7 +1386,18 @@
 
     <!-- Output previews -->
     <div id="output-section" style="display:none">
-      <div style="font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--gold2);margin-bottom:12px">Generated BMP Files</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+        <div style="font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--gold2)">Generated BMP Files</div>
+        <button onclick="generateBMPs()"
+          style="padding:6px 14px;background:transparent;border:1px solid var(--border2);
+                 color:var(--muted);border-radius:var(--radius);font-size:11px;cursor:pointer;
+                 font-family:'DM Mono',monospace;letter-spacing:0.05em;transition:all 0.18s;"
+          onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'"
+          onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--muted)'"
+          title="Generate again with current settings">
+          ↺ Regenerate
+        </button>
+      </div>
       <div class="preview-grid" id="preview-grid"></div>
       <div class="download-section" style="margin-top:16px">
         <div class="download-title">✓ Files Ready</div>
@@ -1681,6 +1692,11 @@ function suggestStrokeWidth() {
   hint.style.color = 'var(--gold)';
   updateSettingsSummary();
 }
+
+// =====================================================================
+// App State
+// =====================================================================
+const state = {
   imageFile: null,
   imageB64: null,
   fullImageB64: null,   // full-res source for fine detail mode (supersample)
@@ -1892,6 +1908,13 @@ function handleFile(file) {
   document.getElementById('generate-section').style.display = 'none';
   document.getElementById('cards').value       = '';
   document.getElementById('cards').placeholder = 'auto';
+
+  // Auto-fill design name from filename (strip extension, replace separators with _)
+  const nameEl = document.getElementById('design-name');
+  if (nameEl && !nameEl.value.trim()) {
+    const baseName = file.name.replace(/\.[^.]+$/, '').replace(/[\s\-]+/g, '_').slice(0, 50);
+    if (baseName) nameEl.value = baseName;
+  }
 
   const reader = new FileReader();
   reader.onload = e => {
@@ -2531,8 +2554,12 @@ function renderSatinSettings() {
     container.appendChild(panel);
   });
 
-  // Render preview for first active tab
-  requestAnimationFrame(() => updateWeavePreview(allTabs[0]));
+  // Render preview for first active tab (weave + bg + hf canvases)
+  requestAnimationFrame(() => {
+    updateWeavePreview(allTabs[0]);
+    updateBgPreview(allTabs[0]);
+    updateHfPreview(allTabs[0]);
+  });
 }
 
 
@@ -2547,7 +2574,11 @@ function switchShuttleTab(sName) {
   if (tab)   tab.classList.add('active');
   if (panel) panel.classList.add('active');
   // Render preview for newly visible tab
-  requestAnimationFrame(() => updateWeavePreview(sName));
+  requestAnimationFrame(() => {
+    updateWeavePreview(sName);
+    updateBgPreview(sName);
+    updateHfPreview(sName);
+  });
 }
 
 function toggleWeavePill(sName) {
@@ -2630,6 +2661,21 @@ async function generateBMPs() {
   if (!cards || cards < 10) { showMsg('generate-error', 'Cards value is missing — please re-run Detect Colours'); return; }
   if (!state.safeImageB64) { showMsg('generate-error', 'Please detect colours first'); return; }
   if (!state.labelMap)     { showMsg('generate-error', 'Label map missing — please re-run Detect Colours'); return; }
+
+  // Warn if design colors are unassigned (they'll silently default to zari)
+  const lastIdx = state.detectedColors.length - 1;
+  const unassigned = state.detectedColors.filter(c => {
+    const isLast2Plus = (c.index === lastIdx && state.shuttleCount >= 2);
+    return !(c.index in state.colorAssignments) && !isLast2Plus;
+  });
+  if (unassigned.length > 0) {
+    const pcts = unassigned.map(c => c.percentage + '%').join(', ');
+    showMsg('generate-error',
+      `${unassigned.length} colour${unassigned.length > 1 ? 's' : ''} (${pcts}) unassigned — will default to Zari. Click Generate again to proceed or assign them first.`);
+    // Allow proceeding on second click by not returning — user sees the warning
+    // and can click again immediately, but we do return here to make them confirm
+    return;
+  }
 
   // Build satin settings
   const saSettings = {};
@@ -2841,14 +2887,23 @@ function renderOutputPreviews(data) {
           </div>
         </div>`;
       })()}
-      <div style="padding:8px 12px;border-top:1px solid var(--border)">
+      <div style="padding:8px 12px;border-top:1px solid var(--border);display:flex;gap:6px;">
         <button onclick="openInEditor('${fname}', '${preview}')"
-          style="width:100%;padding:6px;background:transparent;border:1px solid var(--border2);
+          style="flex:1;padding:6px;background:transparent;border:1px solid var(--border2);
                  color:var(--muted);border-radius:var(--radius);font-size:10px;cursor:pointer;
                  font-family:'DM Mono',monospace;letter-spacing:0.05em;transition:all 0.18s"
           onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'"
           onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--muted)'">
-          ✏ Edit in BMP Editor
+          ✏ Edit
+        </button>
+        <button onclick="downloadSingleBMP('${fname}')"
+          style="padding:6px 10px;background:transparent;border:1px solid var(--border2);
+                 color:var(--muted);border-radius:var(--radius);font-size:10px;cursor:pointer;
+                 font-family:'DM Mono',monospace;transition:all 0.18s"
+          onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'"
+          onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--muted)'"
+          title="Download this BMP file individually">
+          ⬇
         </button>
       </div>
     `;
@@ -2978,7 +3033,6 @@ function resetApp() {
 // =====================================================================
 function downloadZip() {
   if (!state.zipB64) return;
-  // Use Uint8Array.from for fast base64 decoding — avoids charCodeAt loop
   const blob = new Blob(
     [Uint8Array.from(atob(state.zipB64), c => c.charCodeAt(0))],
     { type: 'application/zip' }
@@ -2989,6 +3043,20 @@ function downloadZip() {
   a.click();
   URL.revokeObjectURL(url);
   setStep(4);
+}
+
+function downloadSingleBMP(fname) {
+  const bmpData = (state.bmpB64 && state.bmpB64[fname]) || '';
+  if (!bmpData) { console.warn('No BMP data for', fname); return; }
+  const blob = new Blob(
+    [Uint8Array.from(atob(bmpData), c => c.charCodeAt(0))],
+    { type: 'image/bmp' }
+  );
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = fname;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // =====================================================================
