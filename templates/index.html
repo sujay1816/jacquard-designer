@@ -161,16 +161,29 @@
   }
 
   /* Upload zone */
+  .upload-container {
+    position: relative;
+    height: 150px;
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+
   .upload-zone {
+    position: absolute;
+    inset: 0;
     border: 1.5px dashed var(--border2);
     border-radius: var(--radius);
-    padding: 32px 20px;
+    padding: 24px 20px;
     text-align: center;
     cursor: pointer;
-    transition: var(--transition);
-    position: relative;
+    transition: border-color 0.2s, background 0.2s, opacity 0.3s;
+    background: transparent;
+    opacity: 1;
     overflow: hidden;
   }
+
+  .upload-zone.hidden { opacity: 0; pointer-events: none; }
 
   .upload-zone:hover, .upload-zone.drag-over {
     border-color: var(--gold);
@@ -199,17 +212,25 @@
   }
 
   .upload-preview {
-    width: 100%;
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
     border-radius: var(--radius);
-    display: none;
-    position: relative;
+    overflow: hidden;
+  }
+
+  .upload-preview.visible {
+    opacity: 1;
+    pointer-events: auto;
   }
 
   .upload-preview img {
     width: 100%;
+    height: 100%;
     border-radius: var(--radius);
     display: block;
-    max-height: 200px;
     object-fit: cover;
   }
 
@@ -1096,81 +1117,25 @@
   <!-- LEFT PANEL: Settings -->
   <div class="left-panel">
 
-    <!-- Upload -->
+    <!-- ① Upload Image ─────────────────────────────────────────── -->
     <div class="panel-section">
       <div class="section-label">Design Image</div>
-      <div class="upload-zone" id="upload-zone">
-        <input type="file" id="file-input" accept="image/*">
-        <div class="upload-icon">🖼</div>
-        <h3>Drop design image here</h3>
-        <p>Upload a cropped saree design photo<br>JPG, PNG, BMP supported</p>
-      </div>
 
-      <div id="embossRow" class="emboss-row">
-        <label class="emboss-label">
-          <input type="checkbox" id="embossMode" onchange="
-  var ssRow = document.getElementById('supersampleRow');
-  if(ssRow) ssRow.style.display = this.checked ? 'block' : 'none';
-">
-          <span class="emboss-text">
-            <strong>✦ Emboss mode</strong>
-            <span class="emboss-desc">1-shuttle only — outline goes to rani.bmp (outline + plain weave), fill goes to zari.bmp. Turn off for standard single-thread output.</span>
-          </span>
-        </label>
-      </div>
-
-      <!-- ── Quick presets ──────────────────────────────────────── -->
-      <div class="preset-label">Quick Presets</div>
-      <div class="preset-row">
-        <button type="button" class="preset-btn" id="preset-lineart" onclick="applyPreset('lineart')" title="Clean black-on-white line art">✏ Line Art</button>
-        <button type="button" class="preset-btn" id="preset-photo"   onclick="applyPreset('photo')"   title="Real fabric or JPEG photo">📷 Fabric Photo</button>
-        <button type="button" class="preset-btn" id="preset-detail"  onclick="applyPreset('detail')"  title="Maximum sharpness and detail">🔬 Fine Detail</button>
-      </div>
-
-      <div class="emboss-row visible" id="strokeModeRow">
-        <label class="emboss-label">
-          <input type="checkbox" id="strokeMode" checked onchange="updateSettingsSummary()">
-          <span class="emboss-text">
-            <strong>✦ Stroke mode</strong>
-            <span class="emboss-desc">Thins each design thread to a 1px outline stroke. Produces a clean rani with near-full plain weave background. Turn off for solid filled regions.</span>
-          </span>
-        </label>
-        <div id="strokeWidthRow" style="margin-top:8px;padding-left:28px;display:flex;align-items:center;gap:10px;">
-          <label style="font-size:11px;color:#ccc;white-space:nowrap;">Stroke width</label>
-          <input type="range" id="strokeThickness" min="1" max="5" value="1" style="flex:1;max-width:120px;"
-                 oninput="document.getElementById('strokeThicknessVal').textContent=this.value+'px';updateSettingsSummary()">
-          <span id="strokeThicknessVal" style="font-size:11px;color:#aaa;min-width:28px;">1px</span>
+      <!-- Fixed-height container: upload zone + preview cross-fade in-place -->
+      <div class="upload-container" id="upload-container">
+        <div class="upload-zone" id="upload-zone">
+          <input type="file" id="file-input" accept="image/*">
+          <div class="upload-icon">🖼</div>
+          <h3>Drop design image here</h3>
+          <p>JPG, PNG, BMP supported</p>
+        </div>
+        <div class="upload-preview" id="upload-preview">
+          <img id="preview-img" src="" alt="Design preview">
+          <button class="change-btn" id="change-img-btn">Change</button>
         </div>
       </div>
 
-      <!-- ── Advanced options (collapsible) ────────────────────── -->
-      <div class="advanced-toggle" onclick="toggleAdvanced()" id="advancedToggle">
-        <span class="advanced-arrow" id="advancedArrow">›</span>
-        <span>Advanced Options</span>
-        <span id="advancedBadge" style="margin-left:auto;font-size:9px;color:var(--border2)"></span>
-      </div>
-      <div class="advanced-section" id="advancedSection">
-        <div class="emboss-row visible" id="curvilinearRow">
-          <label class="emboss-label">
-            <input type="checkbox" id="curvilinearSatin" onchange="updateSettingsSummary()">
-            <span class="emboss-text">
-              <strong>〜 Curvilinear satin</strong>
-              <span class="emboss-desc">Aligns satin float direction with the curvature of each design element — petals and curves shimmer along their own axis.</span>
-            </span>
-          </label>
-        </div>
-
-        <div class="emboss-row visible" id="supersampleRow">
-          <label class="emboss-label">
-            <input type="checkbox" id="supersampleMode" onchange="updateSettingsSummary()">
-            <span class="emboss-text">
-              <strong>🔬 Fine detail mode</strong>
-              <span class="emboss-desc">Detects at 4× resolution then downsamples — preserves thin gaps between petals, lattice lines, and fine interior details at low pin counts.</span>
-            </span>
-          </label>
-        </div>
-      </div>
-
+      <!-- Quality meters — smooth max-height reveal, no layout jump -->
       <div id="qualityPanel" class="quality-panel">
         <div class="quality-title">📊 Image Quality</div>
         <div class="quality-meters">
@@ -1192,16 +1157,22 @@
           </div>
         </div>
         <div id="qualitySuggestions" class="quality-suggestions"></div>
-      </div>
-      <div class="upload-preview" id="upload-preview">
-        <img id="preview-img" src="" alt="Design preview">
-        <button class="change-btn" id="change-img-btn">Change</button>
+        <div class="enhance-row" style="margin-top:8px;">
+          <label class="enhance-label">
+            <input type="checkbox" id="enhanceImage" checked onchange="updateSettingsSummary()">
+            <span class="enhance-text">
+              <strong>✨ Enhance image quality</strong>
+              <span class="enhance-desc">Fabric photo mode — normalises lighting, suppresses weave texture, sharpens.</span>
+            </span>
+          </label>
+          <div class="enhance-notice" id="enhanceNotice"></div>
+        </div>
       </div>
     </div>
 
-    <!-- Design Settings -->
+    <!-- ② Loom Settings ─────────────────────────────────────────── -->
     <div class="panel-section">
-      <div class="section-label">Design Settings</div>
+      <div class="section-label">Loom Settings</div>
 
       <div class="field" style="margin-bottom:12px">
         <label>Design Name</label>
@@ -1212,60 +1183,40 @@
         <div class="field">
           <label>Pins (Width) *</label>
           <input type="number" id="pins" placeholder="e.g. 480" min="10" max="9999" value="240" oninput="autoCalcCards()">
-          <span class="field-hint" id="pins-hint">Your loom's needle count</span>
+          <span class="field-hint" id="pins-hint">Loom needle count</span>
         </div>
         <div class="field">
           <label>Cards (Height)</label>
           <input type="number" id="cards" placeholder="Auto" min="10" max="9999" oninput="autoCalcCards()">
-          <span class="field-hint" id="cards-hint">Auto-calculated from pins × (image h/w)</span>
+          <span class="field-hint" id="cards-hint">Auto from image ratio</span>
         </div>
       </div>
 
-      <div class="field-row">
-        <div class="field">
-          <label>Reed Count</label>
-          <div style="display:flex;gap:6px;margin-top:4px;">
-            <button type="button" class="reed-btn" data-reed="40" onclick="setReed(40,this)">40</button>
-            <button type="button" class="reed-btn" data-reed="60" onclick="setReed(60,this)">60</button>
-            <button type="button" class="reed-btn active" data-reed="80" onclick="setReed(80,this)">80</button>
-            <button type="button" class="reed-btn" data-reed="100" onclick="setReed(100,this)">100</button>
-          </div>
-          <input type="hidden" id="reedCount" value="80">
-          <span class="field-hint">Threads/inch — higher reed = sharper internal processing</span>
+      <div class="field">
+        <label>Reed Count <span style="font-size:9px;color:var(--muted);font-weight:normal;">threads/inch</span></label>
+        <div style="display:flex;gap:6px;margin-top:6px;">
+          <button type="button" class="reed-btn" data-reed="40" onclick="setReed(40,this)">40</button>
+          <button type="button" class="reed-btn" data-reed="60" onclick="setReed(60,this)">60</button>
+          <button type="button" class="reed-btn active" data-reed="80" onclick="setReed(80,this)">80</button>
+          <button type="button" class="reed-btn" data-reed="100" onclick="setReed(100,this)">100</button>
         </div>
-      </div>
-
-      <!-- Live coverage estimate (shown after detection) -->
-      <div class="coverage-estimate" id="coverageEstimate">
-        <div style="font-size:9px;color:var(--muted);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:5px;">Estimated Design Coverage</div>
-        <div id="coverageRows"></div>
-        <div style="font-size:9px;color:var(--border2);margin-top:4px;">Based on colour detection · actual output varies with weave settings</div>
-      </div>
-
-      <div class="enhance-row">
-        <label class="enhance-label">
-          <input type="checkbox" id="enhanceImage" checked onchange="updateSettingsSummary()">
-          <span class="enhance-text">
-            <strong>✨ Enhance image quality</strong>
-            <span class="enhance-desc">Fabric photo mode — normalises lighting gradients, suppresses weave texture, then sharpens. Recommended for real fabric photos.</span>
-          </span>
-        </label>
-        <div class="enhance-notice" id="enhanceNotice"></div>
+        <input type="hidden" id="reedCount" value="80">
+        <span class="field-hint">Higher reed = sharper internal processing</span>
       </div>
     </div>
 
-    <!-- Shuttle Count -->
+    <!-- ③ Threads ───────────────────────────────────────────────── -->
     <div class="panel-section">
-      <div class="section-label">Number of Shuttles</div>
+      <div class="section-label">Threads</div>
       <div class="shuttle-buttons">
         <button class="shuttle-btn active" data-n="1" onclick="setShuttles(1)">
           <span class="num">1</span>Zari
         </button>
         <button class="shuttle-btn" data-n="2" onclick="setShuttles(2)">
-          <span class="num">2</span>Rani+Zari
+          <span class="num">2</span>+Rani
         </button>
         <button class="shuttle-btn" data-n="3" onclick="setShuttles(3)">
-          <span class="num">3</span>+Meena1
+          <span class="num">3</span>+Meena
         </button>
         <button class="shuttle-btn" data-n="4" onclick="setShuttles(4)">
           <span class="num">4</span>+Meena2
@@ -1273,38 +1224,105 @@
       </div>
     </div>
 
-    <!-- Detect Colors Button -->
+    <!-- ④ Generation Settings ───────────────────────────────────── -->
     <div class="panel-section">
+      <div class="section-label">Generation</div>
+
+      <div class="preset-label">Quick Presets</div>
+      <div class="preset-row">
+        <button type="button" class="preset-btn" id="preset-lineart" onclick="applyPreset('lineart')" title="Clean black-on-white line art">✏ Line Art</button>
+        <button type="button" class="preset-btn" id="preset-photo"   onclick="applyPreset('photo')"   title="Real fabric or JPEG photo">📷 Fabric Photo</button>
+        <button type="button" class="preset-btn" id="preset-detail"  onclick="applyPreset('detail')"  title="Maximum sharpness and detail">🔬 Fine Detail</button>
+      </div>
+
+      <div id="embossRow" class="emboss-row">
+        <label class="emboss-label">
+          <input type="checkbox" id="embossMode" onchange="var ssRow=document.getElementById('supersampleRow');if(ssRow)ssRow.style.display=this.checked?'block':'none';">
+          <span class="emboss-text">
+            <strong>✦ Emboss mode</strong>
+            <span class="emboss-desc">1-shuttle — outline → rani.bmp, fill → zari.bmp.</span>
+          </span>
+        </label>
+      </div>
+
+      <div class="emboss-row visible" id="strokeModeRow">
+        <label class="emboss-label">
+          <input type="checkbox" id="strokeMode" checked onchange="updateSettingsSummary()">
+          <span class="emboss-text">
+            <strong>✦ Stroke mode</strong>
+            <span class="emboss-desc">Thins design to 1px outline stroke. Produces clean rani background.</span>
+          </span>
+        </label>
+        <div id="strokeWidthRow" style="margin-top:8px;padding-left:28px;display:flex;align-items:center;gap:10px;">
+          <label style="font-size:11px;color:#ccc;white-space:nowrap;">Stroke width</label>
+          <input type="range" id="strokeThickness" min="1" max="5" value="1" style="flex:1;max-width:120px;"
+                 oninput="document.getElementById('strokeThicknessVal').textContent=this.value+'px';updateSettingsSummary()">
+          <span id="strokeThicknessVal" style="font-size:11px;color:#aaa;min-width:28px;">1px</span>
+        </div>
+      </div>
+
+      <div class="advanced-toggle" onclick="toggleAdvanced()" id="advancedToggle">
+        <span class="advanced-arrow" id="advancedArrow">›</span>
+        <span>Advanced Options</span>
+        <span id="advancedBadge" style="margin-left:auto;font-size:9px;color:var(--border2)"></span>
+      </div>
+      <div class="advanced-section" id="advancedSection">
+        <div class="emboss-row visible" id="curvilinearRow">
+          <label class="emboss-label">
+            <input type="checkbox" id="curvilinearSatin" onchange="updateSettingsSummary()">
+            <span class="emboss-text">
+              <strong>〜 Curvilinear satin</strong>
+              <span class="emboss-desc">Aligns satin float direction with the curvature of each design element.</span>
+            </span>
+          </label>
+        </div>
+        <div class="emboss-row visible" id="supersampleRow">
+          <label class="emboss-label">
+            <input type="checkbox" id="supersampleMode" onchange="updateSettingsSummary()">
+            <span class="emboss-text">
+              <strong>🔬 Fine detail mode</strong>
+              <span class="emboss-desc">Detects at 4× resolution — preserves thin gaps and fine interior details.</span>
+            </span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- ⑤ Actions ───────────────────────────────────────────────── -->
+    <div class="panel-section">
+      <div class="coverage-estimate" id="coverageEstimate">
+        <div style="font-size:9px;color:var(--muted);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:5px;">Estimated Coverage</div>
+        <div id="coverageRows"></div>
+        <div style="font-size:9px;color:var(--border2);margin-top:4px;">From detection · varies with weave settings</div>
+      </div>
+
       <button class="btn btn-secondary" id="reset-btn" onclick="resetApp()"
-  style="background:transparent;border:1px solid var(--border2);color:var(--muted);
-  margin-bottom:8px;width:100%;padding:8px" title="Clear and start over">
-  ↺ Start Over
-</button>
-<button class="btn btn-primary" id="detect-btn" onclick="detectColors()">
+        style="background:transparent;border:1px solid var(--border2);color:var(--muted);
+        margin-bottom:8px;width:100%;padding:8px" title="Clear and start over">
+        ↺ Start Over
+      </button>
+      <button class="btn btn-primary" id="detect-btn" onclick="detectColors()">
         <div class="spinner" id="detect-spinner"></div>
         <span id="detect-btn-text">Detect Colours</span>
       </button>
       <div class="msg msg-error" id="detect-error"></div>
-    </div>
 
-    <!-- Generate Button (shown after assignment) -->
-    <div class="panel-section" id="generate-section" style="display:none">
-      <button class="btn btn-success" id="generate-btn" onclick="generateBMPs()">
-        <div class="spinner" id="generate-spinner"></div>
-        <span id="generate-btn-text">Generate BMP Files</span>
-      </button>
-      <div class="msg msg-error" id="generate-error"></div>
-      <!-- Settings summary bar -->
-      <div class="settings-summary visible" id="settingsSummary"></div>
-      <!-- Keyboard hint -->
-      <div style="margin-top:8px;text-align:center;font-size:9px;color:var(--border2);font-family:'DM Mono',monospace;">
-        <kbd>D</kbd> Detect &nbsp; <kbd>G</kbd> Generate &nbsp; <kbd>Esc</kbd> Cancel
+      <div id="generate-section" style="display:none;margin-top:10px;">
+        <button class="btn btn-success" id="generate-btn" onclick="generateBMPs()">
+          <div class="spinner" id="generate-spinner"></div>
+          <span id="generate-btn-text">Generate BMP Files</span>
+        </button>
+        <div class="msg msg-error" id="generate-error"></div>
+        <div class="settings-summary visible" id="settingsSummary"></div>
+        <div style="margin-top:8px;text-align:center;font-size:9px;color:var(--border2);font-family:'DM Mono',monospace;">
+          <kbd>D</kbd> Detect &nbsp; <kbd>G</kbd> Generate &nbsp; <kbd>Esc</kbd> Cancel
+        </div>
       </div>
     </div>
 
   </div>
 
-  <!-- RIGHT PANEL: Color assignment + Previews -->
+    <!-- RIGHT PANEL: Color assignment + Previews -->
   <div class="right-panel" id="right-panel">
 
     <!-- Empty state -->
@@ -1773,9 +1791,9 @@ function handleFile(file) {
   const reader = new FileReader();
   reader.onload = e => {
     state.imageB64 = e.target.result.split(',')[1];
-    // Show container BEFORE setting src so browser renders into a visible element
-    uploadZone.style.display = 'none';
-    document.getElementById('upload-preview').style.display = 'block';
+    // Cross-fade: upload zone fades out, preview fades in — no layout shift
+    uploadZone.classList.add('hidden');
+    document.getElementById('upload-preview').classList.add('visible');
     // Set onload BEFORE src to avoid race on fast (data URL) loads
     document.getElementById('preview-img').onload = () => autoCalcDimensions(true);
     document.getElementById('preview-img').src = e.target.result;
@@ -2782,8 +2800,8 @@ function resetApp() {
   document.getElementById('cards').value      = '';
   document.getElementById('cards').placeholder= 'Auto';
   document.getElementById('design-name').value= '';
-  document.getElementById('upload-preview').style.display  = 'none';
-  document.getElementById('upload-zone').style.display     = '';
+  document.getElementById('upload-preview').classList.remove('visible');
+  document.getElementById('upload-zone').classList.remove('hidden');
   document.getElementById('empty-state').style.display     = '';
   document.getElementById('color-assignment').style.display= 'none';
   document.getElementById('output-section').style.display  = 'none';
