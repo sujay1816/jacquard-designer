@@ -1259,11 +1259,19 @@
             <span class="emboss-desc">Thins design to 1px outline stroke. Produces clean rani background.</span>
           </span>
         </label>
-        <div id="strokeWidthRow" style="margin-top:8px;padding-left:28px;display:flex;align-items:center;gap:10px;">
-          <label style="font-size:11px;color:#ccc;white-space:nowrap;">Stroke width</label>
-          <input type="range" id="strokeThickness" min="1" max="5" value="1" style="flex:1;max-width:120px;"
-                 oninput="document.getElementById('strokeThicknessVal').textContent=this.value+'px';updateSettingsSummary()">
-          <span id="strokeThicknessVal" style="font-size:11px;color:#aaa;min-width:28px;">1px</span>
+        <div id="strokeWidthRow" style="margin-top:8px;padding-left:28px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <label style="font-size:11px;color:#ccc;white-space:nowrap;">Stroke width</label>
+            <input type="range" id="strokeThickness" min="1" max="5" value="1" style="flex:1;max-width:120px;"
+                   oninput="document.getElementById('strokeThicknessVal').textContent=this.value+'px';
+                            document.getElementById('strokeHint').textContent='Custom: '+this.value+'px';
+                            document.getElementById('strokeHint').style.color='var(--gold)';
+                            updateSettingsSummary()">
+            <span id="strokeThicknessVal" style="font-size:11px;color:#aaa;min-width:28px;">1px</span>
+          </div>
+          <div id="strokeHint" style="font-size:10px;color:var(--muted);margin-top:4px;font-style:italic;">
+            Set by reed count — detect colours to auto-suggest
+          </div>
         </div>
       </div>
 
@@ -1575,14 +1583,104 @@ function setReed(value, btn) {
   const recommended = value <= 40 ? 3 : value <= 60 ? 2 : 1;
   const slider = document.getElementById('strokeThickness');
   const label  = document.getElementById('strokeThicknessVal');
+  const hint   = document.getElementById('strokeHint');
   if (slider && label) {
     slider.value = recommended;
     label.textContent = recommended + 'px';
   }
+  // Only update hint if no design-based suggestion has been applied yet
+  if (hint && !hint.dataset.designBased) {
+    hint.textContent = `Reed ${value} suggestion: ${recommended}px — detect colours to refine`;
+    hint.style.color = 'var(--muted)';
+  }
   updateSettingsSummary();
 }
 
-const state = {
+// =====================================================================
+// Stroke width auto-suggestion from design analysis
+// =====================================================================
+function suggestStrokeWidth() {
+  const lm = state.labelMap;
+  if (!lm || !lm.length) return;
+
+  // Resolve background label index
+  const bgIdx = parseInt(
+    Object.entries(state.colorAssignments || {}).find(([, v]) => v === 'background')?.[0] ?? 0
+  );
+
+  // Build flat design mask from label_map (1 = design pixel, 0 = background)
+  const H = lm.length;
+  const W = lm[0]?.length || 0;
+  if (!W) return;
+
+  const mask = new Uint8Array(H * W);
+  let designCount = 0;
+  for (let r = 0; r < H; r++) {
+    const row = lm[r];
+    for (let c = 0; c < W; c++) {
+      if (row[c] !== bgIdx) {
+        mask[r * W + c] = 1;
+        designCount++;
+      }
+    }
+  }
+
+  if (designCount === 0) return;
+
+  // Count boundary pixels — design pixels adjacent to at least one background pixel
+  // This is the perimeter of the design. The area/perimeter ratio gives
+  // an estimate of average half-stroke-width.
+  let perimeterCount = 0;
+  for (let r = 0; r < H; r++) {
+    for (let c = 0; c < W; c++) {
+      if (!mask[r * W + c]) continue;
+      if (
+        (r > 0   && !mask[(r - 1) * W + c]) ||
+        (r < H-1 && !mask[(r + 1) * W + c]) ||
+        (c > 0   && !mask[r * W + (c - 1)]) ||
+        (c < W-1 && !mask[r * W + (c + 1)])
+      ) perimeterCount++;
+    }
+  }
+
+  if (!perimeterCount) return;
+
+  // ratio ≈ average half-stroke-width in pixels
+  // For a perfectly thin 1px stroke: ratio ≈ 0.5
+  // For a 3px wide stroke: ratio ≈ 1.5
+  // For a 6px wide stroke: ratio ≈ 3.0
+  // For solid filled shapes: ratio >> 3
+  const ratio = designCount / perimeterCount;
+  const designPct = (designCount / (H * W)) * 100;
+
+  let suggested, description;
+  if (ratio < 0.7) {
+    suggested = 1; description = 'very fine strokes';
+  } else if (ratio < 1.3) {
+    suggested = 1; description = 'thin strokes';
+  } else if (ratio < 2.2) {
+    suggested = 2; description = 'medium strokes';
+  } else if (ratio < 3.5) {
+    suggested = 3; description = 'thick strokes';
+  } else {
+    suggested = Math.min(5, Math.round(ratio / 1.4));
+    description = 'filled areas';
+  }
+
+  // Apply to slider
+  const slider = document.getElementById('strokeThickness');
+  const label  = document.getElementById('strokeThicknessVal');
+  const hint   = document.getElementById('strokeHint');
+  if (!slider || !label || !hint) return;
+
+  slider.value = suggested;
+  label.textContent = suggested + 'px';
+  // Mark as design-based so setReed doesn't overwrite it
+  hint.dataset.designBased = '1';
+  hint.textContent = `✦ Auto: ${suggested}px — ${description} detected (${designPct.toFixed(0)}% coverage)`;
+  hint.style.color = 'var(--gold)';
+  updateSettingsSummary();
+}
   imageFile: null,
   imageB64: null,
   fullImageB64: null,   // full-res source for fine detail mode (supersample)
@@ -1974,6 +2072,8 @@ function renderColorAssignment(data) {
   renderColorsGrid();
   renderShuttleZones();
   renderSatinSettings();
+  // Auto-suggest stroke width based on the actual design stroke thickness
+  suggestStrokeWidth();
 }
 
 function renderColorsGrid() {
@@ -2859,6 +2959,14 @@ function resetApp() {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
+
+  // Reset stroke width hint
+  const hintEl = document.getElementById('strokeHint');
+  if (hintEl) {
+    delete hintEl.dataset.designBased;
+    hintEl.textContent = 'Set by reed count — detect colours to auto-suggest';
+    hintEl.style.color = 'var(--muted)';
+  }
 
   setStep(1);
   checkDetectReady();
