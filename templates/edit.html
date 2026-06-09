@@ -1835,9 +1835,14 @@ function encode1bitBMP(pixels, W, H) {
   for (let row = 0; row < H; row++) {
     const srcRow  = H - 1 - row;                           // bottom-up
     const rowBase = pixelOffset + row * rowStride;
-    for (let col = 0; col < W; col++) {
-      const px  = pixels[(srcRow * W + col) * 4];          // R channel
-      if (px >= 128) {                                     // white => bit 1
+    const rowBits = rowStride * 8;                          // includes padding
+    for (let col = 0; col < rowBits; col++) {
+      // Real columns read the image; padding columns (col >= W) are written as
+      // white (bit 1 / DOWN) to match the engine's write_1bit_bmp, which pads
+      // unused row bits with white. This keeps downloaded BMPs byte-identical
+      // to generator output and never leaves a phantom UP thread in padding.
+      const isWhite = (col >= W) ? true : (pixels[(srcRow * W + col) * 4] >= 128);
+      if (isWhite) {                                        // white => bit 1
         const bi = rowBase + (col >> 3);
         dv.setUint8(bi, dv.getUint8(bi) | (0x80 >> (col & 7)));
       }
