@@ -83,7 +83,6 @@
   .steps {
     display: flex;
     align-items: center;
-    gap: 0;
     margin-left: auto;
     flex-wrap: wrap;
     gap: 4px;
@@ -795,13 +794,20 @@
       /* ── Quality diagnostics panel ───────────────────────────────────────── */
       .quality-panel {
         margin: 8px 0;
-        padding: 10px 12px;
+        padding: 0;
         background: rgba(255,255,255,0.04);
         border-radius: 8px;
         border: 1px solid rgba(255,255,255,0.08);
-        display: none;
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.4s ease, padding 0.3s ease;
+        border-width: 0;
       }
-      .quality-panel.visible { display: block; }
+      .quality-panel.visible {
+        max-height: 400px;
+        padding: 10px 12px;
+        border-width: 1px;
+      }
       .quality-title {
         font-size: 11px;
         font-weight: 600;
@@ -1584,6 +1590,7 @@ const state = {
   detectedColors: [],
   colorAssignments: {},   // colorIndex -> shuttleName
   safeImageB64: null,
+  labelMap: null,         // 2D array from detect-colors, passed to generate
   pins: 0,
   cards: 0,
   zipB64: null,
@@ -1794,6 +1801,12 @@ function handleFile(file) {
     // Cross-fade: upload zone fades out, preview fades in — no layout shift
     uploadZone.classList.add('hidden');
     document.getElementById('upload-preview').classList.add('visible');
+    // Update empty state to guide user to the next step
+    const emptyState = document.getElementById('empty-state');
+    if (emptyState) {
+      emptyState.querySelector('h2').textContent = 'Image Ready';
+      emptyState.querySelector('p').textContent = 'Set your pins and thread count below,\nthen click Detect Colours to begin.';
+    }
     // Set onload BEFORE src to avoid race on fast (data URL) loads
     document.getElementById('preview-img').onload = () => autoCalcDimensions(true);
     document.getElementById('preview-img').src = e.target.result;
@@ -2111,6 +2124,7 @@ function removeColorFromZone(colorIdx) {
   delete state.colorAssignments[colorIdx];
   renderColorsGrid();
   refreshZoneChips();
+  updateLiveCoverage();
 }
 
 function refreshZoneChips() {
@@ -2669,7 +2683,10 @@ async function generateBMPs() {
 }
 
 function renderOutputPreviews(data) {
-  document.getElementById('output-section').style.display = 'block';
+  const outputSection = document.getElementById('output-section');
+  outputSection.style.display = 'block';
+  // Smooth-scroll so the user sees the output without manual scrolling
+  setTimeout(() => outputSection.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
   const grid = document.getElementById('preview-grid');
   grid.innerHTML = '';
 
@@ -2739,8 +2756,11 @@ function renderOutputPreviews(data) {
   });
 
   const totalFiles = data.files.length;
+  const reed = parseInt(document.getElementById('reedCount')?.value || '80');
+  const wIn = (state.pins / reed).toFixed(1);
+  const hIn = (state.cards / reed).toFixed(1);
   document.getElementById('download-meta').textContent =
-    `${totalFiles} BMP file${totalFiles > 1 ? 's' : ''} • ${state.pins} × ${state.cards} px • Pure 1-bit output`;
+    `${totalFiles} BMP file${totalFiles > 1 ? 's' : ''} • ${state.pins} × ${state.cards} px • ${wIn}" × ${hIn}" at Reed ${reed} • Pure 1-bit output`;
 }
 
 // =====================================================================
@@ -2789,28 +2809,60 @@ function resetApp() {
   state.imageFile      = null;
   state.imageB64       = null;
   state.fullImageB64   = null;
+  state.labelMap       = null;
   state.detectedColors = [];
   state.colorAssignments = {};
   state.zipB64         = null;
   state.zipFilename    = null;
   state.bmpB64         = {};
 
-  // Reset UI
-  document.getElementById('pins').value       = '240';
-  document.getElementById('cards').value      = '';
-  document.getElementById('cards').placeholder= 'Auto';
-  document.getElementById('design-name').value= '';
+  // Reset UI — upload zone
   document.getElementById('upload-preview').classList.remove('visible');
   document.getElementById('upload-zone').classList.remove('hidden');
+
+  // Reset right panel
   document.getElementById('empty-state').style.display     = '';
+  const emptyH2 = document.getElementById('empty-state').querySelector('h2');
+  const emptyP  = document.getElementById('empty-state').querySelector('p');
+  if (emptyH2) emptyH2.textContent = 'Ready to Weave';
+  if (emptyP)  emptyP.textContent  = 'Upload a cropped saree design image,\nset your pins and shuttle count,\nthen click Detect Colours to begin.';
   document.getElementById('color-assignment').style.display= 'none';
   document.getElementById('output-section').style.display  = 'none';
 
-  const errEl = document.getElementById('detect-error');
-  if (errEl) errEl.style.display = 'none';
+  // Reset generate section
+  document.getElementById('generate-section').style.display = 'none';
+
+  // Reset quality panel
+  document.getElementById('qualityPanel').classList.remove('visible');
+
+  // Reset coverage estimate
+  const covEl = document.getElementById('coverageEstimate');
+  if (covEl) covEl.classList.remove('visible');
+  const covRows = document.getElementById('coverageRows');
+  if (covRows) covRows.innerHTML = '';
+
+  // Reset enhance notice
+  const noticeEl = document.getElementById('enhanceNotice');
+  if (noticeEl) noticeEl.className = 'enhance-notice';
+
+  // Reset preset buttons
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+
+  // Reset form fields
+  document.getElementById('pins').value        = '240';
+  document.getElementById('cards').value       = '';
+  document.getElementById('cards').placeholder = 'Auto';
+  document.getElementById('design-name').value = '';
+
+  // Clear error messages
+  ['detect-error', 'generate-error'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
 
   setStep(1);
   checkDetectReady();
+  updateSettingsSummary();
 }
 
 // =====================================================================
