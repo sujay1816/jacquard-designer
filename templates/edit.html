@@ -745,7 +745,7 @@
     </div>
     <div class="opt-row" style="margin-bottom:6px">
       <span class="opt-label">Pattern</span>
-      <select id="fi-pattern" style="flex:1;margin-left:8px;padding:3px 5px;
+      <select id="fi-pattern" onchange="updateFiPreview()" style="flex:1;margin-left:8px;padding:3px 5px;
         background:var(--surface2);border:1px solid var(--border);
         color:var(--text);border-radius:4px;font-size:10px;font-family:'DM Mono',monospace">
         <option value="satin">Satin</option>
@@ -768,20 +768,20 @@
       <span class="opt-label">Density N</span>
       <input type="range" id="fi-n" min="4" max="16" value="8"
              style="flex:1;margin:0 6px;accent-color:var(--gold)"
-             oninput="document.getElementById('fi-n-val').textContent=this.value">
+             oninput="document.getElementById('fi-n-val').textContent=this.value;updateFiPreview()">
       <span class="opt-val" id="fi-n-val">8</span>
     </div>
     <canvas id="fi-preview" width="200" height="50"
       style="width:100%;border:1px solid var(--border);border-radius:4px;
              image-rendering:pixelated;margin-bottom:10px;background:#fff;display:block"></canvas>
     <div style="font-size:9px;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;gap:6px">
-      <input type="checkbox" id="fi-invert" style="accent-color:var(--gold)">
+      <input type="checkbox" id="fi-invert" onchange="updateFiPreview()" style="accent-color:var(--gold)">
       <label for="fi-invert" style="cursor:pointer;color:var(--text)">
         <strong style="color:var(--gold)">Invert</strong> — swap black↔white in filled pattern
       </label>
     </div>
     <div style="display:flex;gap:6px;margin-top:2px">
-      <button onclick="setTool('weave-fill');closePopup('fillint')"
+      <button onclick="syncFiToWf();setTool('weave-fill');closePopup('fillint')"
         style="flex:1;padding:7px;background:var(--surface2);border:1px solid var(--gold);
                color:var(--gold);border-radius:4px;font-size:10px;font-weight:700;
                cursor:pointer;font-family:'DM Mono',monospace"
@@ -1450,6 +1450,12 @@ function spx(x,y,v) {
 }
 function dv(btn) {
   // btn: 0=left, 2=right
+  // Eraser always lays DOWN (white) on the primary button and UP (black) on the
+  // secondary button — independent of the colour swatch / swap setting, so it
+  // never behaves like the pencil.
+  if (S.tool === 'eraser') {
+    return (btn === 2) ? 0 : 255;
+  }
   const isRight = (btn === 2);
   const wantsBlack = S.swapButtons ? isRight : !isRight;
   // Also respect the colour toggle (X key) for LMB
@@ -1998,8 +2004,10 @@ function updateFiPreview() {
   const id  = ctx.createImageData(W, H);
   // generateFillJS returns a flat Uint8Array of size W*H, 0=UP(black), 1=DOWN(white)
   const pat = generateFillJS(pattern, n, W, H);
+  const invert = document.getElementById('fi-invert')?.checked || false;
   for (let i = 0; i < W * H; i++) {
-    const v   = pat[i] === 0 ? 0 : 255;   // 0=UP→black, 1=DOWN→white
+    const bit = invert ? (pat[i] === 0 ? 1 : 0) : pat[i];
+    const v   = bit === 0 ? 0 : 255;   // 0=UP→black, 1=DOWN→white
     const off = i * 4;
     id.data[off] = id.data[off+1] = id.data[off+2] = v;
     id.data[off+3] = 255;
@@ -2138,6 +2146,22 @@ function _turnOutlineWhite(regionPixels, newPx, originalPixels, W, H) {
       newPx[pos*4] = newPx[pos*4+1] = newPx[pos*4+2] = 255; newPx[pos*4+3] = 255;
     }
   }
+}
+
+// Copy the Fill Interiors popup settings into the Weave-Fill controls that the
+// click-to-fill (weave-fill) tool actually reads, so arming "Fill Region (V)"
+// from the Fill Interiors popup uses the pattern/density/invert chosen there.
+function syncFiToWf() {
+  const fp = document.getElementById('fi-pattern'), wp = document.getElementById('wf-pattern');
+  if (fp && wp) wp.value = fp.value;
+  const fn = document.getElementById('fi-n'), wn = document.getElementById('wf-n');
+  if (fn && wn) {
+    wn.value = fn.value;
+    const lbl = document.getElementById('wf-n-val'); if (lbl) lbl.textContent = fn.value;
+  }
+  const fi = document.getElementById('fi-invert'), wi = document.getElementById('wf-invert');
+  if (fi && wi) wi.checked = fi.checked;
+  updateWfPreview();
 }
 
 function fillRegionAt(cx, cy) {
@@ -2930,6 +2954,11 @@ function applyCanvasSize() {
 // KEYBOARD
 // ═══════════════════════════════════════════════════
 document.addEventListener('keydown', e=>{
+  // Don't hijack typing in form fields (e.g. the Canvas Size width/height
+  // inputs or sliders). Escape is still allowed through so users can dismiss
+  // popups while focused inside them.
+  const tag = (e.target && e.target.tagName) || '';
+  if (e.key !== 'Escape' && /^(INPUT|SELECT|TEXTAREA)$/.test(tag)) return;
   const mod=e.ctrlKey||e.metaKey;
   if(mod){
     if(e.key==='z'){e.preventDefault();undo();}
@@ -3079,9 +3108,8 @@ document.addEventListener('DOMContentLoaded', () => {
     S.fillPat = null; updateFillPreview();
   });
 
-  // Fill Interiors preview listeners
-  _fpPattern?.addEventListener('change', updateFiPreview);
-  _fpN?.addEventListener('input', updateFiPreview);
+  // Fill Interiors preview is driven by its own controls (fi-pattern / fi-n /
+  // fi-invert) via inline handlers, and refreshed when the popup opens.
 
   // 4. Reference panel — drop target + zoom/pan events
   if (_refPanel) {
