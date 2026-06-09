@@ -55,6 +55,11 @@
       max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     .h-spacer { flex: 1; }
+    /* Vertical divider that visually groups header buttons */
+    .hsep { width:1px; height:20px; background:var(--border); margin:0 6px; flex-shrink:0; }
+    /* Plain navigation links (other pages) — quieter than action buttons */
+    .hbtn.nav { color: var(--muted); opacity: .8; }
+    .hbtn.nav:hover { opacity: 1; }
     .hbtn {
       padding: 4px 12px;
       border: 1px solid var(--border);
@@ -472,11 +477,13 @@
   <div id="spinner"></div>
   <button class="hbtn" onclick="undo()" title="Undo (Ctrl+Z)">↩ Undo</button>
   <button class="hbtn" onclick="redo()" title="Redo (Ctrl+Y / Ctrl+Shift+Z)">↪ Redo</button>
-  <button class="hbtn" onclick="downloadBMP()">↓ Download BMP</button>
-  <button class="hbtn gold" onclick="sendToGenerator()">→ Back to Generator</button>
-  <a href="/"       class="hbtn">⬡ Generator</a>
-  <a href="/trace"  class="hbtn">✦ Trace</a>
-  <a href="/border" class="hbtn">⬡ Border</a>
+  <span class="hsep"></span>
+  <button class="hbtn" onclick="downloadBMP()" title="Save the edited BMP to disk (Ctrl+S)">↓ Download BMP</button>
+  <button class="hbtn gold" onclick="sendToGenerator()" title="Send the current edited image to the Generator to re-detect colours">→ Send to Generator</button>
+  <span class="hsep"></span>
+  <a href="/"       class="hbtn nav" title="Open the Generator page (does not transfer the current image)">⬡ Open Generator</a>
+  <a href="/trace"  class="hbtn nav" title="Open the Trace page">✦ Trace</a>
+  <a href="/border" class="hbtn nav" title="Open the Border page">⬡ Border</a>
 </div>
 
 <!-- ─── LEFT TOOLBAR ────────────────────────────────────────── -->
