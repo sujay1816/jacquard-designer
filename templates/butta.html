@@ -60,6 +60,19 @@
   .dl{display:flex;flex-direction:column;gap:10px;margin-top:14px;}
   .dl a{display:flex;justify-content:space-between;align-items:center;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:11px 14px;font-size:12px;}
   .dl a:hover{border-color:var(--gold);}
+  .pv-toolbar{display:flex;gap:6px;margin:10px 0 8px;align-items:center;}
+  .pv-toolbar button{padding:5px 12px;background:var(--surface2);border:1px solid var(--border2);color:var(--muted);border-radius:6px;cursor:pointer;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.5px;}
+  .pv-toolbar button.on{border-color:var(--gold);color:var(--gold);background:#211d18;}
+  .pv-toolbar .hint{margin-left:auto;color:var(--muted);font-size:10px;}
+  .preview-box{position:relative;}
+  .preview-box.loading{opacity:.55;}
+  .pv-loading{position:absolute;inset:0;display:none;place-items:center;color:#6a6052;font-size:12px;background:rgba(246,241,230,.55);}
+  .preview-box.loading .pv-loading{display:grid;}
+  .mode-help{color:var(--muted);font-size:11px;margin-top:6px;line-height:1.45;}
+  .match-ok{color:var(--success);font-weight:500;}
+  .chk{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px;cursor:pointer;margin-top:16px;}
+  .chk input{accent-color:var(--gold);width:14px;height:14px;}
+  .dropzone:focus{outline:2px solid var(--gold);outline-offset:2px;}
 </style>
 </head>
 <body>
@@ -86,11 +99,11 @@
     <div>
       <div class="card">
         <div class="ttl">1 · Source motif</div>
-        <div class="dropzone" id="drop">
+        <div class="dropzone" id="drop" tabindex="0" role="button" aria-label="Upload a butta image — drop a file or press Enter to browse">
           <div class="big">Drop a butta image here</div>
           <div class="sub">or click to browse — JPG / PNG / BMP. Higher resolution = finer result.</div>
         </div>
-        <input type="file" id="file" accept=".jpg,.jpeg,.png,.bmp,.tiff,.webp" style="display:none">
+        <input type="file" id="file" accept=".jpg,.jpeg,.png,.bmp,.tiff,.webp" style="display:none" aria-hidden="true">
       </div>
 
       <div class="card" id="settings" style="opacity:.45;pointer-events:none">
@@ -102,11 +115,11 @@
           <button data-p="200" class="on">200</button>
           <button data-p="240">240</button>
         </div>
-        <input type="number" id="pinCustom" placeholder="custom width" min="40" max="600">
+        <input type="number" id="pinCustom" placeholder="custom width" min="40" max="600" aria-label="Custom pin width">
         <div class="help" id="pinNote"></div>
 
         <label class="fld" style="margin-top:16px">Detail balance</label>
-        <input type="range" id="detail" min="-100" max="100" value="0">
+        <input type="range" id="detail" min="-100" max="100" value="0" aria-label="Detail balance: solid to open">
         <div class="slider-row"><span>◀ more solid</span><span id="detailVal">auto</span><span>more open ▶</span></div>
 
         <label class="fld" style="margin-top:16px">Output</label>
@@ -114,9 +127,12 @@
           <button data-m="quick" class="on">Quick · motif BMP</button>
           <button data-m="full">Full · shuttles + rani</button>
         </div>
+        <div class="mode-help" id="modeHelp">A single clean 1-bit BMP of the motif — ready to download or send to the editor.</div>
+
+        <label class="chk"><input type="checkbox" id="autocrop" checked> Auto-trim surrounding whitespace</label>
 
         <label class="fld" style="margin-top:16px">Design name</label>
-        <input type="text" id="dname" value="butta">
+        <input type="text" id="dname" value="butta" aria-label="Design name for the output file">
 
         <div style="margin-top:18px;display:flex;flex-direction:column;gap:10px">
           <button class="primary" id="genBtn">Generate</button>
@@ -130,9 +146,15 @@
     <div>
       <div class="preview-wrap">
         <div class="ttl">Live preview <span style="color:var(--muted);font-size:11px">· actual thread grid</span></div>
+        <div class="pv-toolbar" id="pvToolbar" style="display:none">
+          <button id="viewOut" class="on">Output</button>
+          <button id="viewSrc">Source</button>
+          <span class="hint" id="pvHint"></span>
+        </div>
         <div class="preview-box" id="pv">
           <div class="preview-empty" id="pvEmpty">Upload a motif to see the<br>compressed result here.</div>
-          <img id="pvImg" style="display:none">
+          <img id="pvImg" style="display:none" alt="Compressed motif preview">
+          <div class="pv-loading" id="pvLoading">updating…</div>
         </div>
         <div class="stat-row" id="stats"></div>
         <div class="note" id="lowNote">⚠ At this width the densest areas may merge — try 200 pins or a higher-resolution source for finer detail.</div>
@@ -144,7 +166,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const S = { file:null, pins:200, detail:0, mode:'quick', busy:false, debounce:null };
+const S = { file:null, pins:200, detail:0, mode:'quick', autocrop:true, busy:false, debounce:null, view:'out', srcUrl:null, outUrl:null };
 const $ = id => document.getElementById(id);
 
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2600); }
@@ -152,6 +174,7 @@ function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('sho
 // ── Upload ───────────────────────────────────────────────
 const drop=$('drop'), fileIn=$('file');
 drop.onclick=()=>fileIn.click();
+drop.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); fileIn.click(); } };
 drop.ondragover=e=>{e.preventDefault();drop.classList.add('drag');};
 drop.ondragleave=()=>drop.classList.remove('drag');
 drop.ondrop=e=>{e.preventDefault();drop.classList.remove('drag'); if(e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);};
@@ -162,6 +185,12 @@ function loadFile(f){
   drop.querySelector('.big').textContent=f.name;
   $('settings').style.opacity='1'; $('settings').style.pointerEvents='auto';
   $('dlList').innerHTML='';
+  // keep a source thumbnail for the Source/Output compare toggle
+  const fr=new FileReader();
+  fr.onload=()=>{ S.srcUrl=fr.result; };
+  fr.readAsDataURL(f);
+  S.view='out'; setView('out');
+  $('pvToolbar').style.display='flex';
   requestPreview();
 }
 
@@ -185,11 +214,31 @@ $('detail').addEventListener('input', e=>{
 });
 
 // ── Output mode ──────────────────────────────────────────
+const MODE_HELP={
+  quick:'A single clean 1-bit BMP of the motif — ready to download or send to the editor.',
+  full:'Builds the full set: the motif on Zari plus an auto plain-weave Rani ground.'
+};
 $('modeSeg').addEventListener('click', e=>{
   const b=e.target.closest('button'); if(!b) return;
   [...$('modeSeg').children].forEach(x=>x.classList.remove('on'));
   b.classList.add('on'); S.mode=b.dataset.m;
+  $('modeHelp').textContent=MODE_HELP[S.mode];
 });
+
+// ── Auto-trim ────────────────────────────────────────────
+$('autocrop').addEventListener('change', e=>{ S.autocrop=e.target.checked; requestPreview(); });
+
+// ── Source / Output compare ──────────────────────────────
+function setView(v){
+  S.view=v;
+  $('viewOut').classList.toggle('on', v==='out');
+  $('viewSrc').classList.toggle('on', v==='src');
+  const img=$('pvImg');
+  if(v==='src' && S.srcUrl){ img.src=S.srcUrl; img.style.display='block'; $('pvEmpty').style.display='none'; }
+  else if(v==='out' && S.outUrl){ img.src=S.outUrl; img.style.display='block'; $('pvEmpty').style.display='none'; }
+}
+$('viewOut').onclick=()=>setView('out');
+$('viewSrc').onclick=()=>setView('src');
 
 // ── Live preview (debounced) ─────────────────────────────
 function requestPreview(){
@@ -203,20 +252,26 @@ async function doPreview(){
   fd.append('image', S.file);
   fd.append('pins', S.pins);
   fd.append('detail', S.detail);
+  fd.append('autocrop', S.autocrop ? 'true' : 'false');
+  $('pv').classList.add('loading');
   try{
     const r=await fetch('/api/butta-preview',{method:'POST',body:fd});
     const d=await r.json();
     if(!d.success){ toast(d.error||'Preview failed'); return; }
-    $('pvEmpty').style.display='none';
-    const img=$('pvImg'); img.src='data:image/png;base64,'+d.preview_b64; img.style.display='block';
+    S.outUrl='data:image/png;base64,'+d.preview_b64;
+    if(S.view==='out'){ const img=$('pvImg'); img.src=S.outUrl; img.style.display='block'; $('pvEmpty').style.display='none'; }
     const i=d.info;
+    const matched = Math.abs(i.result_ink - i.source_ink) <= 1.5;
     $('stats').innerHTML =
       `<span>source <b>${i.source_size[0]}×${i.source_size[1]}</b></span>`+
       `<span>→ output <b>${i.target_w}×${i.target_h}</b></span>`+
       `<span>compression <b>${i.compression}×</b></span>`+
-      `<span>ink <b>${i.result_ink}%</b> <span style="opacity:.6">(src ${i.source_ink}%)</span></span>`;
+      `<span>ink <b>${i.result_ink}%</b> <span style="opacity:.6">(src ${i.source_ink}%)</span>`+
+      (matched ? ` <span class="match-ok">✓ matches source</span>` : '')+`</span>`;
+    $('pvHint').textContent = `${i.target_w}×${i.target_h} · ${i.compression}× smaller`;
     $('lowNote').style.display = (i.target_w<=160 && i.compression>=3.5) ? 'block' : 'none';
   }catch(err){ toast('Preview error: '+err.message); }
+  finally{ $('pv').classList.remove('loading'); }
 }
 
 // ── Generate ─────────────────────────────────────────────
@@ -234,6 +289,7 @@ async function generate(forEditor){
     fd.append('pins', S.pins);
     fd.append('detail', S.detail);
     fd.append('output_mode', forEditor ? 'quick' : S.mode);
+    fd.append('autocrop', S.autocrop ? 'true' : 'false');
     fd.append('design_name', ($('dname').value||'butta').trim());
     const r=await fetch('/api/butta-generate',{method:'POST',body:fd});
     const d=await r.json();
