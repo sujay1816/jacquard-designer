@@ -1746,9 +1746,11 @@ function onPM(e) {
     const bmpY = (nmid.y - rect.top)  / S.zoom;
     S.zoom = Math.max(0.1, Math.min(32, _gesture.z0 * (nd / _gesture.d0)));
     applyZoom();
-    const aRect = area.getBoundingClientRect();
-    area.scrollLeft += bmpX * S.zoom - (nmid.x - aRect.left);
-    area.scrollTop  += bmpY * S.zoom - (nmid.y - aRect.top);
+    // Anchor against the canvas's actual post-layout position (robust to the
+    // centering margin), keeping the content under the midpoint fixed.
+    const after = MC.getBoundingClientRect();
+    area.scrollLeft += after.left - (nmid.x - bmpX * S.zoom);
+    area.scrollTop  += after.top  - (nmid.y - bmpY * S.zoom);
     _gesture.mid = nmid;
     return;
   }
@@ -1773,43 +1775,47 @@ function onPL(e) {
 
 function onWheel(e) {
   e.preventDefault();
-  const area = _canvasArea;
-  const rect = MC.getBoundingClientRect();
-  // Mouse position relative to canvas in BMP pixels before zoom
-  const bmpX = (e.clientX - rect.left) / S.zoom;
-  const bmpY = (e.clientY - rect.top)  / S.zoom;
-  // Apply zoom step
-  zoomStep(e.deltaY < 0 ? 1 : -1);
-  // Adjust scroll to keep the hovered pixel under the cursor
-  const newX = bmpX * S.zoom;
-  const newY = bmpY * S.zoom;
-  const aRect = area.getBoundingClientRect();
-  area.scrollLeft += (newX - (e.clientX - aRect.left));
-  area.scrollTop  += (newY - (e.clientY - aRect.top));
+  // Anchor the zoom on the pixel under the cursor.
+  zoomStep(e.deltaY < 0 ? 1 : -1, e.clientX, e.clientY);
 }
 
 // ═══════════════════════════════════════════════════
 // ZOOM / FIT
 // ═══════════════════════════════════════════════════
 const ZL = [0.25,0.5,0.75,1,1.5,2,3,4,6,8,10,12,16,20,24,32];
-function zoomStep(d) {
+function zoomStep(d, ancX, ancY) {
+  if (!S.pixels) return;
+  const area = _canvasArea, aRect = area.getBoundingClientRect();
+  // Default anchor = centre of the visible canvas area (for the +/- buttons).
+  if (ancX == null) ancX = aRect.left + area.clientWidth  / 2;
+  if (ancY == null) ancY = aRect.top  + area.clientHeight / 2;
+  // BMP pixel under the anchor before the zoom changes.
+  const before = MC.getBoundingClientRect();
+  const bmpX = (ancX - before.left) / S.zoom;
+  const bmpY = (ancY - before.top)  / S.zoom;
+  // Step along the preset ladder.
   let i = ZL.indexOf(S.zoom);
   if (i < 0) {
-    // S.zoom was set by fitToWindow — not on a preset level.
-    // Find the correct bracket so +d steps to the next preset in the
-    // right direction instead of always jumping from the hardcoded index 4.
+    // S.zoom was set by fitToWindow — not on a preset level. Find the right
+    // bracket so +d steps to the next preset in the intended direction.
     if (d > 0) {
       i = ZL.findIndex(z => z > S.zoom);
-      i = i < 0 ? ZL.length - 1 : i - 1;  // one below the first level above
+      i = i < 0 ? ZL.length - 1 : i - 1;
     } else {
       i = ZL.length - 1;
       for (let j = 0; j < ZL.length; j++) {
-        if (ZL[j] >= S.zoom) { i = j; break; }  // first level at-or-above
+        if (ZL[j] >= S.zoom) { i = j; break; }
       }
     }
   }
   S.zoom = ZL[Math.max(0, Math.min(ZL.length - 1, i + d))];
   applyZoom();
+  // Re-anchor against the canvas's ACTUAL post-layout position (this accounts
+  // for the centering margin applyZoom may have set), keeping the anchored
+  // pixel under the same screen point.
+  const after = MC.getBoundingClientRect();
+  area.scrollLeft += (after.left - (ancX - bmpX * S.zoom));
+  area.scrollTop  += (after.top  - (ancY - bmpY * S.zoom));
 }
 function fitToWindow() {
   if (!S.pixels) return;
