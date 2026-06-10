@@ -27,15 +27,31 @@ from bmp_engine import write_1bit_bmp
 # Core reduction
 # ──────────────────────────────────────────────────────────────────────────
 def _binarize_full_res(image: Image.Image, thresh: float | None = None):
-    """Binarise the source at full resolution. True/1 = ink (black)."""
-    g = np.asarray(image.convert('L'))
+    """
+    Binarise the source at full resolution. True/1 = ink (the motif).
+
+    Robust to polarity and degenerate inputs: the ground tone is read from the
+    image border (a butta sits on a margin of ground), and ink is taken as the
+    side that differs from the ground. So a dark motif on white, a light motif
+    on a dark ground, and constant/near-constant images are all handled without
+    blanking the design.
+    """
+    g = np.asarray(image.convert('L')).astype(np.float32)
+    border = np.concatenate([g[0, :], g[-1, :], g[:, 0], g[:, -1]])
+    bg = float(np.median(border))                 # ground tone around the motif
     if thresh is None:
         try:
             from skimage.filters import threshold_otsu
+            if float(g.min()) == float(g.max()):  # constant image -> no otsu
+                raise ValueError('constant image')
             thresh = float(threshold_otsu(g))
         except Exception:
-            thresh = 128.0
-    return (g < thresh).astype(np.float32), float(thresh)
+            thresh = bg - 40.0 if bg >= 128 else bg + 40.0
+    if bg >= 128:                                  # light ground -> ink is darker
+        ink = g < min(thresh, bg - 1.0)
+    else:                                          # dark ground -> ink is lighter
+        ink = g > max(thresh, bg + 1.0)
+    return ink.astype(np.float32), float(thresh)
 
 
 def _coverage_map(hi: np.ndarray, target_w: int):
@@ -118,22 +134,27 @@ def reduce_butta(image: Image.Image, target_pins: int, detail: float = 0.0,
     hi, used_thresh = _binarize_full_res(image, thresh)
     src_ink = float(hi.mean())
 
+    # Compute the coverage map ONCE — it is identical for every threshold, so the
+    # auto-search only needs to re-threshold it (cheap) rather than re-resize the
+    # full-resolution source 50 times (which made previews slow on large images).
+    frac, target_h = _coverage_map(hi, target_pins)
+
     def _final(cov):
-        m, th = reduce_gap_preserving(hi, target_pins, float(cov))
+        m = frac >= cov
         if despeckle_px > 0:
             m = _despeckle(m, despeckle_px)
-        return m, th
+        return m
 
     # Auto baseline: match the source ink weight using the real output pipeline.
     base_cov, best = 0.5, None
     for cov in np.arange(0.30, 0.80, 0.01):
-        ink = float(_final(cov)[0].mean())
+        ink = float(_final(cov).mean())
         d = abs(ink - src_ink)
         if best is None or d < best:
             best, base_cov = d, float(cov)
 
     cov = float(min(0.85, max(0.20, base_cov + detail * 0.18)))
-    mask, target_h = _final(cov)
+    mask = _final(cov)
     info = {
         'source_size': list(image.size),
         'target_w': target_pins,

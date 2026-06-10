@@ -223,6 +223,9 @@ async function doPreview(){
 async function generate(forEditor){
   if(!S.file){ toast('Upload a motif first'); return; }
   if(S.busy) return;
+  // Open the editor tab synchronously (inside the click gesture) so popup
+  // blockers don't block it; we point it at the editor once the BMP is stored.
+  const editorWin = forEditor ? window.open('', '_blank') : null;
   S.busy=true; const btn=forEditor?$('editBtn'):$('genBtn');
   const orig=btn.textContent; btn.textContent='Working…'; btn.disabled=true;
   try{
@@ -234,15 +237,15 @@ async function generate(forEditor){
     fd.append('design_name', ($('dname').value||'butta').trim());
     const r=await fetch('/api/butta-generate',{method:'POST',body:fd});
     const d=await r.json();
-    if(!d.success){ toast(d.error||'Generation failed'); return; }
+    if(!d.success){ toast(d.error||'Generation failed'); if(editorWin) editorWin.close(); return; }
 
     if(forEditor){
       const f=d.files[0];
       const sr=await fetch('/api/store-bmp',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({bmp_b64:f.bmp_b64, filename:f.filename})});
       const sd=await sr.json();
-      if(sd.success){ window.open('/edit?token='+sd.token+'&from_generator=1','_blank'); }
-      else toast('Could not open editor');
+      const url=(sd.success&&sd.token) ? '/edit?token='+sd.token+'&from_generator=1' : '/edit?from_generator=1';
+      if(editorWin) editorWin.location.href=url; else window.open(url,'_blank');
       return;
     }
 
@@ -255,7 +258,7 @@ async function generate(forEditor){
       list.appendChild(a);
     });
     toast('Generated '+d.files.length+' file'+(d.files.length>1?'s':''));
-  }catch(err){ toast('Error: '+err.message); }
+  }catch(err){ toast('Error: '+err.message); if(editorWin) editorWin.close(); }
   finally{ S.busy=false; btn.textContent=orig; btn.disabled=false; }
 }
 $('genBtn').onclick=()=>generate(false);
