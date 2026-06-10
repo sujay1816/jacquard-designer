@@ -304,7 +304,7 @@ async function generate(forEditor){
     fd.append('output_mode', forEditor ? 'quick' : S.mode);
     fd.append('autocrop', S.autocrop ? 'true' : 'false');
     if(S.cards) fd.append('cards', S.cards);
-    fd.append('design_name', ($('dname').value||'butta').trim());
+    fd.append('design_name', (($('dname').value||'').trim()||'butta'));
     const r=await fetch('/api/butta-generate',{method:'POST',body:fd});
     const d=await r.json();
     if(!d.success){ toast(d.error||'Generation failed'); if(editorWin) editorWin.close(); return; }

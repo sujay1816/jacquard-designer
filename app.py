@@ -1369,7 +1369,7 @@ def api_butta_generate():
             detail = 0.0
         autocrop = request.form.get('autocrop', 'true').lower() == 'true'
         output_mode = request.form.get('output_mode', 'quick').lower()
-        design_name = (request.form.get('design_name', 'butta') or 'butta').strip()
+        design_name = (request.form.get('design_name', '') or '').strip() or 'butta'
 
         cards_raw = (request.form.get('cards', '') or '').strip()
         try:
