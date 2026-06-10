@@ -118,6 +118,10 @@
         <input type="number" id="pinCustom" placeholder="custom width" min="40" max="600" aria-label="Custom pin width">
         <div class="help" id="pinNote"></div>
 
+        <label class="fld" style="margin-top:16px">Cards (height)</label>
+        <input type="number" id="cards" placeholder="auto (keeps aspect)" min="8" max="2000" aria-label="Cards / output height — leave blank for auto">
+        <div class="help">Blank keeps the source proportions. Set a height to match a fixed loom card count (the motif is fitted to it).</div>
+
         <label class="fld" style="margin-top:16px">Detail balance</label>
         <input type="range" id="detail" min="-100" max="100" value="0" aria-label="Detail balance: solid to open">
         <div class="slider-row"><span>◀ more solid</span><span id="detailVal">auto</span><span>more open ▶</span></div>
@@ -166,7 +170,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const S = { file:null, pins:200, detail:0, mode:'quick', autocrop:true, busy:false, debounce:null, view:'out', srcUrl:null, outUrl:null };
+const S = { file:null, pins:200, cards:null, detail:0, mode:'quick', autocrop:true, busy:false, debounce:null, view:'out', srcUrl:null, outUrl:null };
 const $ = id => document.getElementById(id);
 
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2600); }
@@ -204,6 +208,13 @@ $('pinBtns').addEventListener('click', e=>{
 $('pinCustom').addEventListener('input', ()=>{
   const v=parseInt($('pinCustom').value);
   if(v>=40 && v<=600){ S.pins=v; [...$('pinBtns').children].forEach(x=>x.classList.remove('on')); requestPreview(); }
+});
+
+// ── Cards (height) ───────────────────────────────────────
+$('cards').addEventListener('input', ()=>{
+  const v=parseInt($('cards').value);
+  S.cards = (v>=8 && v<=2000) ? v : null;
+  requestPreview();
 });
 
 // ── Detail slider ────────────────────────────────────────
@@ -253,6 +264,7 @@ async function doPreview(){
   fd.append('pins', S.pins);
   fd.append('detail', S.detail);
   fd.append('autocrop', S.autocrop ? 'true' : 'false');
+  if(S.cards) fd.append('cards', S.cards);
   $('pv').classList.add('loading');
   try{
     const r=await fetch('/api/butta-preview',{method:'POST',body:fd});
@@ -261,6 +273,7 @@ async function doPreview(){
     S.outUrl='data:image/png;base64,'+d.preview_b64;
     if(S.view==='out'){ const img=$('pvImg'); img.src=S.outUrl; img.style.display='block'; $('pvEmpty').style.display='none'; }
     const i=d.info;
+    if(!S.cards) $('cards').placeholder='auto ('+i.auto_cards+')';
     const matched = Math.abs(i.result_ink - i.source_ink) <= 1.5;
     $('stats').innerHTML =
       `<span>source <b>${i.source_size[0]}×${i.source_size[1]}</b></span>`+
@@ -290,6 +303,7 @@ async function generate(forEditor){
     fd.append('detail', S.detail);
     fd.append('output_mode', forEditor ? 'quick' : S.mode);
     fd.append('autocrop', S.autocrop ? 'true' : 'false');
+    if(S.cards) fd.append('cards', S.cards);
     fd.append('design_name', ($('dname').value||'butta').trim());
     const r=await fetch('/api/butta-generate',{method:'POST',body:fd});
     const d=await r.json();

@@ -54,24 +54,29 @@ def _binarize_full_res(image: Image.Image, thresh: float | None = None):
     return ink.astype(np.float32), float(thresh)
 
 
-def _coverage_map(hi: np.ndarray, target_w: int):
+def _coverage_map(hi: np.ndarray, target_w: int, target_h: int | None = None):
     """
     Per-output-cell black fraction using area (BOX) resampling. Works for any
     reduction ratio (no integer-block requirement) and is exactly the fraction
     of each output cell that is black in the full-res source.
+    If target_h is given it is used directly (the motif is fitted to that
+    height); otherwise the height is derived from the source aspect ratio.
     Returns (frac_map float in [0,1], target_h).
     """
     H, W = hi.shape
-    target_h = max(1, round(H * target_w / W))
+    if target_h is None:
+        target_h = max(1, round(H * target_w / W))
+    target_h = max(1, int(target_h))
     im = Image.fromarray((hi * 255).astype(np.uint8), 'L').resize(
         (target_w, target_h), Image.BOX)
     return np.asarray(im, np.float32) / 255.0, target_h
 
 
-def reduce_gap_preserving(hi: np.ndarray, target_w: int, coverage: float):
+def reduce_gap_preserving(hi: np.ndarray, target_w: int, coverage: float,
+                          target_h: int | None = None):
     """Reduce: an output cell is ink only if >= `coverage` of it is black."""
-    frac, target_h = _coverage_map(hi, target_w)
-    return (frac >= coverage), target_h
+    frac, th = _coverage_map(hi, target_w, target_h)
+    return (frac >= coverage), th
 
 
 def auto_coverage(hi: np.ndarray, target_w: int, want_ink: float | None = None):
@@ -116,17 +121,17 @@ def _autocrop(image: Image.Image, pad_frac: float = 0.04):
     return image.crop((x0, y0, x1 + 1, y1 + 1))
 
 
-def reduce_butta(image: Image.Image, target_pins: int, detail: float = 0.0,
-                 despeckle_px: int = 1, autocrop: bool = True,
+def reduce_butta(image: Image.Image, target_pins: int, target_cards: int | None = None,
+                 detail: float = 0.0, despeckle_px: int = 1, autocrop: bool = True,
                  thresh: float | None = None):
     """
     Reduce a (mono / B&W) butta to `target_pins` width, preserving negative space.
 
+    target_cards : explicit output height. If None, height keeps the source
+                   aspect ratio. If set, the motif is fitted to that height
+                   (use to match a fixed loom card count).
     detail : -1.0 .. +1.0  — 0 = auto (matches the SOURCE ink weight per design);
                               + = more open (favour gaps); - = more solid.
-    Auto adapts to each design: it searches the coverage threshold so the FINAL
-    (post-despeckle) ink-% matches the source ink-%, i.e. it preserves the
-    original's visual weight. The detail slider then nudges open/solid from there.
     Returns (mask, info) — mask bool (target_h x target_pins), True = ink/UP.
     """
     if autocrop:
@@ -137,7 +142,7 @@ def reduce_butta(image: Image.Image, target_pins: int, detail: float = 0.0,
     # Compute the coverage map ONCE — it is identical for every threshold, so the
     # auto-search only needs to re-threshold it (cheap) rather than re-resize the
     # full-resolution source 50 times (which made previews slow on large images).
-    frac, target_h = _coverage_map(hi, target_pins)
+    frac, target_h = _coverage_map(hi, target_pins, target_cards)
 
     def _final(cov):
         m = frac >= cov
@@ -155,10 +160,13 @@ def reduce_butta(image: Image.Image, target_pins: int, detail: float = 0.0,
 
     cov = float(min(0.85, max(0.20, base_cov + detail * 0.18)))
     mask = _final(cov)
+    auto_h = max(1, round(hi.shape[0] * target_pins / hi.shape[1]))
     info = {
         'source_size': list(image.size),
         'target_w': target_pins,
         'target_h': target_h,
+        'auto_cards': auto_h,
+        'cards_mode': 'set' if target_cards else 'auto',
         'coverage': round(cov, 3),
         'source_ink': round(100 * src_ink, 1),
         'result_ink': round(100 * float(mask.mean()), 1),

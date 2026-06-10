@@ -1319,8 +1319,14 @@ def api_butta_preview():
 
         autocrop = request.form.get('autocrop', 'true').lower() == 'true'
 
+        cards_raw = (request.form.get('cards', '') or '').strip()
+        try:
+            target_cards = max(8, min(2000, int(cards_raw))) if cards_raw else None
+        except (ValueError, TypeError):
+            target_cards = None
+
         mask, info = butta_engine.reduce_butta(
-            img, target_pins, detail=detail, autocrop=autocrop)
+            img, target_pins, target_cards=target_cards, detail=detail, autocrop=autocrop)
 
         # Upscale the preview so threads are visible (cap to a sensible size)
         scale = max(1, min(6, 900 // max(1, info['target_w'])))
@@ -1365,8 +1371,14 @@ def api_butta_generate():
         output_mode = request.form.get('output_mode', 'quick').lower()
         design_name = (request.form.get('design_name', 'butta') or 'butta').strip()
 
+        cards_raw = (request.form.get('cards', '') or '').strip()
+        try:
+            target_cards = max(8, min(2000, int(cards_raw))) if cards_raw else None
+        except (ValueError, TypeError):
+            target_cards = None
+
         mask, info = butta_engine.reduce_butta(
-            img, target_pins, detail=detail, autocrop=autocrop)
+            img, target_pins, target_cards=target_cards, detail=detail, autocrop=autocrop)
 
         files = []
         if output_mode == 'full':
