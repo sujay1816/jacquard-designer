@@ -12,6 +12,7 @@ from bmp_engine import (detect_colors, generate_bmps, verify_bmp, enhance_image,
 from border_engine import generate_border_bmps, detect_border
 from border_id_engine import generate_border_id_bmps
 from enhanced_engine import preprocess_fabric_image, analyze_border_image
+import butta_engine
 
 app = Flask(__name__)
 app.secret_key = 'jq-designer-2024'
@@ -1272,3 +1273,120 @@ def api_border_suggest():
 
     except Exception as e:
         return _json_error(f'Analysis failed: {e}')
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# BUTTA STUDIO — reduce a dense motif to a small pin width (gap-preserving)
+# ══════════════════════════════════════════════════════════════════════════
+@app.route('/butta')
+def butta_page():
+    from flask import make_response
+    resp = make_response(render_template('butta.html'))
+    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    return resp
+
+
+def _open_upload(file):
+    img = Image.open(file.stream)
+    return ImageOps.exif_transpose(img).convert('RGB')
+
+
+@app.route('/api/butta-preview', methods=['POST'])
+def api_butta_preview():
+    """Fast preview of the gap-preserving reduction for the live slider."""
+    try:
+        if 'image' not in request.files:
+            return _json_error('No image file uploaded.')
+        file = request.files['image']
+        if not file.filename:
+            return _json_error('No file selected.')
+        try:
+            img = _open_upload(file)
+        except Exception:
+            return _json_error('Could not read the uploaded image.')
+
+        try:
+            target_pins = int(request.form.get('pins', 200))
+        except (ValueError, TypeError):
+            return _json_error('Pins must be a whole number.')
+        target_pins = max(40, min(600, target_pins))
+
+        try:
+            detail = float(request.form.get('detail', 0.0))
+        except (ValueError, TypeError):
+            detail = 0.0
+        detail = max(-1.0, min(1.0, detail))
+
+        autocrop = request.form.get('autocrop', 'true').lower() == 'true'
+
+        mask, info = butta_engine.reduce_butta(
+            img, target_pins, detail=detail, autocrop=autocrop)
+
+        # Upscale the preview so threads are visible (cap to a sensible size)
+        scale = max(1, min(6, 900 // max(1, info['target_w'])))
+        prev = butta_engine.mask_to_preview_png(mask, scale=scale)
+        buf = io.BytesIO(); prev.save(buf, format='PNG')
+        return jsonify({
+            'success': True,
+            'preview_b64': base64.b64encode(buf.getvalue()).decode(),
+            'info': info,
+        })
+    except Exception as e:
+        return _json_error(f'Preview failed: {e}')
+
+
+@app.route('/api/butta-generate', methods=['POST'])
+def api_butta_generate():
+    """
+    Final output. output_mode:
+      'quick' -> single clean 1-bit BMP of the motif.
+      'full'  -> hand the reduced label_map to generate_bmps (zari + rani).
+    """
+    try:
+        if 'image' not in request.files:
+            return _json_error('No image file uploaded.')
+        file = request.files['image']
+        if not file.filename:
+            return _json_error('No file selected.')
+        try:
+            img = _open_upload(file)
+        except Exception:
+            return _json_error('Could not read the uploaded image.')
+
+        try:
+            target_pins = max(40, min(600, int(request.form.get('pins', 200))))
+        except (ValueError, TypeError):
+            return _json_error('Pins must be a whole number.')
+        try:
+            detail = max(-1.0, min(1.0, float(request.form.get('detail', 0.0))))
+        except (ValueError, TypeError):
+            detail = 0.0
+        autocrop = request.form.get('autocrop', 'true').lower() == 'true'
+        output_mode = request.form.get('output_mode', 'quick').lower()
+        design_name = (request.form.get('design_name', 'butta') or 'butta').strip()
+
+        mask, info = butta_engine.reduce_butta(
+            img, target_pins, detail=detail, autocrop=autocrop)
+
+        files = []
+        if output_mode == 'full':
+            label_map, colors, assignments = butta_engine.mask_to_label_map(mask)
+            satin = {'zari': {'n': 8, 'flip': False, 'min_height': 35,
+                              'pattern': 'satin', 'weave_off': True}}
+            results = generate_bmps(
+                image=img, pins=info['target_w'], cards=info['target_h'],
+                shuttle_count=2, color_assignments=assignments,
+                satin_settings=satin, design_name=design_name,
+                label_map=label_map, outline_white={'zari': True},
+                rani_weave='plain', stroke_mode=False, supersample=False)
+            for fn, by in results.items():
+                files.append({'filename': fn,
+                              'bmp_b64': base64.b64encode(by).decode()})
+        else:
+            by = butta_engine.mask_to_bmp_bytes(mask)
+            files.append({'filename': f'{design_name}.bmp',
+                          'bmp_b64': base64.b64encode(by).decode()})
+
+        return jsonify({'success': True, 'files': files, 'info': info})
+    except Exception as e:
+        return _json_error(f'Generation failed: {e}')
