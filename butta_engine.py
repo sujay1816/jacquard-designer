@@ -106,21 +106,34 @@ def reduce_butta(image: Image.Image, target_pins: int, detail: float = 0.0,
     """
     Reduce a (mono / B&W) butta to `target_pins` width, preserving negative space.
 
-    detail : -1.0 .. +1.0  — 0 = auto (match source ink-%);
+    detail : -1.0 .. +1.0  — 0 = auto (matches the SOURCE ink weight per design);
                               + = more open (favour gaps); - = more solid.
-    Returns (mask, info) where mask is a bool array (target_h x target_pins),
-    True = ink (black / thread UP).
+    Auto adapts to each design: it searches the coverage threshold so the FINAL
+    (post-despeckle) ink-% matches the source ink-%, i.e. it preserves the
+    original's visual weight. The detail slider then nudges open/solid from there.
+    Returns (mask, info) — mask bool (target_h x target_pins), True = ink/UP.
     """
     if autocrop:
         image = _autocrop(image)
     hi, used_thresh = _binarize_full_res(image, thresh)
     src_ink = float(hi.mean())
-    cov = auto_coverage(hi, target_pins, src_ink)
-    # Slider: higher coverage => more cells stay white => more open.
-    cov = float(min(0.85, max(0.20, cov + detail * 0.18)))
-    mask, target_h = reduce_gap_preserving(hi, target_pins, cov)
-    if despeckle_px > 0:
-        mask = _despeckle(mask, despeckle_px)
+
+    def _final(cov):
+        m, th = reduce_gap_preserving(hi, target_pins, float(cov))
+        if despeckle_px > 0:
+            m = _despeckle(m, despeckle_px)
+        return m, th
+
+    # Auto baseline: match the source ink weight using the real output pipeline.
+    base_cov, best = 0.5, None
+    for cov in np.arange(0.30, 0.80, 0.01):
+        ink = float(_final(cov)[0].mean())
+        d = abs(ink - src_ink)
+        if best is None or d < best:
+            best, base_cov = d, float(cov)
+
+    cov = float(min(0.85, max(0.20, base_cov + detail * 0.18)))
+    mask, target_h = _final(cov)
     info = {
         'source_size': list(image.size),
         'target_w': target_pins,
