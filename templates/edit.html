@@ -508,6 +508,8 @@
   <button class="tbtn"    id="tbtn-grid"   onclick="toggleGrid()"      data-tip="Toggle pixel grid — visible at 4x+ (G)">⊞</button>
   <button class="tbtn" id="tbtn-ref" onclick="toggleRefPanel()" data-tip="Reference image (Blender-style overlay) (I)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M2 8 Q5 5 8 8 Q11 11 14 8" stroke-width="1.2"/><circle cx="11" cy="6" r="1.5" fill="currentColor" stroke="none"/></svg></button>
   <button class="tbtn"                     onclick="fitToWindow()"     data-tip="Fit entire image in view (0)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 6V3h3M10 3h3v3M13 10v3h-3M6 13H3v-3"/></svg></button>
+  <button class="tbtn"    id="tbtn-zsel"   onclick="zoomToSelection()" data-tip="Zoom to selection — fits the current selection in view">⊡</button>
+  <button class="tbtn"    id="tbtn-sym"     onclick="cycleSymmetry()"   data-tip="Mirror drawing: off / horizontal / vertical / quad">⇄</button>
   <div class="tsep"></div>
   <button class="tbtn" onclick="openCanvasSizePopup(event)" data-tip="Canvas Size — extend or crop (C)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="2" width="8" height="8" rx="1"/><path d="M12 6v8M6 12h8" stroke-width="1.8"/></svg></button>
   <button class="tbtn"                     onclick="document.getElementById('file-input2').click()" data-tip="Upload BMP or PNG from disk">📂</button>
@@ -1523,11 +1525,23 @@ function dv(btn) {
   return wantsBlack ? 0 : 255;
 }
 
+function symPoints(x, y) {
+  // Mirror points for symmetry drawing. 'off' returns just the point itself,
+  // so default behaviour is unchanged. Only the pencil/line tools use brush().
+  const m = S.symmetry || 'off';
+  const pts = [[x, y]];
+  if (m === 'h' || m === 'quad') pts.push([S.W - 1 - x, y]);
+  if (m === 'v' || m === 'quad') pts.push([x, S.H - 1 - y]);
+  if (m === 'quad')              pts.push([S.W - 1 - x, S.H - 1 - y]);
+  return pts;
+}
+
 function brush(bx,by,btn) {
   const v=dv(btn!==undefined?btn:S._btn), r=Math.floor(S.brushSz/2);
-  for (let dy=-r;dy<=r;dy++)
-    for (let dx=-r;dx<=r;dx++)
-      if (S.brushSz===1||dx*dx+dy*dy<=r*r) spx(bx+dx,by+dy,v);
+  for (const [cx, cy] of symPoints(bx, by))
+    for (let dy=-r;dy<=r;dy++)
+      for (let dx=-r;dx<=r;dx++)
+        if (S.brushSz===1||dx*dx+dy*dy<=r*r) spx(cx+dx,cy+dy,v);
 }
 
 function line(x0,y0,x1,y1,btn) {
@@ -1826,6 +1840,35 @@ function fitToWindow() {
   // Use exact scale instead of snapping to a preset level
   S.zoom = Math.max(0.1, Math.min(32, sc));
   applyZoom();
+}
+
+function zoomToSelection() {
+  if (!S.pixels) return;
+  if (!S.selActive || !S.sel) { fitToWindow(); return; }
+  const a = _canvasArea;
+  const selW = (S.sel.x1 - S.sel.x0 + 1), selH = (S.sel.y1 - S.sel.y0 + 1);
+  const sc = Math.min((a.clientWidth - 40) / selW, (a.clientHeight - 40) / selH);
+  S.zoom = Math.max(0.1, Math.min(32, sc));
+  applyZoom();
+  // Centre the selection in the view (anchor against the real post-zoom rect).
+  const after = MC.getBoundingClientRect(), aRect = a.getBoundingClientRect();
+  const cx = (S.sel.x0 + S.sel.x1 + 1) / 2, cy = (S.sel.y0 + S.sel.y1 + 1) / 2;
+  const targetLeft = aRect.left + a.clientWidth  / 2 - cx * S.zoom;
+  const targetTop  = aRect.top  + a.clientHeight / 2 - cy * S.zoom;
+  a.scrollLeft += (after.left - targetLeft);
+  a.scrollTop  += (after.top  - targetTop);
+}
+
+function cycleSymmetry() {
+  const order = ['off', 'h', 'v', 'quad'];
+  S.symmetry = order[(order.indexOf(S.symmetry || 'off') + 1) % order.length];
+  const b = document.getElementById('tbtn-sym');
+  if (b) {
+    b.textContent = { off: '⇄', h: '⇆', v: '⇅', quad: '✛' }[S.symmetry];
+    b.classList.toggle('on', S.symmetry !== 'off');
+  }
+  if (_headerSub) _headerSub.textContent =
+    'Mirror: ' + { off: 'off', h: 'horizontal', v: 'vertical', quad: 'quad' }[S.symmetry];
 }
 
 // ═══════════════════════════════════════════════════
