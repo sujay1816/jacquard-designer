@@ -161,6 +161,21 @@
           <button class="ghost" id="editBtn">Send to BMP Editor</button>
         </div>
         <div class="dl" id="dlList"></div>
+
+        <div style="margin-top:18px;border-top:1px solid var(--border2);padding-top:16px">
+          <label class="fld">Project</label>
+          <div style="display:flex;gap:8px">
+            <button class="ghost" id="saveProj" style="flex:1">Save project</button>
+            <button class="ghost" id="openProj" style="flex:1">Open project</button>
+          </div>
+          <div class="help">Saves your settings + source as a .jproj file you can reopen later.</div>
+          <input type="file" id="projFile" accept=".json,.jproj" style="display:none">
+
+          <label class="fld" style="margin-top:16px">Batch (multiple files → ZIP)</label>
+          <input type="file" id="batchFiles" accept=".jpg,.jpeg,.png,.bmp,.tif,.tiff,.webp" multiple>
+          <div class="help">Applies the current settings above to every file. Each file → its own BMP(s).</div>
+          <button class="ghost" id="batchBtn" style="margin-top:8px;width:100%">Process batch → ZIP</button>
+        </div>
       </div>
     </div>
 
@@ -239,6 +254,71 @@ function loadFile(f){
   $('pvToolbar').style.display='flex';
   requestPreview();
 }
+
+// ── Project save / open + batch ──────────────────────────
+function dataURLtoFile(durl, name){
+  const parts=durl.split(','); const mime=(parts[0].match(/:(.*?);/)||[])[1]||'image/png';
+  const bin=atob(parts[1]); const u8=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i);
+  return new File([u8], name||'source.png', {type:mime});
+}
+function saveProject(){
+  const proj={ v:1, pins:S.pins, cards:S.cards, colors:S.colors, thinRescue:S.thinRescue,
+    detail:S.detail, autocrop:S.autocrop, mode:S.mode, reed:parseFloat($('reed').value)||60,
+    name:($('dname').value||'butta'), src:S.srcUrl||null, srcName:(S.file?S.file.name:'source.png') };
+  const blob=new Blob([JSON.stringify(proj)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=(proj.name||'butta')+'.jproj'; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  toast('Project saved');
+}
+function openProject(file){
+  const fr=new FileReader();
+  fr.onload=()=>{
+    let p; try{ p=JSON.parse(fr.result); }catch(_){ toast('Not a valid project file'); return; }
+    // settings
+    $('reed').value=p.reed||60; $('dname').value=p.name||'butta';
+    $('autocrop').checked=(p.autocrop!==false); S.autocrop=$('autocrop').checked;
+    if(p.cards){ $('cards').value=p.cards; S.cards=p.cards; } else { $('cards').value=''; S.cards=null; }
+    S.detail=p.detail||0; $('detail').value=Math.round(S.detail*100);
+    $('detailVal').textContent = S.detail===0?'auto':(S.detail>0?'+':'')+S.detail.toFixed(2);
+    S.pins=p.pins||200;
+    [...$('pinBtns').children].forEach(x=>x.classList.toggle('on', parseInt(x.dataset.p)===S.pins));
+    if(![150,200,240].includes(S.pins)) $('pinCustom').value=S.pins;
+    S.colors=p.colors||1;
+    [...$('colorBtns').children].forEach(x=>x.classList.toggle('on', parseInt(x.dataset.c)===S.colors));
+    S.thinRescue=!!p.thinRescue; $('thinRescue').checked=S.thinRescue; $('thinRescue').disabled=(S.colors>1);
+    S.mode=p.mode||'quick';
+    [...$('modeSeg').children].forEach(x=>x.classList.toggle('on', x.dataset.m===S.mode));
+    // source (reuse loadFile so the rest of the UI lights up + preview runs)
+    if(p.src){ S.srcUrl=p.src; loadFile(dataURLtoFile(p.src, p.srcName||'source.png')); }
+    toast('Project loaded');
+  };
+  fr.readAsText(file);
+}
+async function runBatch(){
+  const fs=$('batchFiles').files;
+  if(!fs||!fs.length){ toast('Choose files for the batch first'); return; }
+  const btn=$('batchBtn'), orig=btn.textContent; btn.textContent='Processing…'; btn.disabled=true;
+  try{
+    const fd=new FormData();
+    for(const f of fs) fd.append('images', f);
+    fd.append('pins', S.pins); fd.append('detail', S.detail); fd.append('colors', S.colors);
+    fd.append('thin_rescue', S.thinRescue?'true':'false');
+    fd.append('autocrop', S.autocrop?'true':'false'); fd.append('output_mode', S.mode);
+    if(S.cards) fd.append('cards', S.cards);
+    const r=await fetch('/api/butta-batch',{method:'POST',body:fd}); const d=await r.json();
+    if(!d.success){ toast(d.error||'Batch failed'); return; }
+    const a=document.createElement('a'); a.href='data:application/zip;base64,'+d.zip_b64;
+    a.download='butta_batch.zip'; a.click();
+    toast(`Batch: ${d.file_count} BMP(s) from ${d.count} image(s)`+((d.errors&&d.errors.length)?` · ${d.errors.length} skipped`:''));
+  }catch(err){ toast('Batch error: '+err.message); }
+  finally{ btn.textContent=orig; btn.disabled=false; }
+}
+$('saveProj').onclick=saveProject;
+$('openProj').onclick=()=>$('projFile').click();
+$('projFile').onchange=e=>{ if(e.target.files[0]) openProject(e.target.files[0]); e.target.value=''; };
+$('batchBtn').onclick=runBatch;
 
 // ── Pin selection ────────────────────────────────────────
 $('pinBtns').addEventListener('click', e=>{

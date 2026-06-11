@@ -1442,3 +1442,103 @@ def api_butta_generate():
         return jsonify({'success': True, 'files': files, 'info': info})
     except Exception as e:
         return _json_error(f'Generation failed: {e}')
+
+
+@app.route('/api/butta-batch', methods=['POST'])
+def api_butta_batch():
+    """
+    Batch-reduce several butta images with one shared set of settings and return
+    a single ZIP. Form fields: images[] (multiple), pins, detail, colors,
+    thin_rescue, autocrop, output_mode, plus optional cards.
+    """
+    try:
+        files = request.files.getlist('images')
+        files = [f for f in files if f and f.filename]
+        if not files:
+            return _json_error('No images uploaded.')
+
+        try:
+            target_pins = max(40, min(600, int(request.form.get('pins', 200))))
+        except (ValueError, TypeError):
+            return _json_error('Pins must be a whole number.')
+        try:
+            detail = max(-1.0, min(1.0, float(request.form.get('detail', 0.0))))
+        except (ValueError, TypeError):
+            detail = 0.0
+        autocrop = request.form.get('autocrop', 'true').lower() == 'true'
+        thin_rescue = request.form.get('thin_rescue', 'false').lower() == 'true'
+        output_mode = request.form.get('output_mode', 'quick').lower()
+        try:
+            n_colors = max(1, min(6, int(request.form.get('colors', 1))))
+        except (ValueError, TypeError):
+            n_colors = 1
+        cards_raw = (request.form.get('cards', '') or '').strip()
+        try:
+            target_cards = max(8, min(2000, int(cards_raw))) if cards_raw else None
+        except (ValueError, TypeError):
+            target_cards = None
+
+        results, errors = {}, []
+        for f in files:
+            base = os.path.splitext(os.path.basename(f.filename))[0] or 'butta'
+            base = base.strip() or 'butta'
+            try:
+                img = _open_upload(f)
+            except Exception:
+                errors.append(f"{f.filename}: could not read image")
+                continue
+            try:
+                if n_colors > 1:
+                    label_map, colors, assignments, info = butta_engine.reduce_butta_multi(
+                        img, target_pins, target_cards=target_cards,
+                        n_colors=n_colors, detail=detail, autocrop=autocrop)
+                    satin = {assignments[i]: {'n': 8, 'flip': False, 'min_height': 35,
+                                              'pattern': 'satin', 'weave_off': True}
+                             for i in assignments if i != 0}
+                    out = generate_bmps(
+                        image=img, pins=info['target_w'], cards=info['target_h'],
+                        shuttle_count=len(colors), color_assignments=assignments,
+                        satin_settings=satin, design_name=base, label_map=label_map,
+                        rani_weave='plain', stroke_mode=False, supersample=False)
+                    for fn, by in out.items():
+                        results[fn] = by
+                elif output_mode == 'full':
+                    mask, info = butta_engine.reduce_butta(
+                        img, target_pins, target_cards=target_cards, detail=detail,
+                        autocrop=autocrop, thin_rescue=thin_rescue)
+                    label_map, _c, assignments = butta_engine.mask_to_label_map(mask)
+                    satin = {'zari': {'n': 8, 'flip': False, 'min_height': 35,
+                                      'pattern': 'satin', 'weave_off': True}}
+                    out = generate_bmps(
+                        image=img, pins=info['target_w'], cards=info['target_h'],
+                        shuttle_count=2, color_assignments=assignments,
+                        satin_settings=satin, design_name=base, label_map=label_map,
+                        outline_white={'zari': True}, rani_weave='plain',
+                        stroke_mode=False, supersample=False)
+                    for fn, by in out.items():
+                        results[fn] = by
+                else:
+                    mask, info = butta_engine.reduce_butta(
+                        img, target_pins, target_cards=target_cards, detail=detail,
+                        autocrop=autocrop, thin_rescue=thin_rescue)
+                    results[f'{base}.bmp'] = butta_engine.mask_to_bmp_bytes(mask)
+            except Exception as e:
+                errors.append(f"{f.filename}: {e}")
+
+        if not results:
+            return _json_error('No files could be processed. ' + '; '.join(errors[:3]))
+
+        zip_buf = io.BytesIO()
+        with zipfile.ZipFile(zip_buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for fn, by in results.items():
+                zf.writestr(fn, by)
+        zip_b64 = base64.b64encode(zip_buf.getvalue()).decode()
+        return jsonify({
+            'success': True,
+            'zip_b64': zip_b64,
+            'count': len(files),
+            'file_count': len(results),
+            'errors': errors,
+        })
+    except Exception as e:
+        return _json_error(f'Batch failed: {e}')
