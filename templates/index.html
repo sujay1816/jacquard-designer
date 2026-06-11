@@ -2997,6 +2997,11 @@ const COMP_PAL = {
   meena2: [184, 144, 200], meena1: [138, 180, 216], zari: [200, 160, 64],
 };
 const COMP_ORDER = ['rani', 'meena4', 'meena3', 'meena2', 'meena1', 'zari'];
+function shuttleOf(fn) {
+  const base = String(fn).toLowerCase().replace(/\.[^.]*$/, '');
+  const tok = base.split('_').pop();
+  return COMP_ORDER.includes(tok) ? tok : null;
+}
 let _serverComposite = null, _shuttleImgs = {}, _shuttleOn = {};
 
 function setupShuttleToggles(data) {
@@ -3013,7 +3018,7 @@ function setupShuttleToggles(data) {
   wrap.innerHTML = '';
   const present = [];
   (data.files || []).forEach(fn => {
-    const name = COMP_ORDER.find(k => fn.toLowerCase().includes(k));
+    const name = shuttleOf(fn);
     if (name && data.previews && data.previews[fn] && !(name in _shuttleOn)) {
       present.push(name); _shuttleOn[name] = true;
       const im = new Image(); im.src = 'data:image/png;base64,' + data.previews[fn];
@@ -3122,7 +3127,7 @@ function renderOutputPreviews(data) {
   };
 
   data.files.forEach(fname => {
-    const shuttleName = Object.keys(SHUTTLE_LABEL).find(k => fname.includes(k)) || 'file';
+    const shuttleName = shuttleOf(fname) || 'file';
     const info = SHUTTLE_LABEL[shuttleName] || { label: fname, sub: '', color: '#888' };
     const v = data.verification[fname];
     const preview = data.previews[fname];

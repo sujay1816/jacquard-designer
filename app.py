@@ -57,9 +57,15 @@ def api_store_bmp():
     import uuid as _uuid
     try:
         data  = request.get_json()
+        bmp_b64 = data.get('bmp_b64', '')
+        try:
+            if not bmp_b64 or not base64.b64decode(bmp_b64, validate=True):
+                return _json_error('Invalid or empty BMP data.')
+        except Exception:
+            return _json_error('BMP data is not valid base64.')
         token = str(_uuid.uuid4())
         _bmp_store[token] = {
-            'bmp_b64':  data.get('bmp_b64', ''),
+            'bmp_b64':  bmp_b64,
             'filename': data.get('filename', 'design.bmp'),
             'preview':  data.get('preview', ''),
         }
@@ -1299,6 +1305,20 @@ def _open_upload(file):
     return ImageOps.exif_transpose(img).convert('RGB')
 
 
+_SHUTTLE_NAMES = ('rani', 'meena4', 'meena3', 'meena2', 'meena1', 'zari')
+
+
+def _shuttle_of(filename):
+    """
+    Identify a file's shuttle by its name SUFFIX ('{design}_{shuttle}.bmp'),
+    not a loose substring — so a design named e.g. 'rani_floral' doesn't make
+    every file look like the rani ground.
+    """
+    base = str(filename).lower().rsplit('.', 1)[0]
+    tok = base.rsplit('_', 1)[-1]
+    return tok if tok in _SHUTTLE_NAMES else None
+
+
 def _design_warnings(bmp_files, pins, cards):
     """
     Loom warnings for a generated BMP set. Unions ink (black = thread up) across
@@ -1311,7 +1331,7 @@ def _design_warnings(bmp_files, pins, cards):
         mask = None
         float_count, longest = 0, 0
         for fn, by in bmp_files.items():
-            if 'rani' in fn.lower():
+            if _shuttle_of(fn) == 'rani':
                 continue
             a = np.array(Image.open(io.BytesIO(by)).convert('L')) < 128
             mask = a if mask is None else (mask | a if mask.shape == a.shape else mask)
@@ -1351,7 +1371,7 @@ def _composite_render(bmp_files, pins, cards):
         for key in ['rani', 'meena4', 'meena3', 'meena2', 'meena1', 'zari']:
             col = PAL[key]
             for fn, by in bmp_files.items():
-                if key in fn.lower():
+                if _shuttle_of(fn) == key:
                     a = np.array(Image.open(io.BytesIO(by)).convert('L'))
                     if a.shape != (cards, pins):
                         continue
