@@ -73,6 +73,10 @@
   .chk{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px;cursor:pointer;margin-top:16px;}
   .chk input{accent-color:var(--gold);width:14px;height:14px;}
   .dropzone:focus{outline:2px solid var(--gold);outline-offset:2px;}
+  .rep-controls{display:flex;flex-wrap:wrap;gap:12px;margin:10px 0 12px;}
+  .rep-fld{display:flex;flex-direction:column;gap:4px;color:var(--muted);font-size:11px;letter-spacing:.5px;}
+  .rep-fld select,.rep-fld input{background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:6px 8px;border-radius:6px;}
+  #repBox{background:#f6f1e6;}
 </style>
 </head>
 <body>
@@ -179,6 +183,28 @@
         <div class="note" id="warnNote" style="color:var(--danger);display:none;"></div>
         <div class="note" id="lowNote">⚠ At this width the densest areas may merge — try 200 pins or a higher-resolution source for finer detail.</div>
       </div>
+
+      <div class="preview-wrap" id="repeatWrap" style="margin-top:20px;display:none">
+        <div class="ttl">Step &amp; repeat <span style="color:var(--muted);font-size:11px">· how the motif tiles across the fabric</span></div>
+        <div class="rep-controls">
+          <label class="rep-fld">Across
+            <select id="repAcross"><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option></select>
+          </label>
+          <label class="rep-fld">Down
+            <select id="repDown"><option selected>2</option><option>3</option><option>4</option></select>
+          </label>
+          <label class="rep-fld">Layout
+            <select id="repLayout"><option value="straight">Straight</option><option value="half">Half-drop</option><option value="brick">Brick</option></select>
+          </label>
+          <label class="rep-fld">Gap
+            <input type="number" id="repGap" value="0" min="0" max="40" style="width:54px">
+          </label>
+        </div>
+        <div class="preview-box" id="repBox" style="min-height:200px">
+          <canvas id="repCanvas" style="image-rendering:pixelated;max-width:100%"></canvas>
+        </div>
+        <div class="help" id="repHint"></div>
+      </div>
     </div>
   </div>
 </main>
@@ -262,6 +288,30 @@ function renderPhysical(){  const i=S.lastInfo; if(!i){ $('physical').innerHTML=
 }
 $('reed').addEventListener('input', renderPhysical);
 
+// ── Step & repeat ────────────────────────────────────────
+function renderRepeat(){
+  const img=S.outImage; if(!img) return;
+  const across=parseInt($('repAcross').value)||3, down=parseInt($('repDown').value)||2;
+  const layout=$('repLayout').value, gap=parseInt($('repGap').value)||0;
+  const tw=img.width, th=img.height;
+  let cw=across*tw+(across-1)*gap, ch=down*th+(down-1)*gap;
+  if(layout==='half')  ch+=Math.ceil((th+gap)/2);
+  if(layout==='brick') cw+=Math.ceil((tw+gap)/2);
+  const cvs=$('repCanvas'); cvs.width=cw; cvs.height=ch;
+  const ctx=cvs.getContext('2d'); ctx.imageSmoothingEnabled=false;
+  ctx.fillStyle='#f6f1e6'; ctx.fillRect(0,0,cw,ch);
+  for(let r=0;r<down;r++){
+    for(let c=0;c<across;c++){
+      let x=c*(tw+gap), y=r*(th+gap);
+      if(layout==='half')  y+=(c%2)*((th+gap)/2);
+      if(layout==='brick') x+=(r%2)*((tw+gap)/2);
+      ctx.drawImage(img, x, y, tw, th);
+    }
+  }
+  $('repHint').textContent = `${across}×${down} repeat`+(layout!=='straight'?' · '+layout+'-drop':'')+(gap?` · ${gap}-thread gap`:'')+' — check the seams where tiles meet.';
+}
+['repAcross','repDown','repLayout','repGap'].forEach(id=>$(id).addEventListener('input', renderRepeat));
+
 // ── Detail slider ────────────────────────────────────────
 $('detail').addEventListener('input', e=>{
   S.detail=parseInt(e.target.value)/100;
@@ -319,6 +369,8 @@ async function doPreview(){
     if(!d.success){ toast(d.error||'Preview failed'); return; }
     S.outUrl='data:image/png;base64,'+d.preview_b64;
     if(S.view==='out'){ const img=$('pvImg'); img.src=S.outUrl; img.style.display='block'; $('pvEmpty').style.display='none'; }
+    // feed the step-and-repeat preview
+    { const ri=new Image(); ri.onload=()=>{ S.outImage=ri; $('repeatWrap').style.display='block'; renderRepeat(); }; ri.src=S.outUrl; }
     const i=d.info;
     if(!S.cards) $('cards').placeholder='auto ('+i.auto_cards+')';
     const matched = Math.abs(i.result_ink - i.source_ink) <= 1.5;
