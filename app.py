@@ -1327,12 +1327,25 @@ def api_butta_preview():
         except (ValueError, TypeError):
             target_cards = None
 
-        mask, info = butta_engine.reduce_butta(
-            img, target_pins, target_cards=target_cards, detail=detail, autocrop=autocrop)
+        try:
+            n_colors = max(1, min(6, int(request.form.get('colors', 1))))
+        except (ValueError, TypeError):
+            n_colors = 1
+        thin_rescue = request.form.get('thin_rescue', 'false').lower() == 'true'
 
-        # Upscale the preview so threads are visible (cap to a sensible size)
-        scale = max(1, min(6, 900 // max(1, info['target_w'])))
-        prev = butta_engine.mask_to_preview_png(mask, scale=scale)
+        if n_colors > 1:
+            label_map, colors, _assign, info = butta_engine.reduce_butta_multi(
+                img, target_pins, target_cards=target_cards, n_colors=n_colors,
+                detail=detail, autocrop=autocrop)
+            scale = max(1, min(6, 900 // max(1, info['target_w'])))
+            prev = butta_engine.labelmap_to_preview_png(label_map, colors, scale=scale)
+        else:
+            mask, info = butta_engine.reduce_butta(
+                img, target_pins, target_cards=target_cards, detail=detail,
+                autocrop=autocrop, thin_rescue=thin_rescue)
+            scale = max(1, min(6, 900 // max(1, info['target_w'])))
+            prev = butta_engine.mask_to_preview_png(mask, scale=scale)
+
         buf = io.BytesIO(); prev.save(buf, format='PNG')
         return jsonify({
             'success': True,
@@ -1379,10 +1392,35 @@ def api_butta_generate():
         except (ValueError, TypeError):
             target_cards = None
 
-        mask, info = butta_engine.reduce_butta(
-            img, target_pins, target_cards=target_cards, detail=detail, autocrop=autocrop)
+        try:
+            n_colors = max(1, min(6, int(request.form.get('colors', 1))))
+        except (ValueError, TypeError):
+            n_colors = 1
+        thin_rescue = request.form.get('thin_rescue', 'false').lower() == 'true'
 
         files = []
+        if n_colors > 1:
+            # Colour butta -> always a full multi-shuttle set.
+            label_map, colors, assignments, info = butta_engine.reduce_butta_multi(
+                img, target_pins, target_cards=target_cards, n_colors=n_colors,
+                detail=detail, autocrop=autocrop)
+            satin = {assignments[i]: {'n': 8, 'flip': False, 'min_height': 35,
+                                      'pattern': 'satin', 'weave_off': True}
+                     for i in assignments if i != 0}
+            results = generate_bmps(
+                image=img, pins=info['target_w'], cards=info['target_h'],
+                shuttle_count=len(colors), color_assignments=assignments,
+                satin_settings=satin, design_name=design_name,
+                label_map=label_map, rani_weave='plain',
+                stroke_mode=False, supersample=False)
+            for fn, by in results.items():
+                files.append({'filename': fn, 'bmp_b64': base64.b64encode(by).decode()})
+            return jsonify({'success': True, 'files': files, 'info': info})
+
+        mask, info = butta_engine.reduce_butta(
+            img, target_pins, target_cards=target_cards, detail=detail,
+            autocrop=autocrop, thin_rescue=thin_rescue)
+
         if output_mode == 'full':
             label_map, colors, assignments = butta_engine.mask_to_label_map(mask)
             satin = {'zari': {'n': 8, 'flip': False, 'min_height': 35,

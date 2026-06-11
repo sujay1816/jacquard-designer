@@ -122,6 +122,16 @@
         <input type="number" id="cards" placeholder="auto (keeps aspect)" min="8" max="2000" aria-label="Cards / output height — leave blank for auto">
         <div class="help">Blank keeps the source proportions. Set a height to match a fixed loom card count (the motif is fitted to it).</div>
 
+        <label class="fld" style="margin-top:16px">Colours</label>
+        <div class="pin-btns" id="colorBtns">
+          <button data-c="1" class="on">Mono</button>
+          <button data-c="2">2</button>
+          <button data-c="3">3</button>
+        </div>
+        <div class="help" id="colorHelp">Mono = single black-and-white motif. 2–3 detect colours and output one shuttle each (always a full set).</div>
+
+        <label class="chk" id="thinWrap"><input type="checkbox" id="thinRescue"> Rescue thin lines (keep fine connectors at low pins)</label>
+
         <label class="fld" style="margin-top:16px">Detail balance</label>
         <input type="range" id="detail" min="-100" max="100" value="0" aria-label="Detail balance: solid to open">
         <div class="slider-row"><span>◀ more solid</span><span id="detailVal">auto</span><span>more open ▶</span></div>
@@ -176,7 +186,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const S = { file:null, pins:200, cards:null, detail:0, mode:'quick', autocrop:true, busy:false, debounce:null, view:'out', srcUrl:null, outUrl:null };
+const S = { file:null, pins:200, cards:null, colors:1, thinRescue:false, detail:0, mode:'quick', autocrop:true, busy:false, debounce:null, view:'out', srcUrl:null, outUrl:null };
 const $ = id => document.getElementById(id);
 
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2600); }
@@ -223,9 +233,27 @@ $('cards').addEventListener('input', ()=>{
   requestPreview();
 });
 
+// ── Colours (mono vs multi-colour) ───────────────────────
+$('colorBtns').addEventListener('click', e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  [...$('colorBtns').children].forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); S.colors=parseInt(b.dataset.c);
+  const colour = S.colors>1;
+  // Colour mode is always a full multi-shuttle set; thin-rescue is mono-only.
+  $('modeSeg').style.opacity = colour?0.4:1; $('modeSeg').style.pointerEvents = colour?'none':'auto';
+  $('thinWrap').style.opacity = colour?0.4:1;
+  $('thinRescue').disabled = colour;
+  $('modeHelp').textContent = colour
+    ? 'Colour mode outputs one shuttle BMP per colour plus a Rani ground.'
+    : MODE_HELP[S.mode];
+  requestPreview();
+});
+
+// ── Thin-line rescue ─────────────────────────────────────
+$('thinRescue').addEventListener('change', e=>{ S.thinRescue=e.target.checked; requestPreview(); });
+
 // ── Physical size (woven dimensions) ─────────────────────
-function renderPhysical(){
-  const i=S.lastInfo; if(!i){ $('physical').innerHTML=''; return; }
+function renderPhysical(){  const i=S.lastInfo; if(!i){ $('physical').innerHTML=''; return; }
   const reed=parseFloat($('reed').value)||60;
   const wIn=i.target_w/reed, hIn=i.target_h/reed;
   $('physical').innerHTML =
@@ -281,6 +309,8 @@ async function doPreview(){
   fd.append('pins', S.pins);
   fd.append('detail', S.detail);
   fd.append('autocrop', S.autocrop ? 'true' : 'false');
+  fd.append('colors', S.colors);
+  fd.append('thin_rescue', S.thinRescue ? 'true' : 'false');
   if(S.cards) fd.append('cards', S.cards);
   $('pv').classList.add('loading');
   try{
@@ -325,6 +355,8 @@ async function generate(forEditor){
     fd.append('detail', S.detail);
     fd.append('output_mode', forEditor ? 'quick' : S.mode);
     fd.append('autocrop', S.autocrop ? 'true' : 'false');
+    fd.append('colors', S.colors);
+    fd.append('thin_rescue', S.thinRescue ? 'true' : 'false');
     if(S.cards) fd.append('cards', S.cards);
     fd.append('design_name', (($('dname').value||'').trim()||'butta'));
     const r=await fetch('/api/butta-generate',{method:'POST',body:fd});

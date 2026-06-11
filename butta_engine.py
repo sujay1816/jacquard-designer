@@ -20,7 +20,7 @@ import numpy as np
 from PIL import Image
 from scipy.ndimage import label as _label
 
-from bmp_engine import write_1bit_bmp
+from bmp_engine import write_1bit_bmp, detect_colors
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -121,9 +121,30 @@ def _autocrop(image: Image.Image, pad_frac: float = 0.04):
     return image.crop((x0, y0, x1 + 1, y1 + 1))
 
 
+def _thin_rescue_mask(hi, target_w, target_h, low_cov=0.12):
+    """
+    Build a mask of thin ink structures (connectors, fine stems) that a normal
+    coverage threshold would drop at low pin counts. Thin parts = ink removed by
+    a morphological opening; we reduce just those with a low coverage so they
+    survive.
+    """
+    try:
+        from scipy.ndimage import binary_opening
+    except Exception:
+        return np.zeros((target_h, target_w), bool)
+    m = hi > 0.5
+    # opening removes thin features; ink minus opening == the thin parts
+    body = binary_opening(m, iterations=1)
+    thin = m & ~body
+    if not thin.any():
+        return np.zeros((target_h, target_w), bool)
+    thin_frac, _ = _coverage_map(thin.astype(np.float32), target_w, target_h)
+    return thin_frac >= low_cov
+
+
 def reduce_butta(image: Image.Image, target_pins: int, target_cards: int | None = None,
                  detail: float = 0.0, despeckle_px: int = 1, autocrop: bool = True,
-                 thresh: float | None = None):
+                 thresh: float | None = None, thin_rescue: bool = False):
     """
     Reduce a (mono / B&W) butta to `target_pins` width, preserving negative space.
 
@@ -132,6 +153,8 @@ def reduce_butta(image: Image.Image, target_pins: int, target_cards: int | None 
                    (use to match a fixed loom card count).
     detail : -1.0 .. +1.0  — 0 = auto (matches the SOURCE ink weight per design);
                               + = more open (favour gaps); - = more solid.
+    thin_rescue : keep thin connectors/stems that would otherwise break at low
+                  pin counts (adds a little ink along thin lines).
     Returns (mask, info) — mask bool (target_h x target_pins), True = ink/UP.
     """
     if autocrop:
@@ -160,6 +183,10 @@ def reduce_butta(image: Image.Image, target_pins: int, target_cards: int | None 
 
     cov = float(min(0.85, max(0.20, base_cov + detail * 0.18)))
     mask = _final(cov)
+    if thin_rescue:
+        mask = mask | _thin_rescue_mask(hi, target_pins, target_h)
+        if despeckle_px > 0:
+            mask = _despeckle(mask, despeckle_px)
     auto_h = max(1, round(hi.shape[0] * target_pins / hi.shape[1]))
     info = {
         'source_size': list(image.size),
@@ -172,6 +199,7 @@ def reduce_butta(image: Image.Image, target_pins: int, target_cards: int | None 
         'result_ink': round(100 * float(mask.mean()), 1),
         'threshold': round(used_thresh, 1),
         'compression': round(image.size[0] / target_pins, 1),
+        'thin_rescue': bool(thin_rescue),
     }
     try:
         from loom_utils import loom_warnings
@@ -207,3 +235,100 @@ def mask_to_label_map(mask: np.ndarray):
     colors = [(255, 255, 255), (0, 0, 0)]
     assignments = {0: 'background', 1: 'zari'}
     return label_map, colors, assignments
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Colour buttas — multi-colour gap-preserving reduction
+# ──────────────────────────────────────────────────────────────────────────
+def reduce_butta_multi(image: Image.Image, target_pins: int,
+                       target_cards: int | None = None, n_colors: int = 3,
+                       detail: float = 0.0, despeckle_px: int = 1,
+                       autocrop: bool = True):
+    """
+    Reduce a COLOUR butta to `target_pins` width, preserving negative space per
+    colour. Each non-background colour is gap-preserved independently (auto
+    coverage matched to that colour's source weight), then combined into one
+    label map (the colour with the strongest coverage wins any overlap).
+
+    Returns (label_map, colors, assignments, info):
+      label_map  : uint8 (target_h x target_w), 0 = ground, 1..k = colours
+      colors     : [ground_rgb, colour1_rgb, ...]
+      assignments: {0:'background', 1:'zari', 2:'meena1', ...}
+    """
+    if autocrop:
+        image = _autocrop(image)
+    image = image.convert('RGB')
+    n_colors = max(2, min(6, int(n_colors)))
+    colors, counts, label_full, _ = detect_colors(image, n_colors)
+    colors = [tuple(int(v) for v in c) for c in colors]
+
+    # Background = the lightest detected colour (butta sits on a light ground).
+    lum = [0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2] for c in colors]
+    bg_idx = int(np.argmax(lum))
+
+    H, W = label_full.shape
+    target_h = target_cards if target_cards else max(1, round(H * target_pins / W))
+    target_h = max(1, int(target_h))
+
+    # Per-colour coverage maps + auto threshold matched to source weight.
+    frac_stack, out_colors, out_src_idx = [], [colors[bg_idx]], []
+    for i in range(len(colors)):
+        if i == bg_idx:
+            continue
+        hi_i = (label_full == i).astype(np.float32)
+        src_i = float(hi_i.mean())
+        frac_i, _ = _coverage_map(hi_i, target_pins, target_h)
+        best, cov_i = None, 0.5
+        for cov in np.arange(0.30, 0.80, 0.02):
+            d = abs(float((frac_i >= cov).mean()) - src_i)
+            if best is None or d < best:
+                best, cov_i = d, float(cov)
+        cov_i = float(min(0.85, max(0.20, cov_i + detail * 0.18)))
+        frac_stack.append(np.where(frac_i >= cov_i, frac_i, 0.0))
+        out_colors.append(colors[i])
+        out_src_idx.append(i)
+
+    label_map = np.zeros((target_h, target_pins), dtype=np.uint8)
+    if frac_stack:
+        stack = np.stack(frac_stack, axis=0)          # (k, h, w)
+        any_ink = stack.max(axis=0) > 0
+        winner = stack.argmax(axis=0) + 1             # 1..k
+        label_map[any_ink] = winner[any_ink].astype(np.uint8)
+        # despeckle each colour layer
+        if despeckle_px > 0:
+            for idx in range(1, len(out_colors)):
+                layer = _despeckle(label_map == idx, despeckle_px)
+                label_map[(label_map == idx) & ~layer] = 0
+
+    shuttles = ['zari', 'meena1', 'meena2', 'rani', 'meena3', 'meena4']
+    assignments = {0: 'background'}
+    for idx in range(1, len(out_colors)):
+        assignments[idx] = shuttles[(idx - 1) % len(shuttles)]
+
+    ink_pct = round(100 * float((label_map > 0).mean()), 1)
+    info = {
+        'source_size': list(image.size),
+        'target_w': target_pins, 'target_h': target_h,
+        'auto_cards': max(1, round(H * target_pins / W)),
+        'cards_mode': 'set' if target_cards else 'auto',
+        'n_colors': len(out_colors),
+        'result_ink': ink_pct,
+        'compression': round(image.size[0] / target_pins, 1),
+        'palette': [list(c) for c in out_colors],
+    }
+    try:
+        from loom_utils import loom_warnings
+        info['warnings'] = loom_warnings(label_map > 0, target_pins, target_h)
+    except Exception:
+        info['warnings'] = []
+    return label_map, out_colors, assignments, info
+
+
+def labelmap_to_preview_png(label_map: np.ndarray, colors, scale: int = 1) -> Image.Image:
+    """Render a colour label map to an RGB preview using the detected palette."""
+    pal = np.array([list(c) for c in colors], dtype=np.uint8)
+    rgb = pal[np.clip(label_map, 0, len(colors) - 1)]
+    img = Image.fromarray(rgb, 'RGB')
+    if scale > 1:
+        img = img.resize((label_map.shape[1] * scale, label_map.shape[0] * scale), Image.NEAREST)
+    return img
