@@ -1566,3 +1566,45 @@ def api_butta_batch():
         })
     except Exception as e:
         return _json_error(f'Batch failed: {e}')
+
+
+@app.route('/api/generate-preview', methods=['POST'])
+def api_generate_preview():
+    """
+    Fast 'loom grid' preview for the generator: shows the design downscaled to
+    the loom thread resolution (pins x cards), so the user can see how detail
+    holds up before running the full Detect/Generate pipeline. Lightweight — a
+    LANCZOS downscale + nearest-neighbour upscale for visible threads.
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        b64 = data.get('image_b64')
+        if not b64:
+            return _json_error('No image provided.')
+        try:
+            img = Image.open(io.BytesIO(base64.b64decode(b64)))
+            img = ImageOps.exif_transpose(img).convert('RGB')
+        except Exception:
+            return _json_error('Could not read the image.')
+        try:
+            pins = max(10, min(2000, int(data.get('pins', 240))))
+        except (ValueError, TypeError):
+            pins = 240
+        cards_raw = data.get('cards')
+        try:
+            cards = max(10, min(2000, int(cards_raw))) if cards_raw else \
+                max(1, round(img.height * pins / max(1, img.width)))
+        except (ValueError, TypeError):
+            cards = max(1, round(img.height * pins / max(1, img.width)))
+
+        small = img.resize((pins, cards), Image.LANCZOS)
+        scale = max(1, min(6, 720 // max(1, pins)))
+        prev = small.resize((pins * scale, cards * scale), Image.NEAREST)
+        buf = io.BytesIO(); prev.save(buf, format='PNG')
+        return jsonify({
+            'success': True,
+            'preview_b64': base64.b64encode(buf.getvalue()).decode(),
+            'pins': pins, 'cards': cards,
+        })
+    except Exception as e:
+        return _json_error(f'Preview failed: {e}')

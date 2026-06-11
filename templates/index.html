@@ -1145,6 +1145,15 @@
           <img id="preview-img" src="" alt="Design preview">
           <button class="change-btn" id="change-img-btn">Change</button>
         </div>
+
+        <div id="loomPreviewWrap" style="display:none;margin-top:12px;">
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:4px;">
+            Loom grid preview <span id="loomPrevCaption" style="color:var(--gold2);"></span>
+          </div>
+          <img id="loomPrevImg" alt="Loom resolution preview"
+               style="image-rendering:pixelated;width:100%;display:block;border-radius:6px;border:1px solid var(--border2);background:#f6f1e6;">
+          <div style="font-size:10px;color:var(--muted);margin-top:4px;font-style:italic;">How the design resolves at the current pin count — raise pins if detail merges.</div>
+        </div>
       </div>
 
       <!-- Quality meters — smooth max-height reveal, no layout jump -->
@@ -1591,6 +1600,33 @@ function autoCalcDimensions(forceUpdate) {
 // Alias — called when pins value changes manually
 function autoCalcCards() { autoCalcDimensions(false); }
 
+// ── G1: live loom-grid preview ───────────────────────────────────────────
+let _loomPrevTimer = null;
+function updateLoomPreview() {
+  if (!state.imageB64) return;
+  clearTimeout(_loomPrevTimer);
+  _loomPrevTimer = setTimeout(async () => {
+    const pins = parseInt(document.getElementById('pins').value) || 240;
+    const cardsRaw = document.getElementById('cards').value;
+    const body = { image_b64: state.imageB64, pins };
+    if (cardsRaw) body.cards = parseInt(cardsRaw);
+    try {
+      const r = await fetch('/api/generate-preview', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body) });
+      const d = await r.json();
+      if (!d.success) return;
+      document.getElementById('loomPrevImg').src = 'data:image/png;base64,' + d.preview_b64;
+      document.getElementById('loomPrevCaption').textContent = `at ${d.pins} × ${d.cards}`;
+      document.getElementById('loomPreviewWrap').style.display = 'block';
+    } catch (_) { /* preview is best-effort; never block the workflow */ }
+  }, 220);
+}
+['pins', 'cards'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', updateLoomPreview);
+});
+
 function setReed(value, btn) {
   document.getElementById('reedCount').value = value;
   document.querySelectorAll('.reed-btn').forEach(b => b.classList.remove('active'));
@@ -1939,6 +1975,7 @@ function handleFile(file) {
     document.getElementById('preview-img').src = e.target.result;
     checkDetectReady();
     setStep(1);
+    updateLoomPreview();
   };
   reader.readAsDataURL(file);
 }
@@ -2992,6 +3029,8 @@ function resetApp() {
   // Reset UI — upload zone
   document.getElementById('upload-preview').classList.remove('visible');
   document.getElementById('upload-zone').classList.remove('hidden');
+  const _lpw = document.getElementById('loomPreviewWrap');
+  if (_lpw) _lpw.style.display = 'none';
 
   // Reset right panel
   document.getElementById('empty-state').style.display     = '';
