@@ -76,7 +76,8 @@
   .rep-controls{display:flex;flex-wrap:wrap;gap:12px;margin:10px 0 12px;}
   .rep-fld{display:flex;flex-direction:column;gap:4px;color:var(--muted);font-size:11px;letter-spacing:.5px;}
   .rep-fld select,.rep-fld input{background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:6px 8px;border-radius:6px;}
-  #repBox{background:#f6f1e6;}
+  #repBox{background:#f6f1e6;display:block;place-items:initial;overflow:auto;max-height:460px;}
+  #repBox #repCanvas{max-width:none;}
 </style>
 </head>
 <body>
@@ -216,7 +217,7 @@
           </label>
         </div>
         <div class="preview-box" id="repBox" style="min-height:200px">
-          <canvas id="repCanvas" style="image-rendering:pixelated;max-width:100%"></canvas>
+          <canvas id="repCanvas" style="image-rendering:pixelated;display:block;"></canvas>
         </div>
         <div class="help" id="repHint"></div>
       </div>

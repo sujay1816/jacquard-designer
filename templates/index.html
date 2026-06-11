@@ -2915,6 +2915,79 @@ async function generateBMPs() {
   }
 }
 
+// ── G5: step & repeat on the generator (woven composite) ──────────────────
+// NB: the box uses a plain top-left-anchored scroll container (overflow:auto,
+// display:block) — NOT grid+place-items:center — so large repeats scroll from
+// the top-left instead of clipping the start (the issue on the Butta page).
+let _genRepImg = null, _genRepWired = false;
+function setupGenRepeat(compB64, grid) {
+  let panel = document.getElementById('genRepeatPanel');
+  if (!compB64) { if (panel) panel.style.display = 'none'; return; }
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'genRepeatPanel';
+    panel.style.cssText = 'margin:18px 0;';
+    panel.innerHTML =
+      '<div style="font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:8px;">'
+      + 'Step &amp; repeat <span style="color:var(--gold2)">· how the design tiles across the fabric</span></div>'
+      + '<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:10px;font-size:11px;color:var(--muted);">'
+      + '<label>Across <select id="genRepAcross" style="margin-left:4px;">'
+      +   '<option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option></select></label>'
+      + '<label>Down <select id="genRepDown" style="margin-left:4px;">'
+      +   '<option selected>2</option><option>3</option><option>4</option></select></label>'
+      + '<label>Layout <select id="genRepLayout" style="margin-left:4px;">'
+      +   '<option value="straight">Straight</option><option value="half">Half-drop</option><option value="brick">Brick</option></select></label>'
+      + '<label>Gap <input type="number" id="genRepGap" value="0" min="0" max="40" style="width:52px;margin-left:4px;"></label>'
+      + '</div>'
+      + '<div id="genRepBox" style="overflow:auto;max-height:460px;background:#f6f1e6;border:1px solid var(--border2);border-radius:8px;padding:10px;">'
+      +   '<canvas id="genRepCanvas" style="image-rendering:pixelated;display:block;"></canvas>'
+      + '</div>'
+      + '<div style="font-size:10px;color:var(--muted);margin-top:6px;font-style:italic;">Scroll inside the panel to inspect the full repeat. Check the seams where tiles meet.</div>';
+    // place directly above the per-shuttle grid
+    grid.parentNode.insertBefore(panel, grid);
+    if (!_genRepWired) {
+      ['genRepAcross', 'genRepDown', 'genRepLayout', 'genRepGap'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', renderGenRepeat);
+      });
+      _genRepWired = true;
+    }
+  }
+  panel.style.display = 'block';
+  const img = new Image();
+  img.onload = () => { _genRepImg = img; renderGenRepeat(); };
+  img.src = 'data:image/png;base64,' + compB64;
+}
+
+function renderGenRepeat() {
+  const img = _genRepImg, cvs = document.getElementById('genRepCanvas');
+  if (!img || !cvs) return;
+  const across = parseInt(document.getElementById('genRepAcross').value) || 3;
+  const down   = parseInt(document.getElementById('genRepDown').value) || 2;
+  const layout = document.getElementById('genRepLayout').value;
+  const gap    = parseInt(document.getElementById('genRepGap').value) || 0;
+  // Cap each tile to a sensible on-screen size so the canvas stays bounded;
+  // the scroll container handles anything larger than the panel.
+  const tw = Math.min(img.width, 200);
+  const th = Math.round(img.height * (tw / img.width));
+  let cw = across * tw + (across - 1) * gap;
+  let ch = down * th + (down - 1) * gap;
+  if (layout === 'half')  ch += Math.ceil((th + gap) / 2);
+  if (layout === 'brick') cw += Math.ceil((tw + gap) / 2);
+  cvs.width = cw; cvs.height = ch;
+  const ctx = cvs.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = '#f6f1e6'; ctx.fillRect(0, 0, cw, ch);
+  for (let r = 0; r < down; r++) {
+    for (let c = 0; c < across; c++) {
+      let x = c * (tw + gap), y = r * (th + gap);
+      if (layout === 'half')  y += (c % 2) * ((th + gap) / 2);
+      if (layout === 'brick') x += (r % 2) * ((tw + gap) / 2);
+      ctx.drawImage(img, x, y, tw, th);
+    }
+  }
+}
+
 function renderOutputPreviews(data) {
   const outputSection = document.getElementById('output-section');
   outputSection.style.display = 'block';
@@ -2953,6 +3026,8 @@ function renderOutputPreviews(data) {
   } else {
     wovenEl.style.display = 'none';
   }
+
+  setupGenRepeat(data.composite_b64, grid);
 
   const SHUTTLE_LABEL = {
     rani: { label: 'RANI', sub: 'Plain weave base', color: SHUTTLE_COLORS.rani },
