@@ -78,6 +78,11 @@
   .rep-fld select,.rep-fld input{background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:6px 8px;border-radius:6px;}
   #repBox{background:#f6f1e6;display:block;place-items:initial;overflow:auto;max-height:460px;}
   #repBox #repCanvas{max-width:none;}
+  /* Live preview: scale the (upscaled ~900px) motif DOWN to fit the box in both
+     dimensions, centred — instead of grid-sizing the column to the image's full
+     width, which let it overflow and get clipped. */
+  #pv{display:flex;align-items:center;justify-content:center;overflow:auto;max-height:560px;}
+  #pv img{max-width:100%;max-height:520px;width:auto;height:auto;min-width:0;}
 </style>
 </head>
 <body>
@@ -373,7 +378,7 @@ $('reed').addEventListener('input', renderPhysical);
 function renderRepeat(){
   const img=S.outImage; if(!img) return;
   const across=parseInt($('repAcross').value)||3, down=parseInt($('repDown').value)||2;
-  const layout=$('repLayout').value, gap=parseInt($('repGap').value)||0;
+  const layout=$('repLayout').value, gap=Math.max(0,Math.min(40,parseInt($('repGap').value)||0));
   // Cap each tile to a sensible on-screen size so the canvas stays bounded; the
   // preview comes back upscaled (~900px), which would otherwise tile into a
   // multi-thousand-pixel canvas. The scroll container handles the rest.
