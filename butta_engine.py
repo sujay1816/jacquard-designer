@@ -262,11 +262,18 @@ def reduce_butta_multi(image: Image.Image, target_pins: int,
     colors, counts, label_full, _ = detect_colors(image, n_colors)
     colors = [tuple(int(v) for v in c) for c in colors]
 
-    # Background = the lightest detected colour (butta sits on a light ground).
-    lum = [0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2] for c in colors]
-    bg_idx = int(np.argmax(lum))
-
     H, W = label_full.shape
+
+    # Background = the colour that dominates the image BORDER, not simply the
+    # lightest. The border is almost always the ground, so this works for a
+    # dark-ground design (light motif on black/maroon) just as well as a light
+    # one — instead of wrongly treating the lightest motif colour as ground.
+    border = np.concatenate([
+        label_full[0, :], label_full[-1, :],
+        label_full[:, 0], label_full[:, -1],
+    ])
+    bg_idx = int(np.bincount(border, minlength=len(colors)).argmax())
+
     target_h = target_cards if target_cards else max(1, round(H * target_pins / W))
     target_h = max(1, int(target_h))
 
