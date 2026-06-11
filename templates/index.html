@@ -1224,6 +1224,21 @@
         <input type="hidden" id="reedCount" value="80">
         <span class="field-hint">Higher reed = sharper internal processing</span>
       </div>
+
+      <div class="field">
+        <label>Set by woven size <span style="font-size:9px;color:var(--muted);font-weight:normal;">optional</span></label>
+        <div style="display:flex;gap:6px;margin-top:6px;align-items:center;">
+          <input type="number" id="sizeW" placeholder="width" min="0.1" step="0.1" style="flex:1;min-width:0;">
+          <span style="color:var(--muted);">×</span>
+          <input type="number" id="sizeH" placeholder="height" min="0.1" step="0.1" style="flex:1;min-width:0;">
+          <select id="sizeUnit" style="width:60px;">
+            <option value="in">in</option>
+            <option value="cm">cm</option>
+          </select>
+          <button type="button" class="reed-btn" id="sizeApply" onclick="applyWovenSize()">Set</button>
+        </div>
+        <span class="field-hint" id="sizeHint">Computes pins (and cards) from the reed. Height optional — blank keeps image ratio.</span>
+      </div>
     </div>
 
     <!-- ③ Threads ───────────────────────────────────────────────── -->
@@ -1649,8 +1664,37 @@ function setReed(value, btn) {
   updateSettingsSummary();
 }
 
-// =====================================================================
-// Stroke width auto-suggestion from design analysis
+// ── G4: size-driven setup — target woven size -> pins/cards ───────────────
+function applyWovenSize() {
+  const reed = parseInt(document.getElementById('reedCount')?.value || '80', 10) || 80;
+  const unit = document.getElementById('sizeUnit').value;
+  const toIn = v => unit === 'cm' ? v / 2.54 : v;
+  const wVal = parseFloat(document.getElementById('sizeW').value);
+  const hVal = parseFloat(document.getElementById('sizeH').value);
+  const hintEl = document.getElementById('sizeHint');
+  if (!(wVal > 0)) {
+    if (hintEl) { hintEl.textContent = 'Enter a width greater than 0.'; hintEl.style.color = 'var(--danger)'; }
+    return;
+  }
+  const pins = Math.max(10, Math.min(9999, Math.round(toIn(wVal) * reed)));
+  document.getElementById('pins').value = pins;
+  let cardsTxt = 'auto from ratio';
+  if (hVal > 0) {
+    const cards = Math.max(10, Math.min(9999, Math.round(toIn(hVal) * reed)));
+    document.getElementById('cards').value = cards;
+    cardsTxt = cards + ' cards';
+  } else {
+    document.getElementById('cards').value = '';
+    document.getElementById('cards').placeholder = 'auto';
+    if (typeof autoCalcDimensions === 'function') autoCalcDimensions(true);
+  }
+  if (hintEl) {
+    hintEl.textContent = `→ ${pins} pins · ${cardsTxt} @ reed ${reed}`;
+    hintEl.style.color = 'var(--gold2)';
+  }
+  if (typeof updateSettingsSummary === 'function') updateSettingsSummary();
+  if (typeof updateLoomPreview === 'function') updateLoomPreview();
+}
 // =====================================================================
 function suggestStrokeWidth() {
   const lm = state.labelMap;
