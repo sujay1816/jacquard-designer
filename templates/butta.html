@@ -209,16 +209,16 @@
         <div class="ttl">Step &amp; repeat <span style="color:var(--muted);font-size:11px">· how the motif tiles across the fabric</span></div>
         <div class="rep-controls">
           <label class="rep-fld">Across
-            <select id="repAcross"><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option></select>
+            <select id="repAcross"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option></select>
           </label>
           <label class="rep-fld">Down
-            <select id="repDown"><option selected>2</option><option>3</option><option>4</option></select>
+            <select id="repDown"><option>1</option><option selected>2</option><option>3</option><option>4</option></select>
           </label>
           <label class="rep-fld">Layout
             <select id="repLayout"><option value="straight">Straight</option><option value="half">Half-drop</option><option value="brick">Brick</option></select>
           </label>
           <label class="rep-fld">Gap
-            <input type="number" id="repGap" value="0" min="0" max="40" style="width:54px">
+            <input type="number" id="repGap" value="0" min="0" max="200" step="1" style="width:64px">
           </label>
         </div>
         <div class="preview-box" id="repBox" style="min-height:200px">
@@ -380,7 +380,7 @@ $('reed').addEventListener('input', renderPhysical);
 function renderRepeat(){
   const img=S.outImage; if(!img) return;
   const across=parseInt($('repAcross').value)||3, down=parseInt($('repDown').value)||2;
-  const layout=$('repLayout').value, gap=Math.max(0,Math.min(40,parseInt($('repGap').value)||0));
+  const layout=$('repLayout').value, gap=Math.max(0,Math.min(200,parseInt($('repGap').value)||0));
   // Cap each tile to a sensible on-screen size so the canvas stays bounded; the
   // preview comes back upscaled (~900px), which would otherwise tile into a
   // multi-thousand-pixel canvas. The scroll container handles the rest.

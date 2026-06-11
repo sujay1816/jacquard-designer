@@ -1584,7 +1584,7 @@ def api_butta_repeat_generate():
         try:
             across = max(1, min(10, int(request.form.get('across', 3))))
             down   = max(1, min(10, int(request.form.get('down', 2))))
-            gap    = max(0, min(40, int(request.form.get('gap', 0))))
+            gap    = max(0, min(200, int(request.form.get('gap', 0))))
         except (ValueError, TypeError):
             return _json_error('Repeat across/down/gap must be whole numbers.')
         layout = request.form.get('layout', 'straight').lower()
