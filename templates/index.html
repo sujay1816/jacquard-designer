@@ -2988,6 +2988,90 @@ function renderGenRepeat() {
   }
 }
 
+// ── G6: per-shuttle visibility toggles (client recomposite) ───────────────
+// Thread palette + stacking order mirror the server's _composite_render so the
+// all-on client composite matches the default woven preview.
+const COMP_GROUND = [74, 64, 48];
+const COMP_PAL = {
+  rani: [200, 120, 144], meena4: [150, 110, 170], meena3: [120, 180, 130],
+  meena2: [184, 144, 200], meena1: [138, 180, 216], zari: [200, 160, 64],
+};
+const COMP_ORDER = ['rani', 'meena4', 'meena3', 'meena2', 'meena1', 'zari'];
+let _serverComposite = null, _shuttleImgs = {}, _shuttleOn = {};
+
+function setupShuttleToggles(data) {
+  _serverComposite = data.composite_b64 || null;
+  _shuttleImgs = {}; _shuttleOn = {};
+  const wovenEl = document.getElementById('wovenPreview');
+  let wrap = document.getElementById('shuttleToggles');
+  if (!wrap) {
+    wrap = document.createElement('div');
+    wrap.id = 'shuttleToggles';
+    wrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:10px;margin:0 0 16px;font-size:11px;color:var(--muted);align-items:center;';
+    if (wovenEl && wovenEl.parentNode) wovenEl.parentNode.insertBefore(wrap, wovenEl.nextSibling);
+  }
+  wrap.innerHTML = '';
+  const present = [];
+  (data.files || []).forEach(fn => {
+    const name = COMP_ORDER.find(k => fn.toLowerCase().includes(k));
+    if (name && data.previews && data.previews[fn] && !(name in _shuttleOn)) {
+      present.push(name); _shuttleOn[name] = true;
+      const im = new Image(); im.src = 'data:image/png;base64,' + data.previews[fn];
+      _shuttleImgs[name] = im;
+    }
+  });
+  if (present.length <= 1 || !_serverComposite) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'flex';
+  wrap.innerHTML = '<span>Show shuttles:</span>' + present.map(n =>
+    '<label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;">'
+    + '<input type="checkbox" data-shuttle="' + n + '" checked> ' + n + '</label>').join('');
+  wrap.querySelectorAll('input[data-shuttle]').forEach(cb =>
+    cb.addEventListener('change', e => {
+      _shuttleOn[e.target.dataset.shuttle] = e.target.checked;
+      recompositeAndApply();
+    }));
+}
+
+function recompositeAndApply() {
+  const wovenEl = document.getElementById('wovenPreview');
+  const img = wovenEl ? wovenEl.querySelector('img') : null;
+  const allOn = Object.values(_shuttleOn).every(v => v);
+  if (allOn && _serverComposite) {
+    const src = 'data:image/png;base64,' + _serverComposite;
+    if (img) img.src = src;
+    const ri = new Image();
+    ri.onload = () => { _genRepImg = ri; if (typeof renderGenRepeat === 'function') renderGenRepeat(); };
+    ri.src = src;
+    return;
+  }
+  const imgs = Object.values(_shuttleImgs).filter(i => i.complete && i.width);
+  if (!imgs.length) return;
+  const W = Math.max(...imgs.map(i => i.width)), H = Math.max(...imgs.map(i => i.height));
+  const cvs = document.createElement('canvas'); cvs.width = W; cvs.height = H;
+  const ctx = cvs.getContext('2d');
+  const out = ctx.createImageData(W, H), od = out.data;
+  for (let i = 0; i < od.length; i += 4) {
+    od[i] = COMP_GROUND[0]; od[i + 1] = COMP_GROUND[1]; od[i + 2] = COMP_GROUND[2]; od[i + 3] = 255;
+  }
+  const tmp = document.createElement('canvas'); tmp.width = W; tmp.height = H;
+  const tctx = tmp.getContext('2d');
+  for (const name of COMP_ORDER) {
+    if (!_shuttleOn[name] || !_shuttleImgs[name]) continue;
+    const sim = _shuttleImgs[name];
+    if (!sim.complete || !sim.width) continue;
+    tctx.clearRect(0, 0, W, H); tctx.drawImage(sim, 0, 0, W, H);
+    const sd = tctx.getImageData(0, 0, W, H).data, col = COMP_PAL[name];
+    for (let p = 0; p < od.length; p += 4) {
+      const lum = sd[p] * 0.299 + sd[p + 1] * 0.587 + sd[p + 2] * 0.114;
+      if (lum < 128) { od[p] = col[0]; od[p + 1] = col[1]; od[p + 2] = col[2]; od[p + 3] = 255; }
+    }
+  }
+  ctx.putImageData(out, 0, 0);
+  if (img) img.src = cvs.toDataURL('image/png');
+  _genRepImg = cvs;
+  if (typeof renderGenRepeat === 'function') renderGenRepeat();
+}
+
 function renderOutputPreviews(data) {
   const outputSection = document.getElementById('output-section');
   outputSection.style.display = 'block';
@@ -3028,6 +3112,7 @@ function renderOutputPreviews(data) {
   }
 
   setupGenRepeat(data.composite_b64, grid);
+  setupShuttleToggles(data);
 
   const SHUTTLE_LABEL = {
     rani: { label: 'RANI', sub: 'Plain weave base', color: SHUTTLE_COLORS.rani },
