@@ -72,11 +72,14 @@ def _adaptive_scale(src_size, pins, cards):
 # 2.  Dual-threshold pool with pre-closing
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _pool_refined(mask_hi, scale, cards, pins, detail_retention, noise_min_size):
+def _pool_refined(mask_hi, scale, cards, pins, detail_retention, noise_min_size,
+                  fine_thr=None):
     """
     Reduce a high-resolution boolean mask to (cards × pins) with:
       • 3×3 closing before block-reduce  (bridges anti-aliased gaps)
       • Two thresholds OR'd together      (standard + fine-detail)
+    fine_thr overrides the fixed fine-dot threshold (used by auto-match so the
+    fine pass can tighten on dense designs instead of flooring the ink).
     """
     try:
         from skimage.measure import block_reduce
@@ -103,11 +106,31 @@ def _pool_refined(mask_hi, scale, cards, pins, detail_retention, noise_min_size)
         func=np.mean,
     )[:cards, :pins]
 
-    thr  = max(0.0, float(detail_retention))
+    thr   = max(0.0, float(detail_retention))
+    fthr  = _FINE_THRESHOLD if fine_thr is None else max(0.0, float(fine_thr))
     main = (cov >= thr) if thr > 0.0 else (cov > 0.0)   # standard pass
-    fine = cov >= _FINE_THRESHOLD                          # catches isolated dots
+    fine = cov >= fthr                                    # catches isolated dots
 
     return remove_noise(main | fine, min_size=noise_min_size)
+
+
+def _auto_detail_thr_refined(mask_hi, scale, cards, pins, noise_min_size):
+    """
+    Pick a tightness `t` so the refined-pool output ink-% matches the source
+    ink-%. `t` drives BOTH thresholds (standard + fine), so dense designs can
+    be brought back down instead of being floored by the fixed fine pass.
+    Returns t (used as detail_retention and fine_thr together).
+    """
+    src = float((mask_hi > 0.5).mean())
+    best, bt = None, 0.12
+    for t in np.arange(0.06, 0.56, 0.04):
+        ink = float(_pool_refined(
+            mask_hi, scale, cards, pins, float(t), noise_min_size,
+            fine_thr=float(t)).mean())
+        d = abs(ink - src)
+        if best is None or d < best:
+            best, bt = d, float(t)
+    return round(bt, 3)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -116,7 +139,8 @@ def _pool_refined(mask_hi, scale, cards, pins, detail_retention, noise_min_size)
 
 def _build_hi_masks_inkfirst(image, pins, cards, color_assignments,
                               ink_centers, ink_sensitivity,
-                              scale, detail_retention, noise_min_size):
+                              scale, detail_retention, noise_min_size,
+                              auto_detail=False):
     """
     Ink-first segmentation at (pins*scale × cards*scale), pooled with
     _pool_refined. Uses border_engine.segment_ink_first for consistent
@@ -132,6 +156,11 @@ def _build_hi_masks_inkfirst(image, pins, cards, color_assignments,
     _, _, lab_hi = segment_ink_first(
         hi, ink_centers=ink_centers, ink_sensitivity=ink_sensitivity)
 
+    if auto_detail:
+        detail_retention = _auto_detail_thr_refined(
+            lab_hi > 0, scale, cards, pins, noise_min_size)
+    fine_ov = detail_retention if auto_detail else None
+
     shuttle_idxs = {}
     for cidx, sname in color_assignments.items():
         idx = int(cidx)
@@ -144,16 +173,19 @@ def _build_hi_masks_inkfirst(image, pins, cards, color_assignments,
         for idx in idxs:
             m_hi |= (lab_hi == idx)
         masks[sname] = _pool_refined(
-            m_hi, scale, cards, pins, detail_retention, noise_min_size)
+            m_hi, scale, cards, pins, detail_retention, noise_min_size,
+            fine_thr=fine_ov)
 
     full_design = _pool_refined(
-        lab_hi > 0, scale, cards, pins, detail_retention, noise_min_size)
+        lab_hi > 0, scale, cards, pins, detail_retention, noise_min_size,
+        fine_thr=fine_ov)
 
     return masks, full_design
 
 
 def _build_hi_masks_kmeans(image, pins, cards, n_colors, color_assignments,
-                            scale, detail_retention, noise_min_size):
+                            scale, detail_retention, noise_min_size,
+                            auto_detail=False):
     """KMeans high-res fallback when no ink_centers palette is available."""
     try:
         import skimage.measure  # noqa: F401
@@ -170,6 +202,16 @@ def _build_hi_masks_kmeans(image, pins, cards, n_colors, color_assignments,
         if sname != 'background' and idx >= 1:
             shuttle_idxs.setdefault(sname, set()).add(idx)
 
+    design_hi = np.zeros(lm_hi.shape, dtype=bool)
+    for j in range(len(colors_hi)):
+        if j not in bg:
+            design_hi |= (lm_hi == j)
+
+    if auto_detail:
+        detail_retention = _auto_detail_thr_refined(
+            design_hi, scale, cards, pins, noise_min_size)
+    fine_ov = detail_retention if auto_detail else None
+
     masks = {}
     for sname, idxs in shuttle_idxs.items():
         m_hi = np.zeros(lm_hi.shape, dtype=bool)
@@ -177,14 +219,12 @@ def _build_hi_masks_kmeans(image, pins, cards, n_colors, color_assignments,
             if idx < len(colors_hi):
                 m_hi |= (lm_hi == idx)
         masks[sname] = _pool_refined(
-            m_hi, scale, cards, pins, detail_retention, noise_min_size)
+            m_hi, scale, cards, pins, detail_retention, noise_min_size,
+            fine_thr=fine_ov)
 
-    design_hi = np.zeros(lm_hi.shape, dtype=bool)
-    for j in range(len(colors_hi)):
-        if j not in bg:
-            design_hi |= (lm_hi == j)
     full_design = _pool_refined(
-        design_hi, scale, cards, pins, detail_retention, noise_min_size)
+        design_hi, scale, cards, pins, detail_retention, noise_min_size,
+        fine_thr=fine_ov)
 
     return masks, full_design
 
@@ -225,6 +265,7 @@ def generate_border_id_bmps(
     ink_sensitivity=1.0,
     noise_min_size=1,         # keep finer dots by default (border_engine uses 2)
     hi_detail=True,
+    auto_detail=False,
 ):
     """
     Generate jacquard BMPs with enhanced fine-detail preservation.
@@ -253,7 +294,8 @@ def generate_border_id_bmps(
         ink_centers = [list(map(float, c)) for c in palette_rgb[1:]]
         masks, full_design = _build_hi_masks_inkfirst(
             image, pins, cards, color_assignments, ink_centers,
-            ink_sensitivity, scale, detail_retention, noise_min_size)
+            ink_sensitivity, scale, detail_retention, noise_min_size,
+            auto_detail=auto_detail)
 
     if masks is None and hi_detail:
         n_colors = max(2,
@@ -262,7 +304,7 @@ def generate_border_id_bmps(
             shuttle_count + 1)
         masks, full_design = _build_hi_masks_kmeans(
             image, pins, cards, n_colors, color_assignments,
-            scale, detail_retention, noise_min_size)
+            scale, detail_retention, noise_min_size, auto_detail=auto_detail)
 
     if masks is None:
         if label_map is None:

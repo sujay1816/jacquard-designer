@@ -2842,6 +2842,18 @@ function renderOutputPreviews(data) {
   const grid = document.getElementById('preview-grid');
   grid.innerHTML = '';
 
+  // Loom warnings banner (oversize / unweavable single pixels)
+  let warnEl = document.getElementById('loomWarn');
+  if (!warnEl) {
+    warnEl = document.createElement('div');
+    warnEl.id = 'loomWarn';
+    warnEl.style.cssText = 'font-size:12px;color:var(--danger);margin-bottom:12px;';
+    grid.parentNode.insertBefore(warnEl, grid);
+  }
+  const _warns = data.warnings || [];
+  warnEl.innerHTML = _warns.length ? _warns.map(w => '⚠ ' + w).join('<br>') : '';
+  warnEl.style.display = _warns.length ? 'block' : 'none';
+
   const SHUTTLE_LABEL = {
     rani: { label: 'RANI', sub: 'Plain weave base', color: SHUTTLE_COLORS.rani },
     zari: { label: 'ZARI', sub: 'Gold thread', color: SHUTTLE_COLORS.zari },

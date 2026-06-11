@@ -418,6 +418,7 @@ def api_generate():
             'verification': verification,
             'previews':     previews,
             'bmp_b64':      bmp_b64,
+            'warnings':     _design_warnings(bmp_files, pins, cards),
         })
 
     except ValueError as e:
@@ -1064,6 +1065,7 @@ def api_border_generate():
             'verification': verification,
             'previews':     previews,
             'bmp_b64':      bmp_b64,
+            'warnings':     _design_warnings(bmp_files, pins, cards),
         })
 
     except ValueError as e:
@@ -1193,6 +1195,7 @@ def api_border_id_generate():
         except: noise_min_size = 1
 
         hi_detail = bool(data.get('hi_detail', True))
+        auto_detail = bool(data.get('auto_detail', False))
 
         bmp_files = generate_border_id_bmps(
             image=src_img, pins=pins, cards=cards,
@@ -1205,6 +1208,7 @@ def api_border_id_generate():
             ink_sensitivity=ink_sensitivity,
             noise_min_size=noise_min_size,
             hi_detail=hi_detail,
+            auto_detail=auto_detail,
         )
 
         verification = {f: verify_bmp(b) for f, b in bmp_files.items()}
@@ -1229,6 +1233,7 @@ def api_border_id_generate():
             'files': list(bmp_files.keys()),
             'verification': verification,
             'previews': previews, 'bmp_b64': bmp_b64,
+            'warnings': _design_warnings(bmp_files, pins, cards),
         })
 
     except ValueError as e:
@@ -1291,6 +1296,25 @@ def butta_page():
 def _open_upload(file):
     img = Image.open(file.stream)
     return ImageOps.exif_transpose(img).convert('RGB')
+
+
+def _design_warnings(bmp_files, pins, cards):
+    """
+    Loom warnings for a generated BMP set. Unions ink (black = thread up) across
+    the motif shuttles — excluding the plain-weave 'rani' ground, whose regular
+    weave would otherwise look like thousands of isolated single pixels.
+    """
+    try:
+        from loom_utils import loom_warnings
+        mask = None
+        for fn, by in bmp_files.items():
+            if 'rani' in fn.lower():
+                continue
+            a = np.array(Image.open(io.BytesIO(by)).convert('L')) < 128
+            mask = a if mask is None else (mask | a if mask.shape == a.shape else mask)
+        return loom_warnings(mask, pins, cards)
+    except Exception:
+        return []
 
 
 @app.route('/api/butta-preview', methods=['POST'])

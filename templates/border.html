@@ -222,6 +222,11 @@
           <input type="number" id="ncolors" value="3" min="2" max="8">
           <div class="help">Includes paper. 3 = paper + 2 tints.</div>
         </div>
+        <div>
+          <label class="fld">Reed (ends/inch)</label>
+          <input type="number" id="reed" value="60" min="1" max="400">
+          <div class="help">For the woven-size readout.</div>
+        </div>
       </div>
 
       <div style="margin-top:16px;">
@@ -340,6 +345,7 @@
     <section class="step" id="step3" style="display:none">
       <div class="section-label">Generated BMP files</div>
       <div id="modeUsed" style="font-size:11px;color:var(--muted);margin-bottom:14px;"></div>
+      <div id="loomInfo" style="font-size:12px;margin-bottom:12px;"></div>
       <div class="preview-grid" id="previewGrid"></div>
       <div class="actions">
         <button class="primary" id="downloadBtn">↓ Download ZIP</button>
@@ -654,6 +660,19 @@ function renderPreviews(data) {
   $('modeUsed').textContent = state.mode==='fine'
     ? '✦ Generated with Fine Detail mode — adaptive upscale, dual-threshold pooling'
     : '● Generated with Standard mode — 4× high-resolution ink-first detection';
+  // Physical size + loom warnings
+  const reed = parseFloat($('reed').value) || 60;
+  const pins = state.pins, cards = state.cards;
+  let li = '';
+  if (pins && cards) {
+    const wIn=pins/reed, hIn=cards/reed;
+    li += `<span style="color:var(--gold)">Woven size ${wIn.toFixed(1)}″ × ${hIn.toFixed(1)}″ `
+        + `(${(wIn*2.54).toFixed(1)} × ${(hIn*2.54).toFixed(1)} cm @ ${reed} ends/in)</span>`;
+  }
+  const warns = data.warnings || [];
+  if (warns.length) li += `<div style="color:var(--danger);margin-top:6px">`
+        + warns.map(w=>'⚠ '+w).join('<br>') + `</div>`;
+  $('loomInfo').innerHTML = li;
   const grid=$('previewGrid'); grid.innerHTML='';
   data.files.forEach(fname => {
     const v   = data.verification[fname] || {};
