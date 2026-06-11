@@ -52,6 +52,33 @@ def _count_isolated(mask, max_size=1):
     return int(np.count_nonzero((sizes > 0) & (sizes <= max_size)))
 
 
+def count_long_floats(mask, max_float=12):
+    """
+    Count runs of consecutive 'thread up' cells longer than max_float, in both
+    the warp (down columns) and weft (along rows) directions. Long floats snag,
+    sag, and weaken the cloth, so weavers cap them. Returns (count, longest).
+    """
+    m = np.asarray(mask, dtype=bool)
+    if not m.any():
+        return 0, 0
+
+    def _axis(a):
+        cnt = lng = 0
+        for row in a:
+            d = np.diff(np.concatenate(([0], row.astype(np.int8), [0])))
+            starts = np.where(d == 1)[0]
+            ends = np.where(d == -1)[0]
+            if starts.size:
+                runs = ends - starts
+                lng = max(lng, int(runs.max()))
+                cnt += int((runs > max_float).sum())
+        return cnt, lng
+
+    ch, lh = _axis(m)        # weft floats (within each row)
+    cv, lv = _axis(m.T)      # warp floats (within each column)
+    return ch + cv, max(lh, lv)
+
+
 def loom_warnings(mask, pins, cards,
                   max_pins=DEFAULT_MAX_PINS, max_cards=DEFAULT_MAX_CARDS):
     """

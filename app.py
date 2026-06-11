@@ -1306,14 +1306,25 @@ def _design_warnings(bmp_files, pins, cards):
     weave would otherwise look like thousands of isolated single pixels.
     """
     try:
-        from loom_utils import loom_warnings
+        from loom_utils import loom_warnings, count_long_floats
+        MAX_FLOAT = 12
         mask = None
+        float_count, longest = 0, 0
         for fn, by in bmp_files.items():
             if 'rani' in fn.lower():
                 continue
             a = np.array(Image.open(io.BytesIO(by)).convert('L')) < 128
             mask = a if mask is None else (mask | a if mask.shape == a.shape else mask)
-        return loom_warnings(mask, pins, cards)
+            fc, fl = count_long_floats(a, MAX_FLOAT)
+            float_count += fc
+            longest = max(longest, fl)
+        warns = loom_warnings(mask, pins, cards)
+        if float_count:
+            warns.append(
+                f"{float_count} thread float{'s' if float_count != 1 else ''} longer than "
+                f"{MAX_FLOAT} (longest {longest}) — long floats can snag or sag; "
+                f"raise satin binding or pin count.")
+        return warns
     except Exception:
         return []
 
