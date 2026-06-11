@@ -173,6 +173,11 @@ def reduce_butta(image: Image.Image, target_pins: int, target_cards: int | None 
         'threshold': round(used_thresh, 1),
         'compression': round(image.size[0] / target_pins, 1),
     }
+    try:
+        from loom_utils import loom_warnings
+        info['warnings'] = loom_warnings(mask, target_pins, target_h)
+    except Exception:
+        info['warnings'] = []
     return mask, info
 
 

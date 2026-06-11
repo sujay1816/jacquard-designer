@@ -135,6 +135,10 @@
 
         <label class="chk"><input type="checkbox" id="autocrop" checked> Auto-trim surrounding whitespace</label>
 
+        <label class="fld" style="margin-top:16px">Reed (ends/inch)</label>
+        <input type="number" id="reed" value="60" min="1" max="400" step="1" aria-label="Reed — ends per inch, for physical size">
+        <div class="help">Used to show the woven size. Doesn't change the BMP.</div>
+
         <label class="fld" style="margin-top:16px">Design name</label>
         <input type="text" id="dname" value="butta" aria-label="Design name for the output file">
 
@@ -161,6 +165,8 @@
           <div class="pv-loading" id="pvLoading">updating…</div>
         </div>
         <div class="stat-row" id="stats"></div>
+        <div class="stat-row" id="physical" style="color:var(--gold);"></div>
+        <div class="note" id="warnNote" style="color:var(--danger);display:none;"></div>
         <div class="note" id="lowNote">⚠ At this width the densest areas may merge — try 200 pins or a higher-resolution source for finer detail.</div>
       </div>
     </div>
@@ -216,6 +222,17 @@ $('cards').addEventListener('input', ()=>{
   S.cards = (v>=8 && v<=2000) ? v : null;
   requestPreview();
 });
+
+// ── Physical size (woven dimensions) ─────────────────────
+function renderPhysical(){
+  const i=S.lastInfo; if(!i){ $('physical').innerHTML=''; return; }
+  const reed=parseFloat($('reed').value)||60;
+  const wIn=i.target_w/reed, hIn=i.target_h/reed;
+  $('physical').innerHTML =
+    `<span>woven size <b>${wIn.toFixed(1)}″ × ${hIn.toFixed(1)}″</b></span>`+
+    `<span style="opacity:.7">${(wIn*2.54).toFixed(1)} × ${(hIn*2.54).toFixed(1)} cm @ ${reed} ends/in</span>`;
+}
+$('reed').addEventListener('input', renderPhysical);
 
 // ── Detail slider ────────────────────────────────────────
 $('detail').addEventListener('input', e=>{
@@ -283,6 +300,11 @@ async function doPreview(){
       (matched ? ` <span class="match-ok">✓ matches source</span>` : '')+`</span>`;
     $('pvHint').textContent = `${i.target_w}×${i.target_h} · ${i.compression}× smaller`;
     $('lowNote').style.display = (i.target_w<=160 && i.compression>=3.5) ? 'block' : 'none';
+    S.lastInfo = i;
+    renderPhysical();
+    const warns = (i.warnings||[]);
+    $('warnNote').style.display = warns.length ? 'block' : 'none';
+    $('warnNote').innerHTML = warns.map(w=>'⚠ '+w).join('<br>');
   }catch(err){ toast('Preview error: '+err.message); }
   finally{ $('pv').classList.remove('loading'); }
 }
