@@ -419,6 +419,7 @@ def api_generate():
             'previews':     previews,
             'bmp_b64':      bmp_b64,
             'warnings':     _design_warnings(bmp_files, pins, cards),
+            'composite_b64': _composite_render(bmp_files, pins, cards),
         })
 
     except ValueError as e:
@@ -1315,6 +1316,42 @@ def _design_warnings(bmp_files, pins, cards):
         return loom_warnings(mask, pins, cards)
     except Exception:
         return []
+
+
+def _composite_render(bmp_files, pins, cards):
+    """
+    Woven-fabric simulation: layer the actual generated shuttle BMPs in their
+    thread colours onto a ground, so the user sees what the cloth will look
+    like instead of separate 1-bit files. black = thread up for that shuttle.
+    Colours match the UI's SHUTTLE_COLORS palette. Returns base64 PNG or None.
+    """
+    try:
+        GROUND = (74, 64, 48)
+        PAL = {
+            'rani':   (200, 120, 144),
+            'meena4': (150, 110, 170),
+            'meena3': (120, 180, 130),
+            'meena2': (184, 144, 200),
+            'meena1': (138, 180, 216),
+            'zari':   (200, 160, 64),
+        }
+        canvas = np.full((cards, pins, 3), GROUND, dtype=np.uint8)
+        # bottom-to-top: ground weave first, motif shuttles over it, zari on top
+        for key in ['rani', 'meena4', 'meena3', 'meena2', 'meena1', 'zari']:
+            col = PAL[key]
+            for fn, by in bmp_files.items():
+                if key in fn.lower():
+                    a = np.array(Image.open(io.BytesIO(by)).convert('L'))
+                    if a.shape != (cards, pins):
+                        continue
+                    canvas[a < 128] = col
+        img = Image.fromarray(canvas, 'RGB')
+        scale = max(1, min(6, 720 // max(1, pins)))
+        img = img.resize((pins * scale, cards * scale), Image.NEAREST)
+        buf = io.BytesIO(); img.save(buf, format='PNG')
+        return base64.b64encode(buf.getvalue()).decode()
+    except Exception:
+        return None
 
 
 @app.route('/api/butta-preview', methods=['POST'])

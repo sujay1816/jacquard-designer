@@ -2891,6 +2891,25 @@ function renderOutputPreviews(data) {
   warnEl.innerHTML = _warns.length ? _warns.map(w => '⚠ ' + w).join('<br>') : '';
   warnEl.style.display = _warns.length ? 'block' : 'none';
 
+  // Woven fabric simulation — all shuttles composited in thread colour
+  let wovenEl = document.getElementById('wovenPreview');
+  if (!wovenEl) {
+    wovenEl = document.createElement('div');
+    wovenEl.id = 'wovenPreview';
+    wovenEl.style.cssText = 'margin-bottom:16px;';
+    grid.parentNode.insertBefore(wovenEl, grid);
+  }
+  if (data.composite_b64) {
+    wovenEl.innerHTML =
+      '<div style="font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:6px;">'
+      + 'Woven preview <span style="color:var(--gold2)">· all shuttles in thread colour</span></div>'
+      + '<img src="data:image/png;base64,' + data.composite_b64 + '" alt="Woven fabric simulation" '
+      + 'style="image-rendering:pixelated;max-width:100%;border-radius:8px;border:1px solid var(--border2);display:block;">';
+    wovenEl.style.display = 'block';
+  } else {
+    wovenEl.style.display = 'none';
+  }
+
   const SHUTTLE_LABEL = {
     rani: { label: 'RANI', sub: 'Plain weave base', color: SHUTTLE_COLORS.rani },
     zari: { label: 'ZARI', sub: 'Gold thread', color: SHUTTLE_COLORS.zari },
