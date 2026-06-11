@@ -1541,7 +1541,94 @@ def api_butta_generate():
         return _json_error(f'Generation failed: {e}')
 
 
-@app.route('/api/butta-batch', methods=['POST'])
+@app.route('/api/butta-repeat-generate', methods=['POST'])
+def api_butta_repeat_generate():
+    """
+    Tile the reduced motif into a single 1-bit BMP at THREAD resolution so the
+    whole step-and-repeat can be opened in the BMP editor. Mono only — the editor
+    edits one 1-bit surface. Mirrors butta-generate's reduce params, plus:
+        across, down : tile counts
+        layout       : straight | half | brick
+        gap          : threads between tiles
+    Returns {success, file:{filename, bmp_b64}, info}.
+    """
+    try:
+        if 'image' not in request.files:
+            return _json_error('No image file uploaded.')
+        file = request.files['image']
+        if not file.filename:
+            return _json_error('No file selected.')
+        try:
+            img = _open_upload(file)
+        except Exception:
+            return _json_error('Could not read the uploaded image.')
+
+        try:
+            target_pins = max(40, min(600, int(request.form.get('pins', 200))))
+        except (ValueError, TypeError):
+            return _json_error('Pins must be a whole number.')
+        try:
+            detail = max(-1.0, min(1.0, float(request.form.get('detail', 0.0))))
+        except (ValueError, TypeError):
+            detail = 0.0
+        autocrop = request.form.get('autocrop', 'true').lower() == 'true'
+        thin_rescue = request.form.get('thin_rescue', 'false').lower() == 'true'
+        design_name = (request.form.get('design_name', '') or '').strip() or 'butta'
+        cards_raw = (request.form.get('cards', '') or '').strip()
+        try:
+            target_cards = max(8, min(2000, int(cards_raw))) if cards_raw else None
+        except (ValueError, TypeError):
+            target_cards = None
+
+        # Repeat params (same clamps as the UI controls).
+        try:
+            across = max(1, min(10, int(request.form.get('across', 3))))
+            down   = max(1, min(10, int(request.form.get('down', 2))))
+            gap    = max(0, min(40, int(request.form.get('gap', 0))))
+        except (ValueError, TypeError):
+            return _json_error('Repeat across/down/gap must be whole numbers.')
+        layout = request.form.get('layout', 'straight').lower()
+        if layout not in ('straight', 'half', 'brick'):
+            layout = 'straight'
+
+        mask, info = butta_engine.reduce_butta(
+            img, target_pins, target_cards=target_cards, detail=detail,
+            autocrop=autocrop, thin_rescue=thin_rescue)
+        h, w = mask.shape
+
+        cw = across * w + (across - 1) * gap
+        ch = down * h + (down - 1) * gap
+        if layout == 'half':
+            ch += (h + gap + 1) // 2
+        if layout == 'brick':
+            cw += (w + gap + 1) // 2
+
+        # Guard against an editor canvas too large to be usable.
+        if cw * ch > 16_000_000 or cw > 6000 or ch > 6000:
+            return _json_error('Repeat is too large for the editor — reduce tiles, gap, or pins.')
+
+        big = np.zeros((ch, cw), dtype=bool)
+        for r in range(down):
+            for c in range(across):
+                x = c * (w + gap)
+                y = r * (h + gap)
+                if layout == 'half':
+                    y += (c % 2) * ((h + gap) // 2)
+                if layout == 'brick':
+                    x += (r % 2) * ((w + gap) // 2)
+                if y + h <= ch and x + w <= cw:
+                    big[y:y + h, x:x + w] |= mask
+
+        by = butta_engine.mask_to_bmp_bytes(big)
+        return jsonify({
+            'success': True,
+            'file': {'filename': f'{design_name}_repeat_{across}x{down}.bmp',
+                     'bmp_b64': base64.b64encode(by).decode()},
+            'info': {'tiles': f'{across}×{down}', 'layout': layout,
+                     'width': cw, 'height': ch, 'motif': f'{w}×{h}'},
+        })
+    except Exception as e:
+        return _json_error(f'Repeat build failed: {e}')
 def api_butta_batch():
     """
     Batch-reduce several butta images with one shared set of settings and return

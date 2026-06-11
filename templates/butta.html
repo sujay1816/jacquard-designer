@@ -45,7 +45,7 @@
   button.primary:hover{filter:brightness(1.08);} button.primary:disabled{opacity:.5;cursor:not-allowed;}
   button.ghost{background:transparent;color:var(--gold);border:1px solid var(--border2);padding:11px 18px;border-radius:6px;cursor:pointer;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:1px;text-transform:uppercase;width:100%;}
   button.ghost:hover{border-color:var(--gold);}
-  .preview-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;position:sticky;top:96px;}
+  .preview-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;}
   .preview-box{background:#f6f1e6;border:1px solid var(--border2);border-radius:6px;min-height:300px;display:grid;place-items:center;overflow:auto;padding:10px;}
   .preview-box img{image-rendering:pixelated;max-width:100%;}
   .preview-empty{color:#9a9080;font-size:12px;text-align:center;line-height:1.7;}
@@ -225,6 +225,8 @@
           <canvas id="repCanvas" style="image-rendering:pixelated;display:block;"></canvas>
         </div>
         <div class="help" id="repHint"></div>
+        <button class="ghost" id="repEditBtn" style="margin-top:12px;">Edit this repeat in BMP Editor</button>
+        <div class="help" style="margin-top:6px;">Opens the whole tiled repeat as one 1-bit BMP you can edit thread-by-thread.</div>
       </div>
     </div>
   </div>
@@ -529,6 +531,42 @@ async function generate(forEditor){
 }
 $('genBtn').onclick=()=>generate(false);
 $('editBtn').onclick=()=>generate(true);
+
+// ── Send the tiled step-and-repeat to the BMP editor ─────
+async function editRepeat(){
+  if(!S.file){ toast('Upload a motif first'); return; }
+  if(S.busy) return;
+  // Open the editor tab synchronously (inside the click) so popup blockers
+  // don't block it; point it at the editor once the tiled BMP is stored.
+  const editorWin = window.open('', '_blank');
+  S.busy=true; const btn=$('repEditBtn'); const orig=btn.textContent;
+  btn.textContent='Building…'; btn.disabled=true;
+  try{
+    const fd=new FormData();
+    fd.append('image', S.file);
+    fd.append('pins', S.pins);
+    fd.append('detail', S.detail);
+    fd.append('autocrop', S.autocrop ? 'true':'false');
+    fd.append('thin_rescue', S.thinRescue ? 'true':'false');
+    if(S.cards) fd.append('cards', S.cards);
+    fd.append('design_name', (($('dname').value||'').trim()||'butta'));
+    fd.append('across', $('repAcross').value);
+    fd.append('down', $('repDown').value);
+    fd.append('layout', $('repLayout').value);
+    fd.append('gap', $('repGap').value);
+    const r=await fetch('/api/butta-repeat-generate',{method:'POST',body:fd});
+    const d=await r.json();
+    if(!d.success){ toast(d.error||'Could not build repeat'); if(editorWin) editorWin.close(); return; }
+    const f=d.file;
+    const sr=await fetch('/api/store-bmp',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({bmp_b64:f.bmp_b64, filename:f.filename})});
+    const sd=await sr.json();
+    const url=(sd.success&&sd.token) ? '/edit?token='+sd.token+'&from_generator=1' : '/edit?from_generator=1';
+    if(editorWin) editorWin.location.href=url; else window.open(url,'_blank');
+  }catch(err){ toast('Error: '+err.message); if(editorWin) editorWin.close(); }
+  finally{ S.busy=false; btn.textContent=orig; btn.disabled=false; }
+}
+$('repEditBtn').onclick=()=>editRepeat();
 </script>
 </body>
 </html>
