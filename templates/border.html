@@ -262,6 +262,8 @@
       <div class="control-grid">
         <div>
           <label class="fld">Detail retention</label>
+          <label class="toggle" style="margin-bottom:8px;"><input type="checkbox" id="autoDetail" onchange="var d=document.getElementById('detail');d.disabled=this.checked;d.style.opacity=this.checked?0.4:1;document.getElementById('detailHelp').textContent=this.checked?'Auto: the threshold is set per design to match the source\u2019s ink weight.':'Lower preserves finer lines. Higher = cleaner, may drop thin detail.';">
+            Auto-match source weight</label>
           <div class="slider-wrap">
             <input type="range" id="detail" min="2" max="60" value="18">
             <span class="slider-val" id="detailVal">0.18</span>
@@ -617,6 +619,7 @@ $('generateBtn').onclick = async () => {
       satin_settings:    sa,
       palette:           state.colors.map(c => c.rgb),
       detail_retention:  $('detail').value / 100,
+      auto_detail:       $('autoDetail').checked,
       ink_sensitivity:   $('inkSens').value / 100,
       hi_detail:         true,
     };

@@ -1013,6 +1013,7 @@ def api_border_generate():
         detail_retention = max(0.0, min(0.9, detail_retention))
 
         hi_detail = bool(data.get('hi_detail', True))
+        auto_detail = bool(data.get('auto_detail', False))
 
         try:
             ink_sensitivity = float(data.get('ink_sensitivity', 1.0))
@@ -1033,6 +1034,7 @@ def api_border_generate():
             detail_retention=detail_retention,
             ink_sensitivity=ink_sensitivity,
             hi_detail=hi_detail,
+            auto_detail=auto_detail,
         )
 
         verification = {fname: verify_bmp(bdata)

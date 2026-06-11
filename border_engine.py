@@ -209,8 +209,29 @@ def _pool(mask_hi, scale, cards, pins, detail_retention, noise_min_size):
     return (cov > 0.0) if thr <= 0.0 else (cov >= thr)
 
 
+def _auto_detail_thr(mask_hi, scale, cards, pins, noise_min_size):
+    """
+    Pick a detail_retention threshold so the pooled (output) ink-% matches the
+    detected source ink-% — i.e. preserve the design's visual weight per design.
+    Mirrors the Butta Studio auto behaviour and stops dense motifs over-inking
+    while keeping thin-line borders from dropping out.
+    """
+    from skimage.measure import block_reduce
+    m = remove_noise(mask_hi, min_size=max(2, noise_min_size))
+    cov = block_reduce(m.astype(np.float32),
+                       block_size=(scale, scale), func=np.mean)[:cards, :pins]
+    src = float(m.mean())
+    best, bthr = None, 0.18
+    for thr in np.arange(0.12, 0.72, 0.02):
+        d = abs(float((cov >= thr).mean()) - src)
+        if best is None or d < best:
+            best, bthr = d, float(thr)
+    return round(bthr, 3)
+
+
 def _hi_masks_inkfirst(image, pins, cards, color_assignments, ink_centers,
-                       ink_sensitivity, scale, detail_retention, noise_min_size):
+                       ink_sensitivity, scale, detail_retention, noise_min_size,
+                       auto_detail=False):
     """
     High-resolution ink-first masks. Returns (masks_by_shuttle, full_design) or
     (None, None) if skimage is unavailable.
@@ -223,6 +244,10 @@ def _hi_masks_inkfirst(image, pins, cards, color_assignments, ink_centers,
     hi = image.convert('RGB').resize((pins * scale, cards * scale), Image.LANCZOS)
     _, _, lab_hi = segment_ink_first(
         hi, ink_centers=ink_centers, ink_sensitivity=ink_sensitivity)
+
+    if auto_detail:
+        detail_retention = _auto_detail_thr(
+            lab_hi > 0, scale, cards, pins, noise_min_size)
 
     # colour index (1..k) -> shuttle
     shuttle_indices = {}
@@ -243,7 +268,8 @@ def _hi_masks_inkfirst(image, pins, cards, color_assignments, ink_centers,
 
 
 def _hi_masks_kmeans(image, pins, cards, n_colors, color_assignments,
-                     palette_rgb, scale, noise_min_size, detail_retention):
+                     palette_rgb, scale, noise_min_size, detail_retention,
+                     auto_detail=False):
     """Fallback high-res path using bmp_engine KMeans (no palette / ink model)."""
     try:
         import skimage.measure  # noqa: F401
@@ -268,6 +294,15 @@ def _hi_masks_kmeans(image, pins, cards, n_colors, color_assignments,
         (bg.add(idx) if sname == 'background'
          else shuttle_indices.setdefault(sname, set()).add(idx))
 
+    design_hi = np.zeros(lm_hi.shape, dtype=bool)
+    for j, t in hi_to_t.items():
+        if t not in bg:
+            design_hi |= (lm_hi == j)
+
+    if auto_detail:
+        detail_retention = _auto_detail_thr(
+            design_hi, scale, cards, pins, noise_min_size)
+
     masks = {}
     for sname, idxs in shuttle_indices.items():
         m_hi = np.zeros(lm_hi.shape, dtype=bool)
@@ -276,10 +311,6 @@ def _hi_masks_kmeans(image, pins, cards, n_colors, color_assignments,
                 m_hi |= (lm_hi == j)
         masks[sname] = _pool(m_hi, scale, cards, pins, detail_retention, noise_min_size)
 
-    design_hi = np.zeros(lm_hi.shape, dtype=bool)
-    for j, t in hi_to_t.items():
-        if t not in bg:
-            design_hi |= (lm_hi == j)
     full_design = _pool(design_hi, scale, cards, pins, detail_retention, noise_min_size)
     return masks, full_design
 
@@ -320,6 +351,7 @@ def generate_border_bmps(
     scale: int = _DEFAULT_SCALE,
     noise_min_size: int = 2,
     hi_detail: bool = True,
+    auto_detail: bool = False,
 ) -> dict:
     """
     Generate jacquard BMP files tuned for border / running-line designs.
@@ -341,7 +373,8 @@ def generate_border_bmps(
         ink_centers = [list(map(float, c)) for c in palette_rgb[1:]]
         masks, full_design = _hi_masks_inkfirst(
             image, pins, cards, color_assignments, ink_centers,
-            ink_sensitivity, scale, detail_retention, noise_min_size)
+            ink_sensitivity, scale, detail_retention, noise_min_size,
+            auto_detail=auto_detail)
 
     if masks is None:
         n_colors = (len(palette_rgb) if palette_rgb
@@ -351,7 +384,8 @@ def generate_border_bmps(
         if hi_detail:
             masks, full_design = _hi_masks_kmeans(
                 image, pins, cards, n_colors, color_assignments,
-                palette_rgb, scale, noise_min_size, detail_retention)
+                palette_rgb, scale, noise_min_size, detail_retention,
+                auto_detail=auto_detail)
 
     if masks is None:
         if label_map is None:
