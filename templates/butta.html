@@ -374,7 +374,11 @@ function renderRepeat(){
   const img=S.outImage; if(!img) return;
   const across=parseInt($('repAcross').value)||3, down=parseInt($('repDown').value)||2;
   const layout=$('repLayout').value, gap=parseInt($('repGap').value)||0;
-  const tw=img.width, th=img.height;
+  // Cap each tile to a sensible on-screen size so the canvas stays bounded; the
+  // preview comes back upscaled (~900px), which would otherwise tile into a
+  // multi-thousand-pixel canvas. The scroll container handles the rest.
+  const tw=Math.min(img.width,200);
+  const th=Math.round(img.height*(tw/img.width));
   let cw=across*tw+(across-1)*gap, ch=down*th+(down-1)*gap;
   if(layout==='half')  ch+=Math.ceil((th+gap)/2);
   if(layout==='brick') cw+=Math.ceil((tw+gap)/2);
