@@ -2965,7 +2965,7 @@ function renderGenRepeat() {
   const across = parseInt(document.getElementById('genRepAcross').value) || 3;
   const down   = parseInt(document.getElementById('genRepDown').value) || 2;
   const layout = document.getElementById('genRepLayout').value;
-  const gap    = parseInt(document.getElementById('genRepGap').value) || 0;
+  const gap    = Math.max(0, Math.min(40, parseInt(document.getElementById('genRepGap').value) || 0));
   // Cap each tile to a sensible on-screen size so the canvas stays bounded;
   // the scroll container handles anything larger than the panel.
   const tw = Math.min(img.width, 200);
