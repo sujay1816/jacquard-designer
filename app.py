@@ -670,7 +670,12 @@ def api_bmp_process():
         file   = request.files['image']
         op     = request.form.get('op', 'clean_noise')
         import json as _json
-        params = _json.loads(request.form.get('params', '{}'))
+        try:
+            params = _json.loads(request.form.get('params', '{}'))
+        except (ValueError, TypeError):
+            return _json_error('Invalid params: must be valid JSON.')
+        if not isinstance(params, dict):
+            return _json_error('Invalid params: must be a JSON object.')
 
         raw = file.read()
         buf = io.BytesIO(raw); buf.seek(0)
