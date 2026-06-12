@@ -118,7 +118,7 @@ def _autocrop(image: Image.Image, pad_frac: float = 0.04):
     pad = int(round(max(H, W) * pad_frac))
     y0 = max(0, y0 - pad); x0 = max(0, x0 - pad)
     y1 = min(H, y1 + pad); x1 = min(W, x1 + pad)
-    return image.crop((x0, y0, x1 + 1, y1 + 1))
+    return image.crop((int(x0), int(y0), int(min(W, x1 + 1)), int(min(H, y1 + 1))))
 
 
 def _thin_rescue_mask(hi, target_w, target_h, low_cov=0.12):
