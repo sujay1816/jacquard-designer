@@ -1641,6 +1641,9 @@ def api_butta_repeat_generate():
         })
     except Exception as e:
         return _json_error(f'Repeat build failed: {e}')
+
+
+@app.route('/api/butta-batch', methods=['POST'])
 def api_butta_batch():
     """
     Batch-reduce several butta images with one shared set of settings and return
