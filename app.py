@@ -1596,28 +1596,40 @@ def api_butta_repeat_generate():
             autocrop=autocrop, thin_rescue=thin_rescue)
         h, w = mask.shape
 
+        step_x = w + gap
+        step_y = h + gap
         cw = across * w + (across - 1) * gap
         ch = down * h + (down - 1) * gap
-        if layout == 'half':
-            ch += (h + gap + 1) // 2
-        if layout == 'brick':
-            cw += (w + gap + 1) // 2
 
         # Guard against an editor canvas too large to be usable.
         if cw * ch > 16_000_000 or cw > 6000 or ch > 6000:
             return _json_error('Repeat is too large for the editor — reduce tiles, gap, or pins.')
 
         big = np.zeros((ch, cw), dtype=bool)
-        for r in range(down):
+
+        def _place(x, y):
+            # OR the motif mask onto the canvas at (x, y), clipping partial tiles
+            # at the edges so offset (brick/half-drop) rows wrap seamlessly.
+            x0, y0 = max(0, x), max(0, y)
+            x1, y1 = min(cw, x + w), min(ch, y + h)
+            if x1 <= x0 or y1 <= y0:
+                return
+            big[y0:y1, x0:x1] |= mask[y0 - y:y1 - y, x0 - x:x1 - x]
+
+        if layout == 'brick':
+            for r in range(down):
+                off = (step_x // 2) if (r % 2) else 0
+                for c in range(-1, across + 1):
+                    _place(off + c * step_x, r * step_y)
+        elif layout == 'half':
             for c in range(across):
-                x = c * (w + gap)
-                y = r * (h + gap)
-                if layout == 'half':
-                    y += (c % 2) * ((h + gap) // 2)
-                if layout == 'brick':
-                    x += (r % 2) * ((w + gap) // 2)
-                if y + h <= ch and x + w <= cw:
-                    big[y:y + h, x:x + w] |= mask
+                off = (step_y // 2) if (c % 2) else 0
+                for r in range(-1, down + 1):
+                    _place(c * step_x, off + r * step_y)
+        else:
+            for r in range(down):
+                for c in range(across):
+                    _place(c * step_x, r * step_y)
 
         by = butta_engine.mask_to_bmp_bytes(big)
         return jsonify({
