@@ -412,7 +412,8 @@ function renderRepeat(){
       for(let c=0;c<across;c++)
         ctx.drawImage(img, c*stepX, r*stepY, tw, th);
   }
-  $('repHint').textContent = `${across}×${down} repeat`+(layout!=='straight'?' · '+layout+'-drop':'')+(gap?` · ${gap}-thread gap`:'')+' — check the seams where tiles meet.';
+  const _layName = layout==='half' ? 'half-drop' : (layout==='brick' ? 'brick' : '');
+  $('repHint').textContent = `${across}×${down} repeat`+(_layName?' · '+_layName:'')+(gap?` · ${gap}-thread gap`:'')+' — check the seams where tiles meet.';
 }
 ['repAcross','repDown','repLayout','repGap'].forEach(id=>$(id).addEventListener('input', renderRepeat));
 
