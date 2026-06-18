@@ -490,6 +490,37 @@
 </head>
 <body>
 
+<div id="kb-overlay" onclick="if(event.target===this)toggleKbOverlay()" aria-modal="true" role="dialog" aria-label="Keyboard shortcuts">
+  <div id="kb-panel">
+    <h2>Keyboard Shortcuts</h2>
+    <div class="kb-section">
+      <div class="kb-section-title">Tools</div>
+      <div class="kb-row"><span>Brush</span><kbd>B</kbd></div>
+      <div class="kb-row"><span>Eraser</span><kbd>E</kbd></div>
+      <div class="kb-row"><span>Flood fill</span><kbd>F</kbd></div>
+      <div class="kb-row"><span>Line</span><kbd>L</kbd></div>
+      <div class="kb-row"><span>Select rect</span><kbd>S</kbd></div>
+      <div class="kb-row"><span>Select all</span><kbd>Ctrl A</kbd></div>
+      <div class="kb-row"><span>Eyedropper</span><kbd>I</kbd></div>
+    </div>
+    <div class="kb-section">
+      <div class="kb-section-title">Canvas</div>
+      <div class="kb-row"><span>Undo</span><kbd>Ctrl Z</kbd></div>
+      <div class="kb-row"><span>Redo</span><kbd>Ctrl Y</kbd></div>
+      <div class="kb-row"><span>Zoom in / out</span><kbd>+ / −</kbd></div>
+      <div class="kb-row"><span>Reset zoom</span><kbd>0</kbd></div>
+      <div class="kb-row"><span>Pan (hold)</span><kbd>Space</kbd></div>
+      <div class="kb-row"><span>Invert colours</span><kbd>Ctrl I</kbd></div>
+    </div>
+    <div class="kb-section">
+      <div class="kb-section-title">File</div>
+      <div class="kb-row"><span>Save / Export</span><kbd>Ctrl S</kbd></div>
+      <div class="kb-row"><span>Open this help</span><kbd>?</kbd></div>
+    </div>
+    <button class="kb-close" onclick="toggleKbOverlay()">Close (Esc)</button>
+  </div>
+</div>
+
 <!-- ─── HEADER ──────────────────────────────────────────────── -->
 <div id="app-header">
   <div class="logo-mark">J</div>
@@ -511,6 +542,7 @@
   <a href="/border" class="hbtn nav" title="Open the Border page">⬡ Border</a>
   <a href="/butta"     class="hbtn nav" title="Open the Butta page">❁ Butta</a>
   <a href="/border-id" class="hbtn nav" title="Open the Border ID page">⬡ Border ID</a>
+  <button type="button" class="hbtn nav" onclick="toggleKbOverlay()" title="Keyboard shortcuts (?)">⌨ Shortcuts</button>
 </div>
 
 <!-- ─── LEFT TOOLBAR ────────────────────────────────────────── -->
