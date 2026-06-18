@@ -1072,21 +1072,22 @@
     }
 
   /* === TOP NAV === */
-  .top-nav { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+  .top-nav { margin-left: auto; display: flex; gap: 5px; flex-wrap: wrap; }
   .nav-link {
-    padding: 6px 13px;
-    border: 1px solid var(--border);
-    background: transparent;
-    color: var(--muted);
+    padding: 8px 16px;
+    border: 1.5px solid var(--border2);
+    background: var(--surface2);
+    color: var(--text);
     border-radius: var(--radius);
-    font-size: 11px;
+    font-size: 12px;
     text-decoration: none;
     font-family: 'DM Mono', monospace;
     transition: var(--transition);
     white-space: nowrap;
+    letter-spacing: 0.02em;
   }
-  .nav-link:hover { border-color: var(--gold); color: var(--gold); }
-  .nav-link-active { border-color: var(--border2) !important; background: var(--surface2); color: var(--gold2) !important; }
+  .nav-link:hover { border-color: var(--gold); color: var(--gold); background: rgba(200,169,110,0.08); }
+  .nav-link-active { border-color: var(--gold) !important; background: rgba(200,169,110,0.15); color: var(--gold2) !important; font-weight: 500; }
 
 
   /* === FOCUS & SCROLL SHADOW === */
@@ -1248,11 +1249,11 @@
     <div class="step" id="step-4"><span class="step-num">4</span> Download</div>
   </div>
   <nav class="top-nav">
-    <a href="/" class="nav-link nav-link-active">⬡ BMP Generator</a>
+    <a href="/" class="nav-link nav-link-active">◈ Generator</a>
+    <a href="/butta" class="nav-link">❁ Butta</a>
+    <a href="/border" class="nav-link">⬡ Border</a>
     <a href="/edit" class="nav-link">✏ BMP Editor</a>
     <a href="/trace" class="nav-link">✦ Tracing Guide</a>
-    <a href="/border" class="nav-link">⬡ Border</a>
-    <a href="/butta" class="nav-link">❁ Butta</a>
   </nav>
 </header>
 

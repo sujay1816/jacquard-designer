@@ -31,10 +31,10 @@
   .hstep-num{width:20px;height:20px;border-radius:50%;border:1.5px solid currentColor;display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;}
   .hstep.done .hstep-num{background:var(--success);border-color:var(--success);color:#fff;}
   .hstep-arrow{color:var(--border2);font-size:12px;}
-  .topnav{display:flex;gap:8px;flex-wrap:wrap;}
-  .topnav a{padding:7px 14px;border:1px solid var(--border);background:transparent;color:var(--muted);border-radius:var(--radius);font-size:11px;text-decoration:none;font-family:'DM Mono',monospace;transition:all .18s;white-space:nowrap;}
-  .topnav a:hover{border-color:var(--gold);color:var(--gold);}
-  .topnav a.active{border-color:var(--border2);background:var(--surface2);color:var(--gold2);}
+  .topnav{display:flex;gap:5px;flex-wrap:wrap;}
+  .topnav a{padding:8px 16px;border:1.5px solid var(--border2);background:var(--surface2);color:var(--text);border-radius:var(--radius);font-size:12px;text-decoration:none;font-family:'DM Mono',monospace;transition:all .18s;white-space:nowrap;letter-spacing:.02em;}
+  .topnav a:hover{border-color:var(--gold);color:var(--gold);background:rgba(200,169,110,0.08);}
+  .topnav a.active{border-color:var(--gold);background:rgba(200,169,110,0.15);color:var(--gold2);font-weight:500;}
 
   /* ── Layout ───────────────────────────────────────────────────────────── */
   .main{display:grid;grid-template-columns:400px 1fr;height:calc(100vh - 77px);}
@@ -159,11 +159,11 @@
     <div class="hstep" id="hstep-3"><span class="hstep-num">3</span> Result</div>
   </div>
   <nav class="topnav">
-    <a href="/">⬡ Generator</a>
+    <a href="/">◈ Generator</a>
+    <a href="/butta">❁ Butta</a>
+    <a href="/border" class="active">⬡ Border</a>
     <a href="/edit">✏ BMP Editor</a>
     <a href="/trace">✦ Tracing Guide</a>
-    <a href="/border" class="active">⬡ Border</a>
-    <a href="/butta">❁ Butta</a>
   </nav>
 </header>
 

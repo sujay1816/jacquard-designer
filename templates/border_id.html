@@ -27,10 +27,10 @@
   .header-text2 h1{font-family:'Fraunces',serif;font-size:22px;font-weight:600;color:var(--gold2);letter-spacing:.02em;}
   .header-text2 p{font-size:11px;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;}
   .tag{margin-left:6px;padding:3px 10px;border:1px solid var(--border2);border-radius:100px;color:var(--gold);font-size:11px;letter-spacing:1px;text-transform:uppercase;}
-  .nav{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;}
-  .nav a{padding:6px 13px;border:1px solid var(--border);background:transparent;color:var(--muted);border-radius:var(--radius);font-size:11px;text-decoration:none;font-family:'DM Mono',monospace;transition:all .18s;white-space:nowrap;}
-  .nav a:hover{border-color:var(--gold);color:var(--gold);}
-  .nav a.active{border-color:var(--border2);background:var(--surface2);color:var(--gold2);}
+  .nav{margin-left:auto;display:flex;gap:5px;flex-wrap:wrap;}
+  .nav a{padding:8px 16px;border:1.5px solid var(--border2);background:var(--surface2);color:var(--text);border-radius:var(--radius);font-size:12px;text-decoration:none;font-family:'DM Mono',monospace;transition:all .18s;white-space:nowrap;letter-spacing:.02em;}
+  .nav a:hover{border-color:var(--gold);color:var(--gold);background:rgba(200,169,110,0.08);}
+  .nav a.active{border-color:var(--gold);background:rgba(200,169,110,0.15);color:var(--gold2);font-weight:500;}
   main{max-width:1080px;margin:0 auto;padding:32px;}
   .intro{border:1px solid var(--border);border-left:3px solid var(--gold);background:var(--surface);border-radius:var(--radius);padding:16px 20px;margin-bottom:28px;color:var(--cream);line-height:1.6;}
   .intro b{color:var(--gold2);font-weight:500;}
@@ -101,12 +101,11 @@
   </div>
   <span class="tag">Enhanced</span>
   <nav class="nav">
-    <a href="/">⬡ Generator</a>
+    <a href="/">◈ Generator</a>
+    <a href="/butta">❁ Butta</a>
+    <a href="/border" class="active">⬡ Border</a>
     <a href="/edit">✏ BMP Editor</a>
     <a href="/trace">✦ Tracing Guide</a>
-    <a href="/border">⬡ Border</a>
-    <a href="/border-id" class="active">⬡ Border ID</a>
-    <a href="/butta">❁ Butta</a>
   </nav>
 </header>
 

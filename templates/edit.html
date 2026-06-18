@@ -61,8 +61,8 @@
     /* Vertical divider that visually groups header buttons */
     .hsep { width:1px; height:20px; background:var(--border); margin:0 6px; flex-shrink:0; }
     /* Plain navigation links (other pages) — quieter than action buttons */
-    .hbtn.nav { color: var(--muted); opacity: .8; }
-    .hbtn.nav:hover { opacity: 1; }
+    .hbtn.nav { color: var(--text); opacity: 1; border-color: var(--border2); background: var(--surface2); }
+    .hbtn.nav:hover { border-color: var(--gold); color: var(--gold); background: rgba(200,169,110,0.08); }
     .hbtn {
       padding: 4px 12px;
       border: 1px solid var(--border);
@@ -540,10 +540,10 @@
   <button type="button" class="hbtn" onclick="downloadBMP()" title="Save the edited BMP to disk (Ctrl+S)">↓ Download BMP</button>
   <button type="button" class="hbtn gold" onclick="sendToGenerator()" title="Send the current edited image to the Generator to re-detect colours">→ Send to Generator</button>
   <span class="hsep"></span>
-  <a href="/"       class="hbtn nav" title="Open the Generator page (does not transfer the current image)">⬡ Open Generator</a>
-  <a href="/trace"  class="hbtn nav" title="Open the Trace page">✦ Trace</a>
-  <a href="/border" class="hbtn nav" title="Open the Border page">⬡ Border</a>
-  <a href="/butta"     class="hbtn nav" title="Open the Butta page">❁ Butta</a>
+  <a href="/" class="hbtn nav" title="BMP Generator">◈ Generator</a>
+  <a href="/butta" class="hbtn nav" title="Butta Studio">❁ Butta</a>
+  <a href="/border" class="hbtn nav" title="Border Studio">⬡ Border</a>
+  <a href="/trace" class="hbtn nav" title="Tracing Guide">✦ Tracing Guide</a>
   <button type="button" class="hbtn nav" onclick="toggleKbOverlay()" title="Keyboard shortcuts (?)">⌨ Shortcuts</button>
 </div>
 
