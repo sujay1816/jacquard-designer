@@ -2,9 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="description" content="Border Studio — Jacquard Designer. High-detail BMP generation for border and running-line jacquard designs.">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Border Studio — Jacquard Designer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -17,7 +19,7 @@
     --radius:8px; --transition:0.2s ease;
   }
   *{box-sizing:border-box;margin:0;padding:0;}
-  body{background:radial-gradient(1200px 600px at 80% -10%,rgba(200,169,110,0.06),transparent 60%),var(--bg);color:var(--text);font-family:'DM Mono',monospace;font-size:13px;min-height:100vh;}
+  body{background:radial-gradient(1200px 600px at 80% -10%,rgba(200,169,110,0.06),transparent 60%),var(--bg);color:var(--text);font-family:'DM Mono',monospace;font-size:13px;overflow-x:hidden;min-height:100vh;}
   a{color:var(--gold);text-decoration:none;} a:hover{color:var(--gold2);}
   header{border-bottom:1px solid var(--border);box-shadow:0 1px 0 0 rgba(200,169,110,0.08);padding:18px 32px;display:flex;align-items:center;gap:16px;background:var(--surface);}
   .logo-mark{width:36px;height:36px;background:linear-gradient(135deg,var(--gold),var(--gold2));border-radius:5px;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-size:20px;color:#1a1510;font-weight:600;flex-shrink:0;}
@@ -128,6 +130,7 @@
   .sug-loading{color:var(--muted);font-size:11px;margin-top:12px;display:flex;align-items:center;gap:8px;}
   .sug-spinner{width:10px;height:10px;border:1.5px solid var(--border2);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;}
   *:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
+  .pixelated,[style*="pixelated"],canvas{image-rendering:-webkit-optimize-contrast;}
 </style>
 </head>
 <body>
@@ -234,7 +237,7 @@
       <div style="margin-top:16px;">
         <label class="fld">Ink sensitivity</label>
         <div class="slider-wrap">
-          <input type="range" id="inkSens" min="50" max="200" value="100">
+          <input type="range" id="inkSens" aria-label="Ink sensitivity" min="50" max="200" value="100">
           <span class="slider-val" id="inkSensVal">1.00</span>
         </div>
         <div class="help">Higher picks up fainter lines; lower is stricter / cleaner.</div>
@@ -290,7 +293,7 @@
           <div class="help">1 = keep finest dots &amp; single-pixel elements. Higher removes smaller noise.</div>
         </div>
         <div style="padding-top:6px;">
-          <label class="toggle"><input type="checkbox" id="hiDetail" checked>
+          <label class="toggle"><input type="checkbox" id="hiDetail" aria-label="High detail mode" checked>
             Adaptive hi-res upscale <span class="fine-badge">fine</span></label>
           <div class="help" style="margin-top:8px;">Auto-selects 4–8× based on source density for finest detail.</div>
         </div>
@@ -308,12 +311,12 @@
         <div class="satin-shuttle" style="margin-bottom:0">
           <div class="satin-row">
             <label class="toggle"><input type="checkbox" id="weaveOn"> Apply weave</label>
-            <select id="satinPat" disabled></select>
-            <select id="satinN" disabled>
+            <select id="satinPat" aria-label="Satin pattern type" disabled></select>
+            <select id="satinN" aria-label="Satin repeat count" disabled>
               <option>4</option><option>5</option><option>6</option>
               <option>7</option><option selected>8</option><option>16</option>
             </select>
-            <label class="toggle"><input type="checkbox" id="satinFlip" disabled> Flip</label>
+            <label class="toggle"><input type="checkbox" id="satinFlip" aria-label="Flip satin pattern" disabled> Flip</label>
           </div>
           <div class="help">Off = solid crisp lines (recommended for fine border detail).</div>
         </div>

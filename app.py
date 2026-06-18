@@ -15,7 +15,7 @@ from enhanced_engine import preprocess_fabric_image, analyze_border_image
 import butta_engine
 
 app = Flask(__name__)
-app.secret_key = 'jq-designer-2024'
+app.secret_key = os.environ.get('JQ_SECRET_KEY', 'jq-designer-2024')
 _bmp_store = {}  # token → {bmp_b64, filename, preview}
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024   # 50 MB upload cap
 
@@ -649,7 +649,7 @@ def api_trace_guide():
 
     except Exception as e:
         import traceback
-        return jsonify({'success': False, 'error': str(e), 'trace': traceback.format_exc()})
+        return jsonify({'success': False, 'error': str(e)})
 
 
 # edit route merged above
@@ -805,7 +805,7 @@ def api_bmp_process():
 
     except Exception as e:
         import traceback
-        return jsonify({'success': False, 'error': str(e), 'trace': traceback.format_exc()})
+        return jsonify({'success': False, 'error': str(e)})
 
 
 @app.route('/border')
@@ -1087,13 +1087,6 @@ def api_border_generate():
         return _json_error(f'Border generation failed: {e}')
 
 
-if __name__ == '__main__':
-    # Prevent joblib/OpenMP from spawning parallel workers.
-    # Required on macOS (avoids 10-30s KMeans hang) and Windows alike.
-    import os as _os
-    _os.environ.setdefault('LOKY_MAX_CPU_COUNT', '1')
-    _os.environ.setdefault('OMP_NUM_THREADS',    '1')
-    app.run(debug=False, port=5000, use_reloader=False, threaded=True)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1198,13 +1191,13 @@ def api_border_id_generate():
         palette_rgb = data.get('palette') or None
 
         try:    detail_retention = max(0.0, min(0.9, float(data.get('detail_retention', 0.12))))
-        except: detail_retention = 0.12
+        except (ValueError, TypeError): detail_retention = 0.12
 
         try:    ink_sensitivity = max(0.25, min(3.0, float(data.get('ink_sensitivity', 1.0))))
-        except: ink_sensitivity = 1.0
+        except (ValueError, TypeError): ink_sensitivity = 1.0
 
         try:    noise_min_size = max(1, min(8, int(data.get('noise_min_size', 1))))
-        except: noise_min_size = 1
+        except (ValueError, TypeError): noise_min_size = 1
 
         hi_detail = bool(data.get('hi_detail', True))
         auto_detail = bool(data.get('auto_detail', False))
@@ -1783,3 +1776,12 @@ def api_generate_preview():
         })
     except Exception as e:
         return _json_error(f'Preview failed: {e}')
+
+
+if __name__ == '__main__':
+    # Prevent joblib/OpenMP from spawning parallel workers.
+    # Required on macOS (avoids 10-30s KMeans hang) and Windows alike.
+    import os as _os
+    _os.environ.setdefault('LOKY_MAX_CPU_COUNT', '1')
+    _os.environ.setdefault('OMP_NUM_THREADS',    '1')
+    app.run(debug=False, port=5000, use_reloader=False, threaded=True)

@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="description" content="Jacquard Designer — BMP generation tool for jacquard loom weaving. Upload a design image, assign thread colours, and export BMP files.">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
@@ -1214,6 +1215,7 @@
   }
   .rerun-btn.visible { display: block; }
 
+  .pixelated, [style*="pixelated"], canvas { image-rendering: -webkit-optimize-contrast; }
   </style>
 </head>
 <body>
@@ -1328,7 +1330,7 @@
 
       <div class="field" style="margin-bottom:12px">
         <label>Design Name</label>
-        <input type="text" id="design-name" placeholder="e.g. Rose_Butta" maxlength="50">
+        <input type="text" id="design-name" aria-label="Design name" placeholder="e.g. Rose_Butta" maxlength="50">
       </div>
 
       <div class="field-row">
@@ -1361,8 +1363,8 @@
         <div style="display:flex;gap:6px;margin-top:6px;align-items:center;">
           <input type="number" id="sizeW" placeholder="width" min="0.1" step="0.1" style="flex:1;min-width:0;">
           <span style="color:var(--muted);">×</span>
-          <input type="number" id="sizeH" placeholder="height" min="0.1" step="0.1" style="flex:1;min-width:0;">
-          <select id="sizeUnit" style="width:60px;">
+          <input type="number" id="sizeH" aria-label="Height in cards" placeholder="height" min="0.1" step="0.1" style="flex:1;min-width:0;">
+          <select id="sizeUnit" aria-label="Size unit" style="width:60px;">
             <option value="in">in</option>
             <option value="cm">cm</option>
           </select>
@@ -1414,7 +1416,7 @@
 
       <div class="emboss-row visible" id="strokeModeRow">
         <label class="emboss-label">
-          <input type="checkbox" id="strokeMode" checked onchange="updateSettingsSummary()">
+          <input type="checkbox" id="strokeMode" aria-label="Stroke mode" checked onchange="updateSettingsSummary()">
           <span class="emboss-text">
             <strong>✦ Stroke mode</strong>
             <span class="emboss-desc">Thins design to 1px outline stroke. Produces clean rani background.</span>
@@ -1533,10 +1535,10 @@
 
       <div class="drag-hint-banner" id="drag-hint-banner">
         ✦ Drag each colour card into a shuttle slot to assign it
-        <button class="close-hint" onclick="document.getElementById('drag-hint-banner').style.display='none';localStorage.setItem('jq-drag-hint','1')" title="Dismiss">×</button>
+        <button type="button" class="close-hint" onclick="document.getElementById('drag-hint-banner').style.display='none';localStorage.setItem('jq-drag-hint','1')" title="Dismiss">×</button>
       </div>
       <div class="undo-assign-row">
-        <button class="undo-assign-btn" id="undo-assign-btn" onclick="undoLastAssignment()" title="Undo last colour assignment">↩ Undo last assignment</button>
+        <button type="button" class="undo-assign-btn" id="undo-assign-btn" onclick="undoLastAssignment()" title="Undo last colour assignment">↩ Undo last assignment</button>
       </div>
 
       <!-- Preview images row -->
@@ -2270,7 +2272,7 @@ async function detectColors() {
   try {
     // Quick server health check before sending large image
     try {
-      await fetch('/api/fill-patterns', { method: 'GET', signal: AbortSignal.timeout(3000) });
+      (() => { const _ac = new AbortController(); const _t = setTimeout(() => _ac.abort(), 3000); return fetch('/api/fill-patterns', { method: 'GET', signal: _ac.signal }).finally(() => clearTimeout(_t)); })();
     } catch(pingErr) {
       throw new Error('Flask server is not responding. Please restart run.py and hard-refresh (Ctrl+Shift+R).');
     }
@@ -3040,7 +3042,7 @@ async function generateBMPs() {
 
   try {
     try {
-      await fetch('/api/fill-patterns', { method: 'GET', signal: AbortSignal.timeout(3000) });
+      (() => { const _ac = new AbortController(); const _t = setTimeout(() => _ac.abort(), 3000); return fetch('/api/fill-patterns', { method: 'GET', signal: _ac.signal }).finally(() => clearTimeout(_t)); })();
     } catch(pingErr) {
       throw new Error('Flask server is not responding. Please restart run.py and hard-refresh (Ctrl+Shift+R).');
     }

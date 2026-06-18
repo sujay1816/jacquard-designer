@@ -2,9 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+<meta name="description" content="BMP Editor — Jacquard Designer. Pixel-level editor for 1-bit BMP loom files with drawing tools, fill patterns, and morphological operations.">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BMP Editor — Jacquard Designer</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Cormorant+Garamond:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -486,6 +488,7 @@
     .kb-row span { color: var(--muted); }
     .kb-close { width: 100%; margin-top: 12px; padding: 8px; background: var(--surface2); border: 1px solid var(--border2); color: var(--muted); border-radius: 6px; cursor: pointer; font-family: 'DM Mono', monospace; font-size: 11px; }
     .kb-close:hover { border-color: var(--gold); color: var(--gold); }
+  .pixelated, [style*="pixelated"], canvas { image-rendering: -webkit-optimize-contrast; }
   </style>
 </head>
 <body>
@@ -517,7 +520,7 @@
       <div class="kb-row"><span>Save / Export</span><kbd>Ctrl S</kbd></div>
       <div class="kb-row"><span>Open this help</span><kbd>?</kbd></div>
     </div>
-    <button class="kb-close" onclick="toggleKbOverlay()">Close (Esc)</button>
+    <button type="button" class="kb-close" onclick="toggleKbOverlay()">Close (Esc)</button>
   </div>
 </div>
 

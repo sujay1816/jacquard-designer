@@ -2,9 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="description" content="Border Identification — Jacquard Designer. Enhanced fine-detail BMP generation for intricate border patterns.">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Border Identification — Jacquard Designer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -17,7 +19,7 @@
     --radius:8px; --transition:0.2s ease;
   }
   *{box-sizing:border-box;margin:0;padding:0;}
-  body{background:radial-gradient(1200px 600px at 80% -10%,rgba(200,169,110,0.06),transparent 60%),var(--bg);color:var(--text);font-family:'DM Mono',monospace;font-size:13px;min-height:100vh;}
+  body{background:radial-gradient(1200px 600px at 80% -10%,rgba(200,169,110,0.06),transparent 60%),var(--bg);color:var(--text);font-family:'DM Mono',monospace;font-size:13px;overflow-x:hidden;min-height:100vh;}
   a{color:var(--gold);text-decoration:none;} a:hover{color:var(--gold2);}
   header{border-bottom:1px solid var(--border);box-shadow:0 1px 0 0 rgba(200,169,110,0.08);padding:18px 32px;display:flex;align-items:center;gap:18px;background:var(--surface);position:sticky;top:0;z-index:20;}
   .logo-mark{width:36px;height:36px;background:linear-gradient(135deg,var(--gold),var(--gold2));border-radius:5px;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-size:20px;color:#1a1510;font-weight:600;flex-shrink:0;}
@@ -88,6 +90,7 @@
   @keyframes spin{to{transform:rotate(360deg);}}
   .enhance-badge{display:inline-block;padding:2px 8px;border:1px solid var(--gold);border-radius:100px;color:var(--gold);font-size:10px;letter-spacing:1px;text-transform:uppercase;margin-left:8px;vertical-align:middle;}
   *:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
+  .pixelated,[style*="pixelated"],canvas{image-rendering:-webkit-optimize-contrast;}
 </style>
 </head>
 <body>
@@ -131,7 +134,7 @@
       <div class="row" style="margin-top:18px;">
         <div>
           <label class="fld">Pins (loom width)</label>
-          <input type="number" id="pins" value="400" min="10">
+          <input type="number" id="pins" aria-label="Pin count (loom width)" value="400" min="10">
           <div class="help">Higher = finer detail preserved.</div>
         </div>
         <div>
@@ -149,7 +152,7 @@
       <div style="margin-top:16px;">
         <label class="fld">Ink sensitivity</label>
         <div class="slider-wrap">
-          <input type="range" id="inkSens" min="50" max="200" value="100">
+          <input type="range" id="inkSens" aria-label="Ink sensitivity" min="50" max="200" value="100">
           <span class="slider-val" id="inkSensVal">1.00</span>
         </div>
         <div class="help">Higher picks up fainter lines; lower is stricter / cleaner.</div>
@@ -169,7 +172,7 @@
       <div class="control-grid">
         <div>
           <label class="fld">Shuttle count</label>
-          <select id="shuttleCount">
+          <select id="shuttleCount" aria-label="Shuttle count">
             <option value="1">1 — Zari only</option>
             <option value="2" selected>2 — Zari + Rani base</option>
             <option value="3">3 — Zari + Meena 1 + Rani</option>
@@ -199,7 +202,7 @@
         <div>
           <label class="fld">Hi-res detection</label>
           <div style="margin-top:8px;">
-            <label class="toggle"><input type="checkbox" id="hiDetail" checked> Adaptive upscale (recommended)</label>
+            <label class="toggle"><input type="checkbox" id="hiDetail" aria-label="High detail mode" checked> Adaptive upscale (recommended)</label>
           </div>
           <div class="help">Automatically selects 4–8× based on your image density.</div>
         </div>

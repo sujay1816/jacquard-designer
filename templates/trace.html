@@ -2,9 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+<meta name="description" content="Tracing Guide — Jacquard Designer. Pre-process complex fabric images into clean traced designs ready for BMP generation.">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tracing Guide — Jacquard Designer</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Cormorant+Garamond:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -143,6 +145,7 @@
     .output-img-wrap{position:relative;cursor:zoom-in;}
     .output-img-wrap:hover::after{content:'⤢ enlarge';position:absolute;bottom:8px;right:8px;background:rgba(14,12,10,0.8);color:var(--gold);font-size:10px;padding:3px 8px;border-radius:4px;pointer-events:none;}
     .card-desc{font-size:10px;color:var(--muted);line-height:1.55;margin-top:4px;padding:0 4px;}
+  .pixelated, [style*="pixelated"], canvas { image-rendering: -webkit-optimize-contrast; }
   </style>
 </head>
 <body>
@@ -198,7 +201,7 @@
       <div class="settings-row">
         <div class="setting">
           <label>Background type</label>
-          <select id="bg-type">
+          <select id="bg-type" aria-label="Background type">
             <option value="auto" selected>Auto-detect</option>
             <option value="light">Light bg (dark outlines)</option>
             <option value="dark">Dark bg (coloured motifs)</option>
@@ -207,7 +210,7 @@
         <div class="setting">
           <label>Capture strength</label>
           <div class="slider-wrap">
-            <input type="range" id="strength" min="1" max="5" value="3"
+            <input type="range" id="strength" aria-label="Cleaning strength" min="1" max="5" value="3"
                    oninput="document.getElementById('strength-val').textContent=this.value">
             <span class="slider-val" id="strength-val">3</span>
           </div>

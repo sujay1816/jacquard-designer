@@ -2,9 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="description" content="Butta Studio — Jacquard Designer. Compress large motifs to small pin widths while preserving fine negative-space detail.">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Butta Studio — Jacquard Designer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
 <style>
   :root{
@@ -13,7 +15,7 @@
     --danger:#c06060;--success:#6a9e6a;--radius:8px;--transition:0.2s ease;
   }
   *{box-sizing:border-box;margin:0;padding:0;}
-  body{background:radial-gradient(1200px 600px at 80% -10%,rgba(200,169,110,0.06),transparent 60%),var(--bg);color:var(--text);font-family:'DM Mono',monospace;font-size:13px;min-height:100vh;}
+  body{background:radial-gradient(1200px 600px at 80% -10%,rgba(200,169,110,0.06),transparent 60%),var(--bg);color:var(--text);font-family:'DM Mono',monospace;font-size:13px;overflow-x:hidden;min-height:100vh;}
   a{color:var(--gold);text-decoration:none;} a:hover{color:var(--gold2);}
   header{border-bottom:1px solid var(--border);padding:18px 32px;display:flex;align-items:center;gap:18px;background:var(--surface);position:sticky;top:0;z-index:20;}
   .logo-mark{width:36px;height:36px;background:linear-gradient(135deg,var(--gold),var(--gold2));border-radius:5px;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-size:20px;color:#1a1510;font-weight:600;flex-shrink:0;}
@@ -89,6 +91,7 @@
   #pv img{max-width:100%;max-height:520px;width:auto;height:auto;min-width:0;}
   header{box-shadow:0 1px 0 0 rgba(200,169,110,0.08);}
   *:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
+  .pixelated,[style*="pixelated"],canvas{image-rendering:-webkit-optimize-contrast;}
 </style>
 </head>
 <body>
@@ -186,7 +189,7 @@
           <input type="file" id="projFile" accept=".json,.jproj" style="display:none">
 
           <label class="fld" style="margin-top:16px">Batch (multiple files → ZIP)</label>
-          <input type="file" id="batchFiles" accept=".jpg,.jpeg,.png,.bmp,.tif,.tiff,.webp" multiple>
+          <input type="file" id="batchFiles" aria-label="Batch image files" accept=".jpg,.jpeg,.png,.bmp,.tif,.tiff,.webp" multiple>
           <div class="help">Applies the current settings above to every file. Each file → its own BMP(s).</div>
           <button type="button" class="ghost" id="batchBtn" style="margin-top:8px;width:100%">Process batch → ZIP</button>
         </div>
@@ -217,16 +220,16 @@
         <div class="ttl">Step &amp; repeat <span style="color:var(--muted);font-size:11px">· how the motif tiles across the fabric</span></div>
         <div class="rep-controls">
           <label class="rep-fld">Across
-            <select id="repAcross"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option></select>
+            <select id="repAcross" aria-label="Repeat count across"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option></select>
           </label>
           <label class="rep-fld">Down
-            <select id="repDown"><option>1</option><option selected>2</option><option>3</option><option>4</option></select>
+            <select id="repDown" aria-label="Repeat count down"><option>1</option><option selected>2</option><option>3</option><option>4</option></select>
           </label>
           <label class="rep-fld">Layout
-            <select id="repLayout"><option value="straight">Straight</option><option value="half">Half-drop</option><option value="brick">Brick</option></select>
+            <select id="repLayout" aria-label="Repeat layout type"><option value="straight">Straight</option><option value="half">Half-drop</option><option value="brick">Brick</option></select>
           </label>
           <label class="rep-fld">Gap
-            <input type="number" id="repGap" value="0" min="0" max="200" step="1" style="width:64px">
+            <input type="number" id="repGap" aria-label="Gap between tiles in threads" value="0" min="0" max="200" step="1" style="width:64px">
           </label>
         </div>
         <div class="preview-box" id="repBox" style="min-height:200px">
