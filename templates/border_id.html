@@ -118,7 +118,7 @@
       <div class="dropzone" id="dropzone">
         <div class="big">Drop a border image here</div>
         <div class="sub">or click to browse — JPEG, PNG, BMP, TIFF, WebP</div>
-        <img id="thumb" style="display:none">
+        <img id="thumb" style="display:none" alt="">
       </div>
       <input type="file" id="fileInput" accept="image/*" style="display:none">
 
@@ -150,7 +150,7 @@
       </div>
 
       <div style="margin-top:18px;">
-        <button class="primary" id="detectBtn" disabled>Identify colours</button>
+        <button type="button" class="primary" id="detectBtn" disabled>Identify colours</button>
       </div>
       <div class="msg" id="detectMsg"></div>
     </div>
@@ -217,8 +217,8 @@
       </div>
 
       <div class="actions">
-        <button class="primary" id="generateBtn">Generate BMP files</button>
-        <button class="ghost" id="backBtn">Re-upload</button>
+        <button type="button" class="primary" id="generateBtn">Generate BMP files</button>
+        <button type="button" class="ghost" id="backBtn">Re-upload</button>
       </div>
       <div class="msg" id="genMsg"></div>
     </div>
@@ -230,7 +230,7 @@
     <div class="card">
       <div class="preview-grid" id="previewGrid"></div>
       <div class="actions">
-        <button class="primary" id="downloadBtn">Download ZIP</button>
+        <button type="button" class="primary" id="downloadBtn">Download ZIP</button>
       </div>
     </div>
   </section>
@@ -457,8 +457,8 @@ function renderPreviews(data){
       <img src="data:image/png;base64,${data.previews[fname]}">
       <div class="pc-stat"><span>UP ${up}%</span><span class="${v.is_clean?'clean':''}">${v.is_clean?'1-bit clean':''}</span></div>
       <div class="pc-actions">
-        <button class="pc-btn" onclick="openInEditor('${fname}')">✏ Edit in BMP Editor</button>
-        <button class="pc-btn" onclick="downloadOne('${fname}')">↓ Download</button>
+        <button type="button" class="pc-btn" onclick="openInEditor('${fname}')">✏ Edit in BMP Editor</button>
+        <button type="button" class="pc-btn" onclick="downloadOne('${fname}')">↓ Download</button>
       </div>`;
     grid.appendChild(card);
   });

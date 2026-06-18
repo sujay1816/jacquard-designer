@@ -211,10 +211,10 @@
       </div>
 
       <div class="action-row">
-        <button class="btn btn-gold" id="process-btn" onclick="processImage()" disabled>
+        <button type="button" class="btn btn-gold" id="process-btn" onclick="processImage()" disabled>
           ✦ Analyse Image
         </button>
-        <button class="btn btn-outline" id="reprocess-btn" onclick="processImage()" style="display:none">
+        <button type="button" class="btn btn-outline" id="reprocess-btn" onclick="processImage()" style="display:none">
           ↺ Re-process with new settings
         </button>
       </div>
@@ -294,9 +294,9 @@
           <img id="img-faded" src="" alt="Faded reference">
         </div>
         <div class="output-card-footer">
-          <button class="btn btn-gold" onclick="downloadImg('img-faded','tracing_reference.png')">↓ Download</button>
-          <button class="btn btn-outline" onclick="openInPhotopea('img-faded')">Open in Photopea ↗</button>
-          <button class="btn btn-outline" onclick="viewFullSize('img-faded')">⤢ Full size</button>
+          <button type="button" class="btn btn-gold" onclick="downloadImg('img-faded','tracing_reference.png')">↓ Download</button>
+          <button type="button" class="btn btn-outline" onclick="openInPhotopea('img-faded')">Open in Photopea ↗</button>
+          <button type="button" class="btn btn-outline" onclick="viewFullSize('img-faded')">⤢ Full size</button>
         </div>
       </div>
 
@@ -313,8 +313,8 @@
         </div>
         <div class="legend" id="legend"></div>
         <div class="output-card-footer">
-          <button class="btn btn-outline" onclick="downloadImg('img-highlighted','layer_map.png')">↓ Download</button>
-          <button class="btn btn-outline" onclick="viewFullSize('img-highlighted')">⤢ Full size</button>
+          <button type="button" class="btn btn-outline" onclick="downloadImg('img-highlighted','layer_map.png')">↓ Download</button>
+          <button type="button" class="btn btn-outline" onclick="viewFullSize('img-highlighted')">⤢ Full size</button>
         </div>
       </div>
 
@@ -330,10 +330,10 @@
           <img id="img-cleaned" src="" alt="Auto cleaned">
         </div>
         <div class="output-card-footer">
-          <button class="btn btn-success" onclick="sendToGenerator('cleaned')">→ Send to Generator</button>
-          <button class="btn btn-outline" id="invert-btn" onclick="toggleInvertCleaned()" title="Flip black↔white — use when the background was detected as design">⇄ Invert</button>
-          <button class="btn btn-outline" onclick="downloadImg('img-cleaned','auto_cleaned.png')">↓ Download</button>
-          <button class="btn btn-outline" onclick="viewFullSize('img-cleaned')">⤢ Full size</button>
+          <button type="button" class="btn btn-success" onclick="sendToGenerator('cleaned')">→ Send to Generator</button>
+          <button type="button" class="btn btn-outline" id="invert-btn" onclick="toggleInvertCleaned()" title="Flip black↔white — use when the background was detected as design">⇄ Invert</button>
+          <button type="button" class="btn btn-outline" onclick="downloadImg('img-cleaned','auto_cleaned.png')">↓ Download</button>
+          <button type="button" class="btn btn-outline" onclick="viewFullSize('img-cleaned')">⤢ Full size</button>
         </div>
       </div>
 

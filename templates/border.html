@@ -163,7 +163,7 @@
       <div class="dropzone" id="dropzone">
         <div class="big">Drop a border image here</div>
         <div class="sub">or click to browse — JPEG, PNG, BMP, TIFF, WebP</div>
-        <img id="thumb" style="display:none">
+        <img id="thumb" style="display:none" alt="">
       </div>
       <input type="file" id="fileInput" accept="image/*" style="display:none">
 
@@ -175,33 +175,33 @@
         <div class="sug-card" id="suggestCard" style="display:none">
           <div class="sug-card-head">
             <span class="sug-card-title">✦ Suggested settings for this image</span>
-            <button class="sug-dismiss" onclick="dismissSuggestions()" title="Dismiss">✕</button>
+            <button type="button" class="sug-dismiss" onclick="dismissSuggestions()" title="Dismiss">✕</button>
           </div>
           <div class="sug-row">
             <span class="sug-key">Pins</span>
             <span class="sug-val" id="sug-val-pins">—</span>
             <span class="sug-why" id="sug-why-pins"></span>
-            <button class="sug-apply-one" onclick="applyOneSuggestion('pins')">Apply</button>
+            <button type="button" class="sug-apply-one" onclick="applyOneSuggestion('pins')">Apply</button>
           </div>
           <div class="sug-row">
             <span class="sug-key">Ink sensitivity</span>
             <span class="sug-val" id="sug-val-ink">—</span>
             <span class="sug-why" id="sug-why-ink"></span>
-            <button class="sug-apply-one" onclick="applyOneSuggestion('ink')">Apply</button>
+            <button type="button" class="sug-apply-one" onclick="applyOneSuggestion('ink')">Apply</button>
           </div>
           <div class="sug-row">
             <span class="sug-key">Detail retention</span>
             <span class="sug-val" id="sug-val-detail">—</span>
             <span class="sug-why" id="sug-why-detail"></span>
-            <button class="sug-apply-one" onclick="applyOneSuggestion('detail')">Apply</button>
+            <button type="button" class="sug-apply-one" onclick="applyOneSuggestion('detail')">Apply</button>
           </div>
           <div class="sug-row">
             <span class="sug-key">Min feature size</span>
             <span class="sug-val" id="sug-val-noise">—</span>
             <span class="sug-why" id="sug-why-noise"></span>
-            <button class="sug-apply-one" onclick="applyOneSuggestion('noise')">Apply</button>
+            <button type="button" class="sug-apply-one" onclick="applyOneSuggestion('noise')">Apply</button>
           </div>
-          <button class="sug-apply-all" id="applyAllBtn" onclick="applyAllSuggestions()">
+          <button type="button" class="sug-apply-all" id="applyAllBtn" onclick="applyAllSuggestions()">
             ✦ Apply all suggestions
           </button>
         </div>
@@ -240,7 +240,7 @@
       </div>
 
       <div style="margin-top:18px;">
-        <button class="primary" id="detectBtn" disabled>Detect colours</button>
+        <button type="button" class="primary" id="detectBtn" disabled>Detect colours</button>
       </div>
       <div class="msg" id="detectMsg"></div>
     </div>
@@ -255,8 +255,8 @@
       <div class="mode-wrap">
         <div class="mode-label">Generation mode</div>
         <div class="mode-btns">
-          <button class="mode-btn active" data-mode="standard" onclick="setMode('standard')">Standard</button>
-          <button class="mode-btn"        data-mode="fine"     onclick="setMode('fine')">✦ Fine Detail</button>
+          <button type="button" class="mode-btn active" data-mode="standard" onclick="setMode('standard')">Standard</button>
+          <button type="button" class="mode-btn"        data-mode="fine"     onclick="setMode('fine')">✦ Fine Detail</button>
         </div>
         <div class="mode-desc" id="modeDesc">
           <b style="color:var(--cream)">Standard</b> — high-resolution ink-first detection at 4× upscale.
@@ -326,8 +326,8 @@
       </div>
 
       <div class="actions">
-        <button class="primary" id="generateBtn">Generate BMP files</button>
-        <button class="ghost"   id="backBtn">Re-upload</button>
+        <button type="button" class="primary" id="generateBtn">Generate BMP files</button>
+        <button type="button" class="ghost"   id="backBtn">Re-upload</button>
       </div>
       <div class="msg" id="genMsg"></div>
     </div>
@@ -349,7 +349,7 @@
       <div id="loomInfo" style="font-size:12px;margin-bottom:12px;"></div>
       <div class="preview-grid" id="previewGrid"></div>
       <div class="actions">
-        <button class="primary" id="downloadBtn">↓ Download ZIP</button>
+        <button type="button" class="primary" id="downloadBtn">↓ Download ZIP</button>
       </div>
     </section>
   </div><!-- /right-panel -->
@@ -692,8 +692,8 @@ function renderPreviews(data) {
         <span class="${v.is_clean?'clean':''}">${v.is_clean?'✓ 1-bit clean':''}</span>
       </div>
       <div class="pc-actions">
-        <button class="pc-btn" onclick="openInEditor('${fname}')">✏ BMP Editor</button>
-        <button class="pc-btn" onclick="downloadOne('${fname}')">↓ Download</button>
+        <button type="button" class="pc-btn" onclick="openInEditor('${fname}')">✏ BMP Editor</button>
+        <button type="button" class="pc-btn" onclick="downloadOne('${fname}')">↓ Download</button>
       </div>`;
     grid.appendChild(card);
   });

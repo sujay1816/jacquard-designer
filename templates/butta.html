@@ -122,9 +122,9 @@
 
         <label class="fld">Target pins (width)</label>
         <div class="pin-btns" id="pinBtns">
-          <button data-p="150">150</button>
-          <button data-p="200" class="on">200</button>
-          <button data-p="240">240</button>
+          <button type="button" data-p="150">150</button>
+          <button type="button" data-p="200" class="on">200</button>
+          <button type="button" data-p="240">240</button>
         </div>
         <input type="number" id="pinCustom" placeholder="custom width" min="40" max="600" aria-label="Custom pin width">
         <div class="help" id="pinNote"></div>
@@ -135,9 +135,9 @@
 
         <label class="fld" style="margin-top:16px">Colours</label>
         <div class="pin-btns" id="colorBtns">
-          <button data-c="1" class="on">Mono</button>
-          <button data-c="2">2</button>
-          <button data-c="3">3</button>
+          <button type="button" data-c="1" class="on">Mono</button>
+          <button type="button" data-c="2">2</button>
+          <button type="button" data-c="3">3</button>
         </div>
         <div class="help" id="colorHelp">Mono = single black-and-white motif. 2–3 detect colours and output one shuttle each (always a full set).</div>
 
@@ -149,8 +149,8 @@
 
         <label class="fld" style="margin-top:16px">Output</label>
         <div class="seg" id="modeSeg">
-          <button data-m="quick" class="on">Quick · motif BMP</button>
-          <button data-m="full">Full · shuttles + rani</button>
+          <button type="button" data-m="quick" class="on">Quick · motif BMP</button>
+          <button type="button" data-m="full">Full · shuttles + rani</button>
         </div>
         <div class="mode-help" id="modeHelp">A single clean 1-bit BMP of the motif — ready to download or send to the editor.</div>
 
@@ -164,16 +164,16 @@
         <input type="text" id="dname" value="butta" aria-label="Design name for the output file">
 
         <div style="margin-top:18px;display:flex;flex-direction:column;gap:10px">
-          <button class="primary" id="genBtn">Generate</button>
-          <button class="ghost" id="editBtn">Send to BMP Editor</button>
+          <button type="button" class="primary" id="genBtn">Generate</button>
+          <button type="button" class="ghost" id="editBtn">Send to BMP Editor</button>
         </div>
         <div class="dl" id="dlList"></div>
 
         <div style="margin-top:18px;border-top:1px solid var(--border2);padding-top:16px">
           <label class="fld">Project</label>
           <div style="display:flex;gap:8px">
-            <button class="ghost" id="saveProj" style="flex:1">Save project</button>
-            <button class="ghost" id="openProj" style="flex:1">Open project</button>
+            <button type="button" class="ghost" id="saveProj" style="flex:1">Save project</button>
+            <button type="button" class="ghost" id="openProj" style="flex:1">Open project</button>
           </div>
           <div class="help">Saves your settings + source as a .jproj file you can reopen later.</div>
           <input type="file" id="projFile" accept=".json,.jproj" style="display:none">
@@ -181,7 +181,7 @@
           <label class="fld" style="margin-top:16px">Batch (multiple files → ZIP)</label>
           <input type="file" id="batchFiles" accept=".jpg,.jpeg,.png,.bmp,.tif,.tiff,.webp" multiple>
           <div class="help">Applies the current settings above to every file. Each file → its own BMP(s).</div>
-          <button class="ghost" id="batchBtn" style="margin-top:8px;width:100%">Process batch → ZIP</button>
+          <button type="button" class="ghost" id="batchBtn" style="margin-top:8px;width:100%">Process batch → ZIP</button>
         </div>
       </div>
     </div>
@@ -191,8 +191,8 @@
       <div class="preview-wrap">
         <div class="ttl">Live preview <span style="color:var(--muted);font-size:11px">· actual thread grid</span></div>
         <div class="pv-toolbar" id="pvToolbar" style="display:none">
-          <button id="viewOut" class="on">Output</button>
-          <button id="viewSrc">Source</button>
+          <button type="button" id="viewOut" class="on">Output</button>
+          <button type="button" id="viewSrc">Source</button>
           <span class="hint" id="pvHint"></span>
         </div>
         <div class="preview-box" id="pv">
@@ -226,7 +226,7 @@
           <canvas id="repCanvas" style="image-rendering:pixelated;display:block;"></canvas>
         </div>
         <div class="help" id="repHint"></div>
-        <button class="ghost" id="repEditBtn" style="margin-top:12px;">Edit this repeat in BMP Editor</button>
+        <button type="button" class="ghost" id="repEditBtn" style="margin-top:12px;">Edit this repeat in BMP Editor</button>
         <div class="help" style="margin-top:6px;">Opens the whole tiled repeat as one 1-bit BMP you can edit thread-by-thread.</div>
       </div>
     </div>

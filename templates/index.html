@@ -1159,7 +1159,7 @@
         </div>
         <div class="upload-preview" id="upload-preview">
           <img id="preview-img" src="" alt="Design preview">
-          <button class="change-btn" id="change-img-btn">Change</button>
+          <button type="button" class="change-btn" id="change-img-btn">Change</button>
         </div>
 
         <div id="loomPreviewWrap" style="display:none;margin-top:12px;">
@@ -1261,16 +1261,16 @@
     <div class="panel-section">
       <div class="section-label">Threads</div>
       <div class="shuttle-buttons">
-        <button class="shuttle-btn active" data-n="1" onclick="setShuttles(1)">
+        <button type="button" class="shuttle-btn active" data-n="1" onclick="setShuttles(1)">
           <span class="num">1</span>Zari
         </button>
-        <button class="shuttle-btn" data-n="2" onclick="setShuttles(2)">
+        <button type="button" class="shuttle-btn" data-n="2" onclick="setShuttles(2)">
           <span class="num">2</span>+Rani
         </button>
-        <button class="shuttle-btn" data-n="3" onclick="setShuttles(3)">
+        <button type="button" class="shuttle-btn" data-n="3" onclick="setShuttles(3)">
           <span class="num">3</span>+Meena
         </button>
-        <button class="shuttle-btn" data-n="4" onclick="setShuttles(4)">
+        <button type="button" class="shuttle-btn" data-n="4" onclick="setShuttles(4)">
           <span class="num">4</span>+Meena2
         </button>
       </div>
@@ -1356,19 +1356,19 @@
         <div style="font-size:9px;color:var(--border2);margin-top:4px;">From detection · varies with weave settings</div>
       </div>
 
-      <button class="btn btn-secondary" id="reset-btn" onclick="resetApp()"
+      <button type="button" class="btn btn-secondary" id="reset-btn" onclick="resetApp()"
         style="background:transparent;border:1px solid var(--border2);color:var(--muted);
         margin-bottom:8px;width:100%;padding:8px" title="Clear and start over">
         ↺ Start Over
       </button>
-      <button class="btn btn-primary" id="detect-btn" onclick="detectColors()">
+      <button type="button" class="btn btn-primary" id="detect-btn" onclick="detectColors()">
         <div class="spinner" id="detect-spinner"></div>
         <span id="detect-btn-text">Detect Colours</span>
       </button>
       <div class="msg msg-error" id="detect-error"></div>
 
       <div id="generate-section" style="display:none;margin-top:10px;">
-        <button class="btn btn-success" id="generate-btn" onclick="generateBMPs()">
+        <button type="button" class="btn btn-success" id="generate-btn" onclick="generateBMPs()">
           <div class="spinner" id="generate-spinner"></div>
           <span id="generate-btn-text">Generate BMP Files</span>
         </button>
@@ -1420,11 +1420,11 @@
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
         <div>
           <div style="font-size:10px;color:var(--muted);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px">Original (resized)</div>
-          <img id="orig-preview" style="width:100%;border-radius:8px;display:block;max-height:200px;object-fit:cover">
+          <img id="orig-preview" alt="Original design image resized" style="width:100%;border-radius:8px;display:block;max-height:200px;object-fit:cover">
         </div>
         <div>
           <div style="font-size:10px;color:var(--muted);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px">Colour Map</div>
-          <img id="color-map-preview" style="width:100%;border-radius:8px;display:block;max-height:200px;object-fit:cover">
+          <img id="color-map-preview" alt="Detected colour map" style="width:100%;border-radius:8px;display:block;max-height:200px;object-fit:cover">
         </div>
       </div>
 
@@ -1448,7 +1448,7 @@
     <div id="output-section" style="display:none">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
         <div style="font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--gold2)">Generated BMP Files</div>
-        <button onclick="generateBMPs()"
+        <button type="button" onclick="generateBMPs()"
           style="padding:6px 14px;background:transparent;border:1px solid var(--border2);
                  color:var(--muted);border-radius:var(--radius);font-size:11px;cursor:pointer;
                  font-family:'DM Mono',monospace;letter-spacing:0.05em;transition:all 0.18s;"
@@ -1462,7 +1462,7 @@
       <div class="download-section" style="margin-top:16px">
         <div class="download-title">✓ Files Ready</div>
         <div class="download-meta" id="download-meta"></div>
-        <button class="btn btn-primary" id="download-btn" onclick="downloadZip()" style="max-width:280px;margin:0 auto">
+        <button type="button" class="btn btn-primary" id="download-btn" onclick="downloadZip()" style="max-width:280px;margin:0 auto">
           ⬇ Download ZIP
         </button>
       </div>
@@ -3217,7 +3217,7 @@ function renderOutputPreviews(data) {
         </div>`;
       })()}
       <div style="padding:8px 12px;border-top:1px solid var(--border);display:flex;gap:6px;">
-        <button onclick="openInEditor('${fname}', '${preview}')"
+        <button type="button" onclick="openInEditor('${fname}', '${preview}')"
           style="flex:1;padding:6px;background:transparent;border:1px solid var(--border2);
                  color:var(--muted);border-radius:var(--radius);font-size:10px;cursor:pointer;
                  font-family:'DM Mono',monospace;letter-spacing:0.05em;transition:all 0.18s"
@@ -3225,7 +3225,7 @@ function renderOutputPreviews(data) {
           onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--muted)'">
           ✏ Edit
         </button>
-        <button onclick="downloadSingleBMP('${fname}')"
+        <button type="button" onclick="downloadSingleBMP('${fname}')"
           style="padding:6px 10px;background:transparent;border:1px solid var(--border2);
                  color:var(--muted);border-radius:var(--radius);font-size:10px;cursor:pointer;
                  font-family:'DM Mono',monospace;transition:all 0.18s"
@@ -3619,7 +3619,8 @@ function selectRaniWeave(pattern, itemEl) {
             const file = new File([blob], 'auto_cleaned.png', { type: 'image/png' });
             // Wait for DOM then trigger handleFile
             requestAnimationFrame(() => handleFile(file));
-          });
+          })
+          .catch(err => console.warn('Failed to load trace image:', err));
       }
     }
   })();
@@ -3636,7 +3637,8 @@ function selectRaniWeave(pattern, itemEl) {
           .then(blob => {
             const file = new File([blob], 'from_editor.png', { type: 'image/png' });
             requestAnimationFrame(() => handleFile(file));
-          });
+          })
+          .catch(err => console.warn('Failed to load editor image:', err));
       }
     }
   })();

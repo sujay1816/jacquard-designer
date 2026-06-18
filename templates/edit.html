@@ -480,11 +480,11 @@
   <div id="header-file" style="cursor:pointer" onclick="document.getElementById('file-input2').click()" title="Click to load a different file">No file loaded</div>
   <div class="h-spacer"></div>
   <div id="spinner"></div>
-  <button class="hbtn" onclick="undo()" title="Undo (Ctrl+Z)">↩ Undo</button>
-  <button class="hbtn" onclick="redo()" title="Redo (Ctrl+Y / Ctrl+Shift+Z)">↪ Redo</button>
+  <button type="button" class="hbtn" onclick="undo()" title="Undo (Ctrl+Z)">↩ Undo</button>
+  <button type="button" class="hbtn" onclick="redo()" title="Redo (Ctrl+Y / Ctrl+Shift+Z)">↪ Redo</button>
   <span class="hsep"></span>
-  <button class="hbtn" onclick="downloadBMP()" title="Save the edited BMP to disk (Ctrl+S)">↓ Download BMP</button>
-  <button class="hbtn gold" onclick="sendToGenerator()" title="Send the current edited image to the Generator to re-detect colours">→ Send to Generator</button>
+  <button type="button" class="hbtn" onclick="downloadBMP()" title="Save the edited BMP to disk (Ctrl+S)">↓ Download BMP</button>
+  <button type="button" class="hbtn gold" onclick="sendToGenerator()" title="Send the current edited image to the Generator to re-detect colours">→ Send to Generator</button>
   <span class="hsep"></span>
   <a href="/"       class="hbtn nav" title="Open the Generator page (does not transfer the current image)">⬡ Open Generator</a>
   <a href="/trace"  class="hbtn nav" title="Open the Trace page">✦ Trace</a>
@@ -495,30 +495,30 @@
 
 <!-- ─── LEFT TOOLBAR ────────────────────────────────────────── -->
 <div id="toolbar">
-  <button class="tbtn on" id="tbtn-pencil" onclick="setTool('pencil')" data-tip="Pencil — draw UP pixels (P)">✏</button>
-  <button class="tbtn"    id="tbtn-eraser" onclick="setTool('eraser')" data-tip="Eraser — draw DOWN pixels (E)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12 L7 4 L13 8 L8 12 Z"/><line x1="2" y1="12" x2="13" y2="12"/><line x1="8" y1="12" x2="8" y2="14"/></svg></button>
-  <button class="tbtn"    id="tbtn-fill"   onclick="setTool('fill')"   data-tip="Flood Fill — fills connected region (F)">🪣</button>
-  <button class="tbtn"    id="tbtn-satin"  onclick="setTool('satin')"  data-tip="Satin Brush (W) — click to paint fill pattern; configure in Weave popup (Q)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><polygon points="8,2 13,5 13,11 8,14 3,11 3,5" stroke-width="1.2"/><line x1="8" y1="5" x2="8" y2="11"/><line x1="5" y1="6.5" x2="11" y2="6.5"/><line x1="5" y1="9.5" x2="11" y2="9.5"/></svg></button>
-  <button class="tbtn"    id="tbtn-line"   onclick="setTool('line')"   data-tip="Straight line (L)"><svg width="16" height="16" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.8"><line x1="3" y1="13" x2="13" y2="3"/></svg></button>
-  <button class="tbtn"    id="tbtn-rect"   onclick="setTool('rect')"   data-tip="Filled rectangle (R)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="10" height="8" rx="1"/></svg></button>
-  <button class="tbtn"    id="tbtn-select" onclick="setTool('select')" data-tip="Select rectangle — drag to select, then Copy (Ctrl+C) (S)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2,1.5"><rect x="2" y="2" width="12" height="12" rx="1"/></svg></button>
-  <button class="tbtn" id="tbtn-morph" onclick="openPopup('morph',this)" data-tip="Morphological tools — Dilate, Erode, Close Gaps, Clean Noise (M)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><circle cx="8" cy="8" r="6" stroke-dasharray="2,2"/></svg></button>
-  <button class="tbtn" id="tbtn-weave" onclick="openPopup('weave',this)" data-tip="Weave / Fill Pattern — paint satin, twill, honeycomb and more (Q)"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="3" height="3" rx=".4"/><rect x="6" y="1" width="3" height="3" rx=".4" opacity=".4"/><rect x="11" y="1" width="3" height="3" rx=".4"/><rect x="1" y="6" width="3" height="3" rx=".4" opacity=".4"/><rect x="6" y="6" width="3" height="3" rx=".4"/><rect x="11" y="6" width="3" height="3" rx=".4" opacity=".4"/><rect x="1" y="11" width="3" height="3" rx=".4"/><rect x="6" y="11" width="3" height="3" rx=".4" opacity=".4"/><rect x="11" y="11" width="3" height="3" rx=".4"/></svg></button>
-  <button class="tbtn" id="tbtn-fill-int" onclick="openPopup('fillint',this)" data-tip="Fill Interiors (J) — flood-fill enclosed design regions with a weave pattern">⬡</button>
+  <button type="button" class="tbtn on" id="tbtn-pencil" onclick="setTool('pencil')" data-tip="Pencil — draw UP pixels (P)">✏</button>
+  <button type="button" class="tbtn"    id="tbtn-eraser" onclick="setTool('eraser')" data-tip="Eraser — draw DOWN pixels (E)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12 L7 4 L13 8 L8 12 Z"/><line x1="2" y1="12" x2="13" y2="12"/><line x1="8" y1="12" x2="8" y2="14"/></svg></button>
+  <button type="button" class="tbtn"    id="tbtn-fill"   onclick="setTool('fill')"   data-tip="Flood Fill — fills connected region (F)">🪣</button>
+  <button type="button" class="tbtn"    id="tbtn-satin"  onclick="setTool('satin')"  data-tip="Satin Brush (W) — click to paint fill pattern; configure in Weave popup (Q)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><polygon points="8,2 13,5 13,11 8,14 3,11 3,5" stroke-width="1.2"/><line x1="8" y1="5" x2="8" y2="11"/><line x1="5" y1="6.5" x2="11" y2="6.5"/><line x1="5" y1="9.5" x2="11" y2="9.5"/></svg></button>
+  <button type="button" class="tbtn"    id="tbtn-line"   onclick="setTool('line')"   data-tip="Straight line (L)"><svg width="16" height="16" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.8"><line x1="3" y1="13" x2="13" y2="3"/></svg></button>
+  <button type="button" class="tbtn"    id="tbtn-rect"   onclick="setTool('rect')"   data-tip="Filled rectangle (R)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="10" height="8" rx="1"/></svg></button>
+  <button type="button" class="tbtn"    id="tbtn-select" onclick="setTool('select')" data-tip="Select rectangle — drag to select, then Copy (Ctrl+C) (S)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2,1.5"><rect x="2" y="2" width="12" height="12" rx="1"/></svg></button>
+  <button type="button" class="tbtn" id="tbtn-morph" onclick="openPopup('morph',this)" data-tip="Morphological tools — Dilate, Erode, Close Gaps, Clean Noise (M)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><circle cx="8" cy="8" r="6" stroke-dasharray="2,2"/></svg></button>
+  <button type="button" class="tbtn" id="tbtn-weave" onclick="openPopup('weave',this)" data-tip="Weave / Fill Pattern — paint satin, twill, honeycomb and more (Q)"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="3" height="3" rx=".4"/><rect x="6" y="1" width="3" height="3" rx=".4" opacity=".4"/><rect x="11" y="1" width="3" height="3" rx=".4"/><rect x="1" y="6" width="3" height="3" rx=".4" opacity=".4"/><rect x="6" y="6" width="3" height="3" rx=".4"/><rect x="11" y="6" width="3" height="3" rx=".4" opacity=".4"/><rect x="1" y="11" width="3" height="3" rx=".4"/><rect x="6" y="11" width="3" height="3" rx=".4" opacity=".4"/><rect x="11" y="11" width="3" height="3" rx=".4"/></svg></button>
+  <button type="button" class="tbtn" id="tbtn-fill-int" onclick="openPopup('fillint',this)" data-tip="Fill Interiors (J) — flood-fill enclosed design regions with a weave pattern">⬡</button>
   <div class="tsep"></div>
-  <button class="tbtn"    id="tbtn-weave-fill" onclick="openPopup('weavefill',this)" data-tip="Weave Fill (V) — opens pattern selector; arm then click any enclosed region">⬡✎</button>
-  <button class="tbtn"    id="tbtn-invert-region" onclick="setTool('invert-region')" data-tip="Invert Region (K) — click any region to flip black↔white">⬡↔</button>
-  <button class="tbtn"    id="tbtn-smart-fill"    onclick="openPopup('smartfill',this)" data-tip="Smart Fill (Z) — fill + weave + white outline"><span class="oic">⬡✦</span></button>
-  <button class="tbtn"    id="tbtn-pan"    onclick="setTool('pan')"    data-tip="Pan / scroll canvas (H)">✋</button>
+  <button type="button" class="tbtn"    id="tbtn-weave-fill" onclick="openPopup('weavefill',this)" data-tip="Weave Fill (V) — opens pattern selector; arm then click any enclosed region">⬡✎</button>
+  <button type="button" class="tbtn"    id="tbtn-invert-region" onclick="setTool('invert-region')" data-tip="Invert Region (K) — click any region to flip black↔white">⬡↔</button>
+  <button type="button" class="tbtn"    id="tbtn-smart-fill"    onclick="openPopup('smartfill',this)" data-tip="Smart Fill (Z) — fill + weave + white outline"><span class="oic">⬡✦</span></button>
+  <button type="button" class="tbtn"    id="tbtn-pan"    onclick="setTool('pan')"    data-tip="Pan / scroll canvas (H)">✋</button>
   <div class="tsep"></div>
-  <button class="tbtn"    id="tbtn-grid"   onclick="toggleGrid()"      data-tip="Toggle pixel grid — visible at 4x+ (G)">⊞</button>
-  <button class="tbtn" id="tbtn-ref" onclick="toggleRefPanel()" data-tip="Reference image (Blender-style overlay) (I)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M2 8 Q5 5 8 8 Q11 11 14 8" stroke-width="1.2"/><circle cx="11" cy="6" r="1.5" fill="currentColor" stroke="none"/></svg></button>
-  <button class="tbtn"                     onclick="fitToWindow()"     data-tip="Fit entire image in view (0)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 6V3h3M10 3h3v3M13 10v3h-3M6 13H3v-3"/></svg></button>
-  <button class="tbtn"    id="tbtn-zsel"   onclick="zoomToSelection()" data-tip="Zoom to selection — fits the current selection in view">⊡</button>
-  <button class="tbtn"    id="tbtn-sym"     onclick="cycleSymmetry()"   data-tip="Mirror drawing: off / horizontal / vertical / quad">⇄</button>
+  <button type="button" class="tbtn"    id="tbtn-grid"   onclick="toggleGrid()"      data-tip="Toggle pixel grid — visible at 4x+ (G)">⊞</button>
+  <button type="button" class="tbtn" id="tbtn-ref" onclick="toggleRefPanel()" data-tip="Reference image (Blender-style overlay) (I)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M2 8 Q5 5 8 8 Q11 11 14 8" stroke-width="1.2"/><circle cx="11" cy="6" r="1.5" fill="currentColor" stroke="none"/></svg></button>
+  <button type="button" class="tbtn"                     onclick="fitToWindow()"     data-tip="Fit entire image in view (0)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 6V3h3M10 3h3v3M13 10v3h-3M6 13H3v-3"/></svg></button>
+  <button type="button" class="tbtn"    id="tbtn-zsel"   onclick="zoomToSelection()" data-tip="Zoom to selection — fits the current selection in view">⊡</button>
+  <button type="button" class="tbtn"    id="tbtn-sym"     onclick="cycleSymmetry()"   data-tip="Mirror drawing: off / horizontal / vertical / quad">⇄</button>
   <div class="tsep"></div>
-  <button class="tbtn" onclick="openCanvasSizePopup(event)" data-tip="Canvas Size — extend or crop (C)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="2" width="8" height="8" rx="1"/><path d="M12 6v8M6 12h8" stroke-width="1.8"/></svg></button>
-  <button class="tbtn"                     onclick="document.getElementById('file-input2').click()" data-tip="Upload BMP or PNG from disk">📂</button>
+  <button type="button" class="tbtn" onclick="openCanvasSizePopup(event)" data-tip="Canvas Size — extend or crop (C)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="2" width="8" height="8" rx="1"/><path d="M12 6v8M6 12h8" stroke-width="1.8"/></svg></button>
+  <button type="button" class="tbtn"                     onclick="document.getElementById('file-input2').click()" data-tip="Upload BMP or PNG from disk">📂</button>
   <input type="file" id="file-input2" accept=".bmp,.png" style="display:none" onchange="loadFile(this.files[0])">
 </div>
 
@@ -559,9 +559,9 @@
 <div id="bottom-bar">
   <span id="coord-bar">x:— y:—</span>
   <div id="zoom-bar">
-    <button class="zbtn" onclick="zoomStep(-1)" title="Zoom out (-)">−</button>
+    <button type="button" class="zbtn" onclick="zoomStep(-1)" title="Zoom out (-)">−</button>
     <span id="zoom-label" onclick="resetZoom()" title="Click to reset to 100%">100%</span>
-    <button class="zbtn" onclick="zoomStep(+1)" title="Zoom in (+)">+</button>
+    <button type="button" class="zbtn" onclick="zoomStep(+1)" title="Zoom in (+)">+</button>
   </div>
 </div>
 
@@ -589,7 +589,7 @@
         <span class="opt-label" style="font-size:9px;line-height:1.4">RMB draws<br>
           <span id="rmb-label" style="color:var(--gold2)">White ↓</span>
         </span>
-        <button id="swap-btn" onclick="toggleSwapButtons()"
+        <button type="button" id="swap-btn" onclick="toggleSwapButtons()"
           style="padding:3px 8px;background:var(--surface2);border:1px solid var(--border2);
                  color:var(--muted);border-radius:4px;font-size:9px;cursor:pointer;
                  font-family:'DM Mono',monospace">⇄ Swap</button>
@@ -600,12 +600,12 @@
   <div class="psec">
     <div class="ptitle" onclick="togglePsec('transform')">Transform<span class="pchev" id="pchev-transform">▸</span></div>
     <div class="pbody" id="pbody-transform" data-open="false" style="max-height:0;overflow:hidden">
-      <button class="obtn" onclick="runOp('flip_h')"><span class="oic">⇄</span> Flip Horizontal</button>
-      <button class="obtn" onclick="runOp('flip_v')"><span class="oic">⇅</span> Flip Vertical</button>
-      <button class="obtn" onclick="runOp('rotate_90')"><span class="oic">↻</span> Rotate 90°</button>
-      <button class="obtn" onclick="runOp('rotate_180')"><span class="oic">↺</span> Rotate 180°</button>
-      <button class="obtn" onclick="runOp('rotate_270')"><span class="oic">↻</span> Rotate 270°</button>
-      <button class="obtn danger" onclick="invertCanvas()"><span class="oic">⬛</span> Invert Black↔White</button>
+      <button type="button" class="obtn" onclick="runOp('flip_h')"><span class="oic">⇄</span> Flip Horizontal</button>
+      <button type="button" class="obtn" onclick="runOp('flip_v')"><span class="oic">⇅</span> Flip Vertical</button>
+      <button type="button" class="obtn" onclick="runOp('rotate_90')"><span class="oic">↻</span> Rotate 90°</button>
+      <button type="button" class="obtn" onclick="runOp('rotate_180')"><span class="oic">↺</span> Rotate 180°</button>
+      <button type="button" class="obtn" onclick="runOp('rotate_270')"><span class="oic">↻</span> Rotate 270°</button>
+      <button type="button" class="obtn danger" onclick="invertCanvas()"><span class="oic">⬛</span> Invert Black↔White</button>
     </div>
   </div>
 
@@ -616,10 +616,10 @@
         No selection.<br>Use the ⬚ Select tool to drag a region.
       </div>
       <div style="display:flex;gap:4px;flex-wrap:wrap">
-        <button class="obtn" style="flex:1;justify-content:center;font-size:9px" id="btn-copy" onclick="copySelection()" title="Ctrl+C">⎘ Copy</button>
-        <button class="obtn" style="flex:1;justify-content:center;font-size:9px" id="btn-cut"  onclick="cutSelection()"  title="Ctrl+X">✂ Cut</button>
-        <button class="obtn" style="flex:1;justify-content:center;font-size:9px" id="btn-paste" onclick="startPaste()"  title="Ctrl+V">⎘ Paste</button>
-        <button class="obtn" style="flex:1;justify-content:center;font-size:9px" id="btn-clear-sel" onclick="clearSelection()">⬚ Desel</button>
+        <button type="button" class="obtn" style="flex:1;justify-content:center;font-size:9px" id="btn-copy" onclick="copySelection()" title="Ctrl+C">⎘ Copy</button>
+        <button type="button" class="obtn" style="flex:1;justify-content:center;font-size:9px" id="btn-cut"  onclick="cutSelection()"  title="Ctrl+X">✂ Cut</button>
+        <button type="button" class="obtn" style="flex:1;justify-content:center;font-size:9px" id="btn-paste" onclick="startPaste()"  title="Ctrl+V">⎘ Paste</button>
+        <button type="button" class="obtn" style="flex:1;justify-content:center;font-size:9px" id="btn-clear-sel" onclick="clearSelection()">⬚ Desel</button>
       </div>
     </div>
   </div>
@@ -646,62 +646,62 @@
 <div id="popup-morph" class="tb-popup">
   <div class="tb-popup-header">
     <span>⊕ Morphological</span>
-    <button onclick="closePopup('morph')" title="Close">✕</button>
+    <button type="button" onclick="closePopup('morph')" title="Close">✕</button>
   </div>
   <div class="tb-popup-body">
     <div style="font-size:9px;color:var(--muted);margin-bottom:8px;line-height:1.5">Adjust radius then click to apply.</div>
-    <button class="obtn" onclick="runMorph('dilate')">
+    <button type="button" class="obtn" onclick="runMorph('dilate')">
       <span class="oic">⊕</span> Dilate
       <div class="pctl">
-        <button class="pbtn" onclick="event.stopPropagation();adj('dilate',-1)">−</button>
+        <button type="button" class="pbtn" onclick="event.stopPropagation();adj('dilate',-1)">−</button>
         <span class="pval" id="pv-dilate">1</span>
-        <button class="pbtn" onclick="event.stopPropagation();adj('dilate',+1)">+</button>
+        <button type="button" class="pbtn" onclick="event.stopPropagation();adj('dilate',+1)">+</button>
       </div>
     </button>
-    <button class="obtn" onclick="runMorph('erode')">
+    <button type="button" class="obtn" onclick="runMorph('erode')">
       <span class="oic">⊖</span> Erode
       <div class="pctl">
-        <button class="pbtn" onclick="event.stopPropagation();adj('erode',-1)">−</button>
+        <button type="button" class="pbtn" onclick="event.stopPropagation();adj('erode',-1)">−</button>
         <span class="pval" id="pv-erode">1</span>
-        <button class="pbtn" onclick="event.stopPropagation();adj('erode',+1)">+</button>
+        <button type="button" class="pbtn" onclick="event.stopPropagation();adj('erode',+1)">+</button>
       </div>
     </button>
-    <button class="obtn" onclick="runMorph('close_gaps')">
+    <button type="button" class="obtn" onclick="runMorph('close_gaps')">
       <span class="oic">⬡</span> Close Gaps
       <div class="pctl">
-        <button class="pbtn" onclick="event.stopPropagation();adj('close_gaps',-1)">−</button>
+        <button type="button" class="pbtn" onclick="event.stopPropagation();adj('close_gaps',-1)">−</button>
         <span class="pval" id="pv-close_gaps">2</span>
-        <button class="pbtn" onclick="event.stopPropagation();adj('close_gaps',+1)">+</button>
+        <button type="button" class="pbtn" onclick="event.stopPropagation();adj('close_gaps',+1)">+</button>
       </div>
     </button>
-    <button class="obtn" onclick="runMorph('open')">
+    <button type="button" class="obtn" onclick="runMorph('open')">
       <span class="oic">◎</span> Open (smooth)
       <div class="pctl">
-        <button class="pbtn" onclick="event.stopPropagation();adj('open',-1)">−</button>
+        <button type="button" class="pbtn" onclick="event.stopPropagation();adj('open',-1)">−</button>
         <span class="pval" id="pv-open">1</span>
-        <button class="pbtn" onclick="event.stopPropagation();adj('open',+1)">+</button>
+        <button type="button" class="pbtn" onclick="event.stopPropagation();adj('open',+1)">+</button>
       </div>
     </button>
     <div style="border-top:1px solid var(--border);margin:8px 0 6px"></div>
-    <button class="obtn" onclick="runOp('remove_isolated')"><span class="oic">✕</span> Remove Isolated</button>
-    <button class="obtn" onclick="runMorph('clean_noise')">
+    <button type="button" class="obtn" onclick="runOp('remove_isolated')"><span class="oic">✕</span> Remove Isolated</button>
+    <button type="button" class="obtn" onclick="runMorph('clean_noise')">
       <span class="oic">◌</span> Clean Noise
       <div class="pctl">
-        <button class="pbtn" onclick="event.stopPropagation();adj('clean_noise',-1)">−</button>
+        <button type="button" class="pbtn" onclick="event.stopPropagation();adj('clean_noise',-1)">−</button>
         <span class="pval" id="pv-clean_noise">5</span>
-        <button class="pbtn" onclick="event.stopPropagation();adj('clean_noise',+1)">+</button>
+        <button type="button" class="pbtn" onclick="event.stopPropagation();adj('clean_noise',+1)">+</button>
       </div>
     </button>
     <div style="border-top:1px solid var(--border);margin:8px 0 6px"></div>
-    <button class="obtn" onclick="runOp('fill_rani_weave')" title="Fill all white areas with 1/1 plain weave — use on rani BMP after generation"><span class="oic">⬡</span> Rani Weave Fill</button>
-    <button class="obtn red" onclick="runOp('invert')"><span class="oic">⬛</span> Invert UP/DOWN</button>
+    <button type="button" class="obtn" onclick="runOp('fill_rani_weave')" title="Fill all white areas with 1/1 plain weave — use on rani BMP after generation"><span class="oic">⬡</span> Rani Weave Fill</button>
+    <button type="button" class="obtn red" onclick="runOp('invert')"><span class="oic">⬛</span> Invert UP/DOWN</button>
   </div>
 </div>
 
 <div id="popup-weave" class="tb-popup">
   <div class="tb-popup-header">
     <span>⬡ Weave / Fill Pattern</span>
-    <button onclick="closePopup('weave')" title="Close">✕</button>
+    <button type="button" onclick="closePopup('weave')" title="Close">✕</button>
   </div>
   <div class="tb-popup-body">
     <div style="font-size:9px;color:var(--muted);margin-bottom:8px;line-height:1.5">
@@ -739,12 +739,12 @@
       style="width:100%;border:1px solid var(--border);border-radius:4px;
              image-rendering:pixelated;margin-bottom:10px;background:#fff;display:block"></canvas>
     <div style="display:flex;gap:6px">
-      <button class="obtn" style="flex:1;justify-content:center;font-size:10px;
+      <button type="button" class="obtn" style="flex:1;justify-content:center;font-size:10px;
         background:rgba(200,169,110,0.12);border-color:var(--gold);color:var(--gold2)"
         onclick="setTool('satin');closePopup('weave')">
         <span class="oic">⬡</span> Use Brush
       </button>
-      <button class="obtn" style="flex:1;justify-content:center;font-size:10px"
+      <button type="button" class="obtn" style="flex:1;justify-content:center;font-size:10px"
         onclick="applyFillPattern()">
         <span class="oic">⊞</span> Apply All
       </button>
@@ -755,7 +755,7 @@
 <div id="popup-fillint" class="tb-popup">
   <div class="tb-popup-header">
     <span>⬡ Fill Interiors</span>
-    <button onclick="closePopup('fillint')" title="Close">✕</button>
+    <button type="button" onclick="closePopup('fillint')" title="Close">✕</button>
   </div>
   <div class="tb-popup-body">
     <div style="font-size:9px;color:var(--muted);margin-bottom:10px;line-height:1.6">
@@ -800,14 +800,14 @@
       </label>
     </div>
     <div style="display:flex;gap:6px;margin-top:2px">
-      <button onclick="syncFiToWf();setTool('weave-fill');closePopup('fillint')"
+      <button type="button" onclick="syncFiToWf();setTool('weave-fill');closePopup('fillint')"
         style="flex:1;padding:7px;background:var(--surface2);border:1px solid var(--gold);
                color:var(--gold);border-radius:4px;font-size:10px;font-weight:700;
                cursor:pointer;font-family:'DM Mono',monospace"
         title="Arm the click-to-fill tool, then click any enclosed region on the canvas">
         ⬡✎ Arm Fill (V)
       </button>
-      <button onclick="fillInteriors()"
+      <button type="button" onclick="fillInteriors()"
         style="flex:1;padding:7px;background:linear-gradient(135deg,var(--gold),var(--gold2));
                border:none;color:#1a1510;border-radius:4px;font-size:11px;font-weight:700;
                cursor:pointer;font-family:'DM Mono',monospace">
@@ -829,7 +829,7 @@
           Apply weave pattern after invert
         </label>
       </div>
-      <button onclick="setTool('invert-region');closePopup('fillint')"
+      <button type="button" onclick="setTool('invert-region');closePopup('fillint')"
         style="width:100%;padding:7px;background:var(--surface2);border:1px solid var(--gold);
                color:var(--gold);border-radius:4px;font-size:10px;font-weight:700;
                cursor:pointer;font-family:'DM Mono',monospace"
@@ -843,7 +843,7 @@
 <div id="popup-weavefill" class="tb-popup">
   <div class="tb-popup-header">
     <span>⬡✎ Weave Fill</span>
-    <button onclick="closePopup('weavefill')" title="Close">✕</button>
+    <button type="button" onclick="closePopup('weavefill')" title="Close">✕</button>
   </div>
   <div class="tb-popup-body">
     <div style="font-size:9px;color:var(--muted);margin-bottom:10px;line-height:1.6">
@@ -889,7 +889,7 @@
         <strong style="color:var(--gold)">Invert</strong> — swap black↔white in pattern
       </label>
     </div>
-    <button onclick="setTool('weave-fill')"
+    <button type="button" onclick="setTool('weave-fill')"
       style="width:100%;padding:8px;background:linear-gradient(135deg,var(--gold),var(--gold2));
              border:none;color:#1a1510;border-radius:4px;font-size:11px;font-weight:700;
              cursor:pointer;font-family:'DM Mono',monospace">
@@ -901,7 +901,7 @@
 <div id="popup-smartfill" class="tb-popup">
   <div class="tb-popup-header">
     <span>⬡ Smart Fill</span>
-    <button onclick="closePopup('smartfill')" title="Close">✕</button>
+    <button type="button" onclick="closePopup('smartfill')" title="Close">✕</button>
   </div>
   <div class="tb-popup-body">
     <div style="font-size:9px;color:var(--muted);margin-bottom:10px;line-height:1.6">
@@ -941,7 +941,7 @@
         <strong style="color:var(--gold)">Outline → White</strong> (border of each shape)
       </label>
     </div>
-    <button onclick="setTool('smart-fill'); toast('⬡✦ Smart Fill armed — click any white region');"
+    <button type="button" onclick="setTool('smart-fill'); toast('⬡✦ Smart Fill armed — click any white region');"
       style="width:100%;padding:8px;background:linear-gradient(135deg,var(--gold),var(--gold2));
              border:none;color:#1a1510;border-radius:4px;font-size:11px;font-weight:700;
              cursor:pointer;font-family:'DM Mono',monospace">
@@ -957,7 +957,7 @@
   box-shadow:0 4px 20px rgba(0,0,0,0.5);">
   <div style="font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
     Canvas Size
-    <button onclick="document.getElementById('cs-popup').style.display='none'"
+    <button type="button" onclick="document.getElementById('cs-popup').style.display='none'"
       style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;line-height:1">✕</button>
   </div>
   <div style="font-size:9px;color:var(--muted);margin-bottom:10px;line-height:1.5">Extend or crop. Existing pixels stay top-left.</div>
@@ -972,12 +972,12 @@
              color:var(--text);border-radius:4px;font-size:11px;width:100%;font-family:'DM Mono',monospace">
   </div>
   <div style="display:flex;gap:6px">
-    <button onclick="setCSSFromCurrent()"
+    <button type="button" onclick="setCSSFromCurrent()"
       style="flex:1;padding:6px;background:var(--surface2);border:1px solid var(--border2);
              color:var(--muted);border-radius:4px;font-size:10px;cursor:pointer;font-family:'DM Mono',monospace">
       Current
     </button>
-    <button onclick="applyCanvasSize()"
+    <button type="button" onclick="applyCanvasSize()"
       style="flex:1;padding:6px;background:linear-gradient(135deg,var(--gold),var(--gold2));
              border:none;color:#1a1510;border-radius:4px;font-size:10px;font-weight:600;
              cursor:pointer;font-family:'DM Mono',monospace">
@@ -995,10 +995,10 @@
       <input type="range" id="ref-opacity-slider" min="10" max="100" value="85"
              style="width:60px;accent-color:var(--gold);cursor:pointer"
              oninput="setRefOpacity(this.value)" title="Opacity">
-      <button onclick="loadNewRefImage()" title="Load new image"
+      <button type="button" onclick="loadNewRefImage()" title="Load new image"
         style="background:none;border:1px solid var(--border2);color:var(--muted);
                border-radius:3px;padding:2px 5px;cursor:pointer;font-size:10px">📂</button>
-      <button onclick="toggleRefPanel()" title="Close (I)"
+      <button type="button" onclick="toggleRefPanel()" title="Close (I)"
         style="background:none;border:none;color:var(--muted);cursor:pointer;
                font-size:14px;line-height:1;padding:0 2px">✕</button>
     </div>
@@ -1020,7 +1020,7 @@
     <span id="ref-zoom-label"
       style="font-size:9px;color:var(--gold);min-width:28px;text-align:right;display:none"
       title="Current zoom">1×</span>
-    <button id="ref-reset-zoom" onclick="resetRefZoom()" title="Reset zoom (double-click image)"
+    <button type="button" id="ref-reset-zoom" onclick="resetRefZoom()" title="Reset zoom (double-click image)"
       style="display:none;background:none;border:1px solid var(--border2);color:var(--muted);
              border-radius:3px;padding:1px 5px;cursor:pointer;font-size:9px;flex-shrink:0">1:1</button>
     <span id="ref-dimensions" style="font-size:9px;color:var(--border2);flex-shrink:0"></span>
