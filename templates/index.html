@@ -775,7 +775,7 @@
         width: 16px;
         height: 16px;
         margin-top: 3px;
-        accent-color: #f0a500;
+        accent-color: var(--gold);
         flex-shrink: 0;
         cursor: pointer;
       }
@@ -856,7 +856,7 @@
         padding: 6px 8px;
         background: rgba(255,255,255,0.03);
         border-radius: 5px;
-        border-left: 2px solid #f0a500;
+        border-left: 2px solid var(--gold);
         line-height: 1.5;
       }
       .quality-suggestions.good { border-left-color: #4caf50; }
@@ -905,7 +905,7 @@
       .emboss-label input[type=checkbox] {
         width: 16px; height: 16px;
         margin-top: 3px;
-        accent-color: #e05a00;
+        accent-color: var(--gold);
         flex-shrink: 0;
         cursor: pointer;
       }
@@ -1087,6 +1087,133 @@
   .nav-link:hover { border-color: var(--gold); color: var(--gold); }
   .nav-link-active { border-color: var(--border2) !important; background: var(--surface2); color: var(--gold2) !important; }
 
+
+  /* === FOCUS & SCROLL SHADOW === */
+  *:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+  /* Left panel scroll shadow at bottom when overflowing */
+  .left-panel {
+    position: relative;
+  }
+  .left-panel::after {
+    content: '';
+    position: sticky;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 40px;
+    background: linear-gradient(transparent, var(--surface));
+    pointer-events: none;
+    display: block;
+    flex-shrink: 0;
+  }
+
+  /* === STICKY GENERATE FOOTER === */
+  .panel-generate-footer {
+    position: sticky;
+    bottom: 0;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 14px 20px;
+    z-index: 10;
+    flex-shrink: 0;
+  }
+
+  /* === PREVIEW IMAGE ENLARGE OVERLAY === */
+  .preview-img-wrap { position: relative; cursor: zoom-in; }
+  .preview-img-wrap:hover::after {
+    content: '⤢ Enlarge';
+    position: absolute;
+    bottom: 8px; right: 8px;
+    background: rgba(14,12,10,0.85);
+    color: var(--gold);
+    font-size: 10px;
+    font-family: 'DM Mono', monospace;
+    padding: 3px 8px;
+    border-radius: 4px;
+    pointer-events: none;
+    letter-spacing: 0.04em;
+  }
+
+  /* === DRAG HINT TOOLTIP === */
+  .drag-hint-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 14px;
+    background: rgba(200,169,110,0.08);
+    border: 1px solid rgba(200,169,110,0.2);
+    border-radius: var(--radius);
+    font-size: 11px;
+    color: var(--gold);
+    margin-bottom: 14px;
+    animation: fadeInDown 0.3s ease;
+  }
+  .drag-hint-banner .close-hint {
+    margin-left: auto;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1;
+    background: none;
+    border: none;
+    padding: 0;
+  }
+  .drag-hint-banner .close-hint:hover { color: var(--text); }
+  @keyframes fadeInDown { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* === UNDO ASSIGNMENT === */
+  .undo-assign-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    margin-bottom: 8px;
+  }
+  .undo-assign-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    cursor: pointer;
+    padding: 3px 6px;
+    border-radius: 4px;
+    transition: var(--transition);
+    display: none;
+  }
+  .undo-assign-btn:hover { color: var(--gold); }
+  .undo-assign-btn.visible { display: inline-block; }
+
+  /* === LOADING PROGRESS BAR === */
+  .loading-progress-wrap {
+    width: 200px;
+    height: 2px;
+    background: rgba(200,169,110,0.15);
+    border-radius: 1px;
+    overflow: hidden;
+    margin-top: 4px;
+  }
+  .loading-progress-bar {
+    height: 100%;
+    background: var(--gold);
+    border-radius: 1px;
+    width: 0%;
+    transition: width 0.4s ease;
+  }
+  .loading-elapsed {
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 6px;
+    min-height: 14px;
+  }
+
+  /* === RE-RUN BUTTON === */
+  .rerun-btn {
+    display: none;
+    margin-top: 8px;
+  }
+  .rerun-btn.visible { display: block; }
+
   </style>
 </head>
 <body>
@@ -1094,8 +1221,12 @@
 <!-- Loading overlay -->
 <div id="loading-overlay" title="Click to cancel" style="cursor:pointer" onclick="setLoading(false)">
   <div class="loading-spinner"></div>
-  <div class="loading-text">Processing Design</div>
+  <div class="loading-text" id="loading-title-text">Processing Design</div>
   <div class="loading-sub" id="loading-sub-text">Detecting colours...</div>
+  <div class="loading-progress-wrap">
+    <div class="loading-progress-bar" id="loading-progress-bar"></div>
+  </div>
+  <div class="loading-elapsed" id="loading-elapsed"></div>
 </div>
 
 <!-- Header -->
@@ -1400,6 +1531,14 @@
         </div>
       </div>
 
+      <div class="drag-hint-banner" id="drag-hint-banner">
+        ✦ Drag each colour card into a shuttle slot to assign it
+        <button class="close-hint" onclick="document.getElementById('drag-hint-banner').style.display='none';localStorage.setItem('jq-drag-hint','1')" title="Dismiss">×</button>
+      </div>
+      <div class="undo-assign-row">
+        <button class="undo-assign-btn" id="undo-assign-btn" onclick="undoLastAssignment()" title="Undo last colour assignment">↩ Undo last assignment</button>
+      </div>
+
       <!-- Preview images row -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
         <div>
@@ -1448,6 +1587,9 @@
         <div class="download-meta" id="download-meta"></div>
         <button type="button" class="btn btn-primary" id="download-btn" onclick="downloadZip()" style="max-width:280px;margin:0 auto">
           ⬇ Download ZIP
+        </button>
+        <button type="button" class="btn btn-secondary rerun-btn" id="rerun-btn" onclick="generateBMPs()" style="max-width:280px;margin:4px auto">
+          ↺ Re-run with current settings
         </button>
       </div>
     </div>
@@ -2112,11 +2254,18 @@ async function detectColors() {
   formData.append('pins', pins);
   formData.append('cards', cardsRaw);
 
-  // Show "taking long?" hint after 8 seconds
-  const slowTimer = setTimeout(() => {
-    const subEl = document.getElementById('loading-sub-text');
-    if (subEl) subEl.textContent = 'Still working... (click overlay to cancel)';
-  }, 8000);
+  // Cycle informative stage messages during detection
+  const detectStages = [
+    [0,    'Analysing your design image…'],
+    [3000, 'Running colour separation…'],
+    [8000, 'Mapping pixel regions…'],
+    [14000,'Almost done…'],
+    [20000,'Still working — large image (click overlay to cancel)'],
+  ];
+  const stageTimers = detectStages.map(([delay, msg]) =>
+    setTimeout(() => { const s = document.getElementById('loading-sub-text'); if (s) s.textContent = msg; }, delay)
+  );
+  const slowTimer = { _timers: stageTimers };
 
   try {
     // Quick server health check before sending large image
@@ -2158,7 +2307,7 @@ async function detectColors() {
     showMsg('detect-error', msg);
     console.error('detectColors error:', err);
   } finally {
-    clearTimeout(slowTimer);
+    if (slowTimer && slowTimer._timers) slowTimer._timers.forEach(t => clearTimeout(t));
     setLoading(false);
     if (detectBtn) { detectBtn.disabled = false; detectBtn.classList.remove('loading'); }
   }
@@ -2170,6 +2319,11 @@ async function detectColors() {
 function renderColorAssignment(data) {
   document.getElementById('empty-state').style.display = 'none';
   document.getElementById('color-assignment').style.display = 'block';
+  // Show drag hint banner if user hasn't dismissed it before
+  const hintBanner = document.getElementById('drag-hint-banner');
+  if (hintBanner && !localStorage.getItem('jq-drag-hint')) {
+    hintBanner.style.display = 'flex';
+  }
   document.getElementById('output-section').style.display = 'none';
   document.getElementById('generate-section').style.display = 'block';
   updateSettingsSummary();
@@ -2456,7 +2610,7 @@ function renderSatinSettings() {
         <label>Density (N)</label>
         <div style="display:flex;align-items:center;gap:8px;flex:1">
           <input type="range" id="satin-n-${sName}" min="4" max="16" step="1" value="8"
-            style="flex:1;accent-color:#f0a500"
+            style="flex:1;accent-color:var(--gold)"
             oninput="document.getElementById('satin-n-val-${sName}').textContent=this.value; updateWeavePreview('${sName}')">
           <span id="satin-n-val-${sName}" style="font-size:10px;color:#aaa;width:20px;text-align:right">8</span>
         </div>
@@ -2467,7 +2621,7 @@ function renderSatinSettings() {
         <label title="Lower = more texture. Higher = more solid fill.">Fill threshold</label>
         <div style="display:flex;align-items:center;gap:8px;flex:1">
           <input type="range" id="satin-mh-${sName}" min="1" max="200" step="1" value="35"
-            style="flex:1;accent-color:#f0a500"
+            style="flex:1;accent-color:var(--gold)"
             oninput="document.getElementById('satin-mh-val-${sName}').textContent=this.value+'px'">
           <span id="satin-mh-val-${sName}" style="font-size:10px;color:#aaa;width:36px;text-align:right">35px</span>
         </div>
@@ -2610,13 +2764,13 @@ function renderSatinSettings() {
           <div id="hf-density-row-${sName}" style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
             <span style="font-size:10px;color:#888;white-space:nowrap">Density N</span>
             <input type="range" id="hf-n-${sName}" min="4" max="16" step="1" value="8"
-              style="flex:1;accent-color:#f0a500"
+              style="flex:1;accent-color:var(--gold)"
               oninput="document.getElementById('hf-n-val-${sName}').textContent=this.value;updateHfPreview('${sName}')">
             <span id="hf-n-val-${sName}" style="font-size:10px;color:#aaa;width:20px">8</span>
           </div>
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
             <input type="checkbox" id="hf-invert-${sName}"
-              style="accent-color:#f0a500"
+              style="accent-color:var(--gold)"
               onchange="updateHfPreview('${sName}')">
             <label for="hf-invert-${sName}" style="font-size:10px;color:#ccc;cursor:pointer">
               Invert pattern
@@ -2824,7 +2978,19 @@ async function generateBMPs() {
 
   const generateBtn = document.getElementById('generate-btn');
   if (generateBtn) { generateBtn.disabled = true; generateBtn.classList.add('loading'); }
-  setLoading(true, 'Generating BMP Files', 'Applying weave patterns...');
+  setLoading(true, 'Generating BMP Files', 'Applying weave patterns…');
+  // Cycle stage messages during generation
+  const genStages = [
+    [0,     'Applying weave patterns…'],
+    [4000,  'Building shuttle BMPs…'],
+    [10000, 'Adding satin / hollow fills…'],
+    [20000, 'Verifying output files…'],
+    [35000, 'Still working — complex design…'],
+    [60000, 'Almost there (click overlay to cancel)'],
+  ];
+  const genStageTimers = genStages.map(([delay, msg]) =>
+    setTimeout(() => { const s = document.getElementById('loading-sub-text'); if (s) s.textContent = msg; }, delay)
+  );
 
   // Collect hollow weave settings per shuttle
   const hollowWeaveSettings = {};
@@ -2918,12 +3084,16 @@ async function generateBMPs() {
 
     renderOutputPreviews(data);
     setStep(3);
+    // Show re-run button now that a generation has completed
+    const rerunBtn = document.getElementById('rerun-btn');
+    if (rerunBtn) rerunBtn.classList.add('visible');
 
   } catch (err) {
     const gmsg = err.name === 'AbortError' ? 'Generation timed out. This design may be too large.' : `Error: ${err.message.split('\n')[0]}`;
     showMsg('generate-error', gmsg);
     console.error(err.message);
   } finally {
+    if (typeof genStageTimers !== 'undefined') genStageTimers.forEach(t => clearTimeout(t));
     setLoading(false);
     if (generateBtn) { generateBtn.disabled = false; generateBtn.classList.remove('loading'); }
   }
@@ -3379,17 +3549,68 @@ function downloadSingleBMP(fname) {
 // =====================================================================
 function showMsg(id, msg) {
   const el = document.getElementById(id);
-  el.textContent = msg;
-  el.style.display = 'block';
-  setTimeout(() => el.style.display = 'none', 6000);
+  if (!el) return;
+  // Errors persist — show copy button + × dismiss
+  const isError = el.classList.contains('msg-error');
+  if (isError) {
+    el.innerHTML = '<span>' + msg + '</span>' +
+      '<span style="margin-left:auto;display:flex;gap:6px;flex-shrink:0">' +
+        '<button onclick="navigator.clipboard.writeText(this.closest(\'.msg\').querySelector(\'span\').textContent)" ' +
+          'style="background:none;border:1px solid rgba(192,96,96,.4);color:var(--danger);padding:2px 8px;border-radius:4px;cursor:pointer;font-family:\'DM Mono\',monospace;font-size:10px;" ' +
+          'title="Copy error details">copy</button>' +
+        '<button onclick="this.closest(\'.msg\').style.display=\'none\'" ' +
+          'style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px;line-height:1;padding:0 2px;" ' +
+          'title="Dismiss">×</button>' +
+      '</span>';
+    el.style.display = 'flex';
+    el.style.alignItems = 'flex-start';
+    el.style.gap = '8px';
+  } else {
+    el.textContent = msg;
+    el.style.display = 'block';
+    setTimeout(() => el.style.display = 'none', 6000);
+  }
 }
+
+let _loadingTimer = null;
+let _loadingElapsedTimer = null;
+let _loadingStart = 0;
 
 function setLoading(show, title = '', sub = '') {
   const overlay = document.getElementById('loading-overlay');
   overlay.classList.toggle('show', show);
+  const titleEl = document.getElementById('loading-title-text');
+  const subEl = document.getElementById('loading-sub-text');
+  const bar = document.getElementById('loading-progress-bar');
+  const elapsed = document.getElementById('loading-elapsed');
   if (show) {
-    overlay.querySelector('.loading-text').textContent = title;
-    document.getElementById('loading-sub-text').textContent = sub;
+    if (titleEl) titleEl.textContent = title;
+    if (subEl) subEl.textContent = sub;
+    if (bar) { bar.style.width = '0%'; bar.style.transition = 'none'; }
+    if (elapsed) elapsed.textContent = '';
+    clearInterval(_loadingElapsedTimer);
+    clearTimeout(_loadingTimer);
+    _loadingStart = Date.now();
+    // Animate indeterminate progress: ramp from 0→85% over ~25s, then stall
+    let prog = 0;
+    function advanceBar() {
+      if (!overlay.classList.contains('show')) return;
+      prog = Math.min(85, prog + (85 - prog) * 0.04);
+      if (bar) { bar.style.transition = 'width 0.6s ease'; bar.style.width = prog.toFixed(1) + '%'; }
+      _loadingTimer = setTimeout(advanceBar, 600);
+    }
+    _loadingTimer = setTimeout(advanceBar, 300);
+    // Elapsed time counter (only show after 4s so fast ops stay clean)
+    _loadingElapsedTimer = setInterval(() => {
+      const secs = Math.floor((Date.now() - _loadingStart) / 1000);
+      if (elapsed && secs >= 4) elapsed.textContent = secs + 's elapsed';
+    }, 1000);
+  } else {
+    clearTimeout(_loadingTimer);
+    clearInterval(_loadingElapsedTimer);
+    if (bar) { bar.style.transition = 'width 0.2s ease'; bar.style.width = '100%'; }
+    if (elapsed) elapsed.textContent = '';
+    setTimeout(() => { if (bar) bar.style.width = '0%'; }, 300);
   }
 }
 
@@ -3626,6 +3847,69 @@ function selectRaniWeave(pattern, itemEl) {
       }
     }
   })();
+
+// ── Undo last colour assignment ───────────────────────────────────────────
+const _assignmentHistory = [];
+function pushAssignmentState() {
+  // snapshot current shuttle zone contents
+  const snapshot = {};
+  document.querySelectorAll('.shuttle-zone[data-shuttle]').forEach(zone => {
+    const name = zone.dataset.shuttle;
+    const chips = [...zone.querySelectorAll('.zone-color-chip')].map(ch => ({
+      color: ch.dataset.color,
+      colorIndex: ch.dataset.colorIndex,
+      style: ch.style.background
+    }));
+    snapshot[name] = chips;
+  });
+  _assignmentHistory.push(snapshot);
+  if (_assignmentHistory.length > 5) _assignmentHistory.shift();
+  const undoBtn = document.getElementById('undo-assign-btn');
+  if (undoBtn) undoBtn.classList.add('visible');
+}
+
+function undoLastAssignment() {
+  if (!_assignmentHistory.length) return;
+  const snapshot = _assignmentHistory.pop();
+  // Restore each shuttle zone
+  Object.entries(snapshot).forEach(([name, chips]) => {
+    const zone = document.querySelector('.shuttle-zone[data-shuttle="' + name + '"]');
+    if (!zone) return;
+    const zoneColors = zone.querySelector('.zone-colors');
+    if (!zoneColors) return;
+    zoneColors.innerHTML = '';
+    chips.forEach(chip => {
+      const chipEl = document.createElement('div');
+      chipEl.className = 'zone-color-chip';
+      chipEl.dataset.color = chip.color;
+      chipEl.dataset.colorIndex = chip.colorIndex;
+      chipEl.style.background = chip.style;
+      chipEl.title = 'Click to remove — ' + chip.color;
+      const removeBtn = document.createElement('div');
+      removeBtn.className = 'remove-chip';
+      removeBtn.textContent = '×';
+      removeBtn.onclick = (e) => { e.stopPropagation(); pushAssignmentState(); chipEl.remove(); };
+      chipEl.appendChild(removeBtn);
+      zoneColors.appendChild(chipEl);
+    });
+  });
+  if (!_assignmentHistory.length) {
+    const undoBtn = document.getElementById('undo-assign-btn');
+    if (undoBtn) undoBtn.classList.remove('visible');
+  }
+}
+
+// ── Hide drag hint after first successful drop ────────────────────────────
+document.addEventListener('drop', function(e) {
+  const zone = e.target.closest('.shuttle-zone');
+  if (zone) {
+    const hint = document.getElementById('drag-hint-banner');
+    if (hint) { hint.style.display = 'none'; localStorage.setItem('jq-drag-hint','1'); }
+    // Push undo state before the drop processes
+    setTimeout(pushAssignmentState, 50);
+  }
+}, true);
+
 </script>
 
 <!-- Lightbox -->

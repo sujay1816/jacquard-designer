@@ -466,6 +466,26 @@
       white-space: nowrap;
     }
     #toast.on { opacity: 1; }
+
+    *:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+    /* Keyboard shortcuts overlay */
+    #kb-overlay {
+      display: none; position: fixed; inset: 0; z-index: 9999;
+      background: rgba(14,12,10,0.88);
+      align-items: center; justify-content: center;
+    }
+    #kb-overlay.show { display: flex; }
+    #kb-panel {
+      background: var(--surface); border: 1px solid var(--border2);
+      border-radius: 10px; padding: 24px 28px; min-width: 360px; max-width: 480px;
+    }
+    #kb-panel h2 { font-family: 'Cormorant Garamond', serif; font-size: 18px; color: var(--gold2); margin-bottom: 16px; }
+    .kb-section { margin-bottom: 14px; }
+    .kb-section-title { font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+    .kb-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; font-size: 11px; }
+    .kb-row span { color: var(--muted); }
+    .kb-close { width: 100%; margin-top: 12px; padding: 8px; background: var(--surface2); border: 1px solid var(--border2); color: var(--muted); border-radius: 6px; cursor: pointer; font-family: 'DM Mono', monospace; font-size: 11px; }
+    .kb-close:hover { border-color: var(--gold); color: var(--gold); }
   </style>
 </head>
 <body>
@@ -3361,6 +3381,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 7. Initial button states
   updateUndoRedoBtns();
+});
+
+// ── Keyboard shortcuts overlay ────────────────────────────────────────────
+function toggleKbOverlay() {
+  const ov = document.getElementById('kb-overlay');
+  ov.classList.toggle('show');
+}
+document.addEventListener('keydown', function(ke) {
+  if (ke.target.tagName === 'INPUT' || ke.target.tagName === 'TEXTAREA') return;
+  if (ke.key === '?') { toggleKbOverlay(); }
+  if (ke.key === 'Escape') {
+    const ov = document.getElementById('kb-overlay');
+    if (ov && ov.classList.contains('show')) { ov.classList.remove('show'); ke.stopPropagation(); }
+  }
 });
 </script>
 

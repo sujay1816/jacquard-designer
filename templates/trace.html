@@ -15,7 +15,7 @@
       --danger:#c06060; --success:#6a9e6a; --radius:8px;
     }
     * { box-sizing:border-box; margin:0; padding:0; }
-    body { background:var(--bg); color:var(--text); font-family:'DM Mono',monospace; font-size:13px; min-height:100vh; }
+    body { background:radial-gradient(1200px 600px at 80% -10%,rgba(200,169,110,0.05),transparent 60%),var(--bg); color:var(--text); font-family:'DM Mono',monospace; font-size:13px; min-height:100vh; }
 
     /* Header */
     header { border-bottom:1px solid var(--border); padding:18px 32px; display:flex; align-items:center; gap:16px; background:var(--surface); position:sticky; top:0; z-index:100; }
@@ -138,6 +138,11 @@
     .instr-step-content p { font-size:11px;color:var(--muted);line-height:1.7; }
     .instr-step-content code { background:var(--surface2);padding:1px 5px;border-radius:3px;font-size:10px;color:var(--gold); }
     .instr-tip { margin-top:14px;padding:12px 14px;background:rgba(200,169,110,.08);border-left:2px solid var(--gold);border-radius:0 4px 4px 0;font-size:11px;color:var(--muted);line-height:1.7; }
+
+    *:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
+    .output-img-wrap{position:relative;cursor:zoom-in;}
+    .output-img-wrap:hover::after{content:'⤢ enlarge';position:absolute;bottom:8px;right:8px;background:rgba(14,12,10,0.8);color:var(--gold);font-size:10px;padding:3px 8px;border-radius:4px;pointer-events:none;}
+    .card-desc{font-size:10px;color:var(--muted);line-height:1.55;margin-top:4px;padding:0 4px;}
   </style>
 </head>
 <body>

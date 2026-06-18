@@ -19,12 +19,16 @@
   *{box-sizing:border-box;margin:0;padding:0;}
   body{background:radial-gradient(1200px 600px at 80% -10%,rgba(200,169,110,0.06),transparent 60%),var(--bg);color:var(--text);font-family:'DM Mono',monospace;font-size:13px;min-height:100vh;}
   a{color:var(--gold);text-decoration:none;} a:hover{color:var(--gold2);}
-  header{border-bottom:1px solid var(--border);padding:18px 32px;display:flex;align-items:center;gap:18px;background:var(--surface);position:sticky;top:0;z-index:20;}
-  .logo{font-family:'Fraunces',serif;font-size:20px;color:var(--gold2);letter-spacing:0.5px;}
-  .logo small{color:var(--muted);font-family:'DM Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;display:block;margin-top:2px;}
+  header{border-bottom:1px solid var(--border);box-shadow:0 1px 0 0 rgba(200,169,110,0.08);padding:18px 32px;display:flex;align-items:center;gap:18px;background:var(--surface);position:sticky;top:0;z-index:20;}
+  .logo-mark{width:36px;height:36px;background:linear-gradient(135deg,var(--gold),var(--gold2));border-radius:5px;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-size:20px;color:#1a1510;font-weight:600;flex-shrink:0;}
+  .header-text2{display:flex;flex-direction:column;gap:2px;}
+  .header-text2 h1{font-family:'Fraunces',serif;font-size:22px;font-weight:600;color:var(--gold2);letter-spacing:.02em;}
+  .header-text2 p{font-size:11px;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;}
   .tag{margin-left:6px;padding:3px 10px;border:1px solid var(--border2);border-radius:100px;color:var(--gold);font-size:11px;letter-spacing:1px;text-transform:uppercase;}
-  .nav{margin-left:auto;display:flex;gap:22px;font-size:12px;letter-spacing:1px;text-transform:uppercase;}
-  .nav a{color:var(--muted);} .nav a:hover{color:var(--cream);} .nav a.active{color:var(--gold);}
+  .nav{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;}
+  .nav a{padding:6px 13px;border:1px solid var(--border);background:transparent;color:var(--muted);border-radius:var(--radius);font-size:11px;text-decoration:none;font-family:'DM Mono',monospace;transition:all .18s;white-space:nowrap;}
+  .nav a:hover{border-color:var(--gold);color:var(--gold);}
+  .nav a.active{border-color:var(--border2);background:var(--surface2);color:var(--gold2);}
   main{max-width:1080px;margin:0 auto;padding:32px;}
   .intro{border:1px solid var(--border);border-left:3px solid var(--gold);background:var(--surface);border-radius:var(--radius);padding:16px 20px;margin-bottom:28px;color:var(--cream);line-height:1.6;}
   .intro b{color:var(--gold2);font-weight:500;}
@@ -83,12 +87,14 @@
   .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(26,22,16,0.4);border-top-color:#1a1610;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;margin-right:8px;}
   @keyframes spin{to{transform:rotate(360deg);}}
   .enhance-badge{display:inline-block;padding:2px 8px;border:1px solid var(--gold);border-radius:100px;color:var(--gold);font-size:10px;letter-spacing:1px;text-transform:uppercase;margin-left:8px;vertical-align:middle;}
+  *:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
 </style>
 </head>
 <body>
 <header>
   <div>
-    <div class="logo">Jacquard Designer<small>Border Identification</small></div>
+    <div class="logo-mark">J</div>
+  <div class="header-text2"><h1>Jacquard Designer</h1><p>Border Identification</p></div>
   </div>
   <span class="tag">Enhanced</span>
   <nav class="nav">
