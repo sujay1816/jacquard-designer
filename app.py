@@ -1098,7 +1098,7 @@ def api_border_generate():
 
 @app.route('/border-id')
 def border_id_page():
-    """Border ID is now combined into /border — redirect for backwards compatibility."""
+    """Border ID has been merged into Border Studio (/border). Permanent redirect."""
     from flask import redirect
     return redirect('/border', code=301)
 

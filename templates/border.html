@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="description" content="Border Studio — Jacquard Designer. High-detail BMP generation for border and running-line jacquard designs.">
+<meta name="description" content="Border Studio — Jacquard Designer. High-detail BMP generation for border and running-line jacquard designs with Standard and Fine Detail modes.">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Border Studio — Jacquard Designer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -31,11 +31,13 @@
   .hstep-num{width:20px;height:20px;border-radius:50%;border:1.5px solid currentColor;display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;}
   .hstep.done .hstep-num{background:var(--success);border-color:var(--success);color:#fff;}
   .hstep-arrow{color:var(--border2);font-size:12px;}
-  .topnav{display:flex;gap:8px;}
+  .topnav{display:flex;gap:8px;flex-wrap:wrap;}
   .topnav a{padding:7px 14px;border:1px solid var(--border);background:transparent;color:var(--muted);border-radius:var(--radius);font-size:11px;text-decoration:none;font-family:'DM Mono',monospace;transition:all .18s;white-space:nowrap;}
   .topnav a:hover{border-color:var(--gold);color:var(--gold);}
   .topnav a.active{border-color:var(--border2);background:var(--surface2);color:var(--gold2);}
-  .main{display:grid;grid-template-columns:380px 1fr;height:calc(100vh - 77px);}
+
+  /* ── Layout ───────────────────────────────────────────────────────────── */
+  .main{display:grid;grid-template-columns:400px 1fr;height:calc(100vh - 77px);}
   .left-panel{border-right:1px solid var(--border);overflow-y:auto;background:var(--surface);display:flex;flex-direction:column;}
   .right-panel{overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:20px;background:var(--bg);}
   .panel-section{padding:20px 24px;border-bottom:1px solid var(--border);}
@@ -43,22 +45,23 @@
   .section-label::after{content:'';flex:1;height:1px;background:var(--border);}
   .section-label .n{width:18px;height:18px;border-radius:50%;border:1px solid var(--gold);color:var(--gold);display:grid;place-items:center;font-size:10px;flex:none;}
   .empty-state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;opacity:.6;text-align:center;padding:60px 20px;color:var(--muted);line-height:1.7;}
-  @media(max-width:820px){.main{grid-template-columns:1fr;height:auto;}.left-panel{border-right:none;border-bottom:1px solid var(--border);}}
-  .intro{border:1px solid var(--border);border-left:3px solid var(--gold);background:var(--surface);border-radius:var(--radius);padding:16px 20px;margin-bottom:28px;color:var(--cream);line-height:1.6;}
-  .intro b{color:var(--gold2);font-weight:500;}
+  @media(max-width:860px){.main{grid-template-columns:1fr;height:auto;}.left-panel{border-right:none;border-bottom:1px solid var(--border);}}
+
+  /* ── Form elements ────────────────────────────────────────────────────── */
   .step{opacity:.4;pointer-events:none;transition:opacity var(--transition);}
   .step.active{opacity:1;pointer-events:auto;}
-  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;}
   label.fld{display:block;color:var(--muted);font-size:11px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;}
   input[type=text],input[type=number],select{width:100%;background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-family:'DM Mono',monospace;font-size:13px;padding:9px 11px;border-radius:6px;outline:none;}
   input:focus,select:focus{border-color:var(--gold);}
-  .row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;}
+  .row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;}
   .help{color:var(--muted);font-size:11px;margin-top:6px;line-height:1.5;}
   .dropzone{border:1.5px dashed var(--border2);border-radius:var(--radius);padding:34px;text-align:center;cursor:pointer;transition:var(--transition);background:var(--surface2);}
   .dropzone:hover,.dropzone.drag{border-color:var(--gold);background:var(--surface2);}
   .dropzone .big{font-family:'Fraunces',serif;font-size:16px;color:var(--cream);}
   .dropzone .sub{color:var(--muted);margin-top:6px;}
-  #thumb{max-height:220px;max-width:100%;border-radius:6px;margin-top:14px;border:1px solid var(--border2);}
+  #thumb{max-height:180px;max-width:100%;border-radius:6px;margin-top:14px;border:1px solid var(--border2);}
+
+  /* ── Buttons ──────────────────────────────────────────────────────────── */
   button.primary{background:linear-gradient(180deg,var(--gold2),var(--gold));color:#1a1610;border:none;font-family:'DM Mono',monospace;font-weight:500;font-size:13px;letter-spacing:1px;text-transform:uppercase;padding:12px 22px;border-radius:6px;cursor:pointer;transition:var(--transition);}
   button.primary:hover{filter:brightness(1.08);}
   button.primary:disabled{opacity:.5;cursor:not-allowed;}
@@ -66,38 +69,63 @@
   button.ghost{background:transparent;color:var(--gold);border:1px solid var(--border2);padding:10px 18px;border-radius:6px;cursor:pointer;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:1px;text-transform:uppercase;}
   button.ghost:hover{border-color:var(--gold);}
 
-  /* ── Mode toggle ─────────────────────────────────────────── */
-  .mode-wrap{background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);padding:16px 18px;margin-bottom:20px;}
-  .mode-label{color:var(--muted);font-size:11px;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;}
+  /* ── Mode selector ────────────────────────────────────────────────────── */
+  .mode-wrap{background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);padding:14px 16px;margin-bottom:16px;}
+  .mode-label{color:var(--muted);font-size:11px;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;}
   .mode-btns{display:flex;gap:0;border-radius:6px;overflow:hidden;border:1px solid var(--border2);width:fit-content;}
-  .mode-btn{padding:9px 22px;background:var(--surface);border:none;color:var(--muted);font-family:'DM Mono',monospace;font-size:12px;letter-spacing:.5px;cursor:pointer;transition:var(--transition);border-right:1px solid var(--border2);}
+  .mode-btn{padding:8px 18px;background:var(--surface);border:none;color:var(--muted);font-family:'DM Mono',monospace;font-size:12px;letter-spacing:.5px;cursor:pointer;transition:var(--transition);border-right:1px solid var(--border2);}
   .mode-btn:last-child{border-right:none;}
   .mode-btn:hover{color:var(--cream);}
   .mode-btn.active{background:rgba(200,169,110,0.15);color:var(--gold2);}
-  .mode-desc{margin-top:10px;font-size:11px;color:var(--muted);line-height:1.6;padding:10px 12px;background:rgba(200,169,110,0.05);border-radius:6px;border-left:2px solid var(--border2);}
+  .mode-desc{margin-top:8px;font-size:11px;color:var(--muted);line-height:1.6;padding:8px 10px;background:rgba(200,169,110,0.05);border-radius:6px;border-left:2px solid var(--border2);}
   .mode-desc.fine{border-left-color:var(--gold);}
   .fine-badge{display:inline-block;padding:1px 7px;border:1px solid var(--gold);border-radius:100px;color:var(--gold);font-size:9px;letter-spacing:1px;text-transform:uppercase;margin-left:6px;vertical-align:middle;}
 
-  .swatch-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-top:6px;}
-  .swatch{display:flex;align-items:center;gap:12px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:10px;}
-  .chip{width:38px;height:38px;border-radius:6px;flex:none;border:1px solid rgba(255,255,255,0.12);}
-  .swatch .meta{flex:1;min-width:0;} .swatch .pct{color:var(--muted);font-size:11px;} .swatch select{padding:6px 8px;font-size:12px;}
-  .badge-artefact{color:var(--danger);font-size:10px;letter-spacing:.5px;}
-  .control-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:4px;}
+  /* ── Sliders / toggles ────────────────────────────────────────────────── */
+  .control-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:4px;}
   @media(max-width:720px){.control-grid{grid-template-columns:1fr;}}
   .slider-wrap{display:flex;align-items:center;gap:12px;}
   input[type=range]{flex:1;accent-color:var(--gold);}
   .slider-val{color:var(--gold2);min-width:42px;text-align:right;}
   .toggle{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;}
   .toggle input{width:16px;height:16px;accent-color:var(--gold);}
+
+  /* ── Smart suggestions ────────────────────────────────────────────────── */
+  .sug-card{background:rgba(200,169,110,0.06);border:1px solid var(--gold);border-radius:var(--radius);padding:14px 16px;margin-top:14px;}
+  .sug-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  .sug-card-title{color:var(--gold2);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;}
+  .sug-dismiss{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:0 4px;line-height:1;}
+  .sug-dismiss:hover{color:var(--cream);}
+  .sug-row{display:grid;grid-template-columns:130px 56px 1fr auto;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid rgba(200,169,110,0.08);}
+  .sug-row:last-child{border-bottom:none;}
+  .sug-key{color:var(--muted);font-size:11px;letter-spacing:.5px;text-transform:uppercase;}
+  .sug-val{color:var(--gold2);font-size:13px;font-weight:500;text-align:right;}
+  .sug-why{color:var(--muted);font-size:10px;line-height:1.4;}
+  .sug-apply-one{background:transparent;border:1px solid var(--border2);color:var(--muted);padding:3px 10px;border-radius:4px;cursor:pointer;font-family:'DM Mono',monospace;font-size:10px;white-space:nowrap;transition:var(--transition);}
+  .sug-apply-one:hover{border-color:var(--gold);color:var(--gold);}
+  .sug-apply-all{margin-top:12px;width:100%;padding:9px;background:rgba(200,169,110,0.12);border:1px solid var(--gold);border-radius:6px;color:var(--gold2);font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:var(--transition);}
+  .sug-apply-all:hover{background:rgba(200,169,110,0.22);}
+  .sug-loading{color:var(--muted);font-size:11px;margin-top:12px;display:flex;align-items:center;gap:8px;}
+  .sug-spinner{width:10px;height:10px;border:1.5px solid var(--border2);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;}
+
+  /* ── Shuttle / swatch ─────────────────────────────────────────────────── */
+  .swatch-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-top:6px;}
+  .swatch{display:flex;align-items:center;gap:12px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:10px;}
+  .chip{width:38px;height:38px;border-radius:6px;flex:none;border:1px solid rgba(255,255,255,0.12);}
+  .swatch .meta{flex:1;min-width:0;} .swatch .pct{color:var(--muted);font-size:11px;} .swatch select{padding:6px 8px;font-size:12px;}
+  .badge-artefact{color:var(--danger);font-size:10px;letter-spacing:.5px;}
+
+  /* ── Per-shuttle weave panel ──────────────────────────────────────────── */
   .satin-shuttle{border:1px solid var(--border2);border-radius:6px;padding:12px;background:var(--surface2);margin-bottom:10px;}
   .satin-shuttle h4{font-family:'DM Mono',monospace;font-size:12px;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;}
   .satin-row{display:grid;grid-template-columns:auto 1fr 1fr auto;gap:12px;align-items:center;}
   @media(max-width:620px){.satin-row{grid-template-columns:1fr 1fr;}}
+
+  /* ── Result cards ─────────────────────────────────────────────────────── */
   .msg{padding:11px 14px;border-radius:6px;margin-top:14px;font-size:12px;line-height:1.5;display:none;}
   .msg.err{background:rgba(192,96,96,0.12);border:1px solid var(--danger);color:#e0a0a0;display:block;}
   .msg.ok{background:rgba(106,158,106,0.12);border:1px solid var(--success);color:#a0d0a0;display:block;}
-  .preview-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:16px;margin-top:6px;}
+  .preview-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;margin-top:6px;}
   .preview-card{background:var(--surface2);border:1px solid var(--border2);border-radius:6px;overflow:hidden;}
   .pc-head{padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;}
   .pc-dot{width:10px;height:10px;border-radius:50%;}
@@ -112,23 +140,6 @@
   .actions{display:flex;gap:12px;margin-top:18px;flex-wrap:wrap;}
   .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(26,22,16,0.4);border-top-color:#1a1610;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;margin-right:8px;}
   @keyframes spin{to{transform:rotate(360deg);}}
-  /* ── Suggestion card ─────────────────────────────────────────────────── */
-  .sug-card{background:rgba(200,169,110,0.06);border:1px solid var(--gold);border-radius:var(--radius);padding:14px 16px;margin-top:14px;}
-  .sug-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
-  .sug-card-title{color:var(--gold2);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;}
-  .sug-dismiss{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:0 4px;line-height:1;}
-  .sug-dismiss:hover{color:var(--cream);}
-  .sug-row{display:grid;grid-template-columns:130px 56px 1fr auto;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid rgba(200,169,110,0.08);}
-  .sug-row:last-child{border-bottom:none;}
-  .sug-key{color:var(--muted);font-size:11px;letter-spacing:.5px;text-transform:uppercase;}
-  .sug-val{color:var(--gold2);font-size:13px;font-weight:500;text-align:right;}
-  .sug-why{color:var(--muted);font-size:10px;line-height:1.4;}
-  .sug-apply-one{background:transparent;border:1px solid var(--border2);color:var(--muted);padding:3px 10px;border-radius:4px;cursor:pointer;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.5px;white-space:nowrap;transition:var(--transition);}
-  .sug-apply-one:hover{border-color:var(--gold);color:var(--gold);}
-  .sug-apply-all{margin-top:12px;width:100%;padding:9px;background:rgba(200,169,110,0.12);border:1px solid var(--gold);border-radius:6px;color:var(--gold2);font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:var(--transition);}
-  .sug-apply-all:hover{background:rgba(200,169,110,0.22);}
-  .sug-loading{color:var(--muted);font-size:11px;margin-top:12px;display:flex;align-items:center;gap:8px;}
-  .sug-spinner{width:10px;height:10px;border:1.5px solid var(--border2);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;}
   *:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
   .pixelated,[style*="pixelated"],canvas{image-rendering:-webkit-optimize-contrast;}
 </style>
@@ -152,7 +163,6 @@
     <a href="/edit">✏ BMP Editor</a>
     <a href="/trace">✦ Tracing Guide</a>
     <a href="/border" class="active">⬡ Border</a>
-    <a href="/border-id">⬡ Border ID</a>
     <a href="/butta">❁ Butta</a>
   </nav>
 </header>
@@ -160,7 +170,7 @@
 <div class="main">
   <div class="left-panel">
 
-  <!-- ── STEP 1: Upload ────────────────────────────────────────────────── -->
+  <!-- ── STEP 1: Upload ───────────────────────────────────────────────────── -->
   <section class="step active" id="step1">
     <div class="panel-section">
       <div class="section-label"><span class="n">1</span> Upload &amp; loom</div>
@@ -169,16 +179,16 @@
         <div class="sub">or click to browse — JPEG, PNG, BMP, TIFF, WebP</div>
         <img id="thumb" style="display:none" alt="">
       </div>
-      <input type="file" id="fileInput" accept="image/*" style="display:none">
+      <input type="file" id="fileInput" accept="image/*" style="display:none" aria-label="Upload border image">
 
-      <!-- Smart suggestions (appear after upload, before Detect) -->
+      <!-- Smart suggestions (appear after upload) -->
       <div id="suggestWrap" style="display:none">
         <div class="sug-loading" id="suggestLoading" style="display:none">
           <span class="sug-spinner"></span> Analysing image…
         </div>
         <div class="sug-card" id="suggestCard" style="display:none">
           <div class="sug-card-head">
-            <span class="sug-card-title">✦ Suggested settings for this image</span>
+            <span class="sug-card-title">✦ Suggested settings</span>
             <button type="button" class="sug-dismiss" onclick="dismissSuggestions()" title="Dismiss">✕</button>
           </div>
           <div class="sug-row">
@@ -211,46 +221,46 @@
         </div>
       </div>
 
-      <div class="row" style="margin-top:18px;">
+      <div class="row" style="margin-top:16px;">
         <div>
           <label class="fld">Pins (loom width)</label>
-          <input type="number" id="pins" value="400" min="10">
-          <div class="help">Higher = finer detail preserved.</div>
+          <input type="number" id="pins" value="400" min="10" aria-label="Pin count">
+          <div class="help">Higher = finer detail.</div>
         </div>
         <div>
           <label class="fld">Cards (height)</label>
-          <input type="number" id="cards" placeholder="auto">
-          <div class="help">Leave blank to auto-compute.</div>
+          <input type="number" id="cards" placeholder="auto" aria-label="Cards height">
+          <div class="help">Blank = auto.</div>
         </div>
         <div>
-          <label class="fld">Colours to detect</label>
-          <input type="number" id="ncolors" value="3" min="2" max="8">
-          <div class="help">Includes paper. 3 = paper + 2 tints.</div>
+          <label class="fld">Colours</label>
+          <input type="number" id="ncolors" value="3" min="2" max="8" aria-label="Colours to detect">
+          <div class="help">Includes paper.</div>
         </div>
         <div>
-          <label class="fld">Reed (ends/inch)</label>
-          <input type="number" id="reed" value="60" min="1" max="400">
-          <div class="help">For the woven-size readout.</div>
+          <label class="fld">Reed (ends/in)</label>
+          <input type="number" id="reed" value="60" min="1" max="400" aria-label="Reed ends per inch">
+          <div class="help">For woven size.</div>
         </div>
       </div>
 
-      <div style="margin-top:16px;">
+      <div style="margin-top:14px;">
         <label class="fld">Ink sensitivity</label>
         <div class="slider-wrap">
           <input type="range" id="inkSens" aria-label="Ink sensitivity" min="50" max="200" value="100">
           <span class="slider-val" id="inkSensVal">1.00</span>
         </div>
-        <div class="help">Higher picks up fainter lines; lower is stricter / cleaner.</div>
+        <div class="help">Higher picks up fainter lines; lower is stricter.</div>
       </div>
 
-      <div style="margin-top:18px;">
-        <button type="button" class="primary" id="detectBtn" disabled>Detect colours</button>
+      <div style="margin-top:16px;">
+        <button type="button" class="primary" id="detectBtn" style="width:100%" disabled>Detect colours</button>
       </div>
       <div class="msg" id="detectMsg"></div>
     </div>
   </section>
 
-  <!-- ── STEP 2: Assign + Mode ─────────────────────────────────────────── -->
+  <!-- ── STEP 2: Configure ────────────────────────────────────────────────── -->
   <section class="step" id="step2">
     <div class="panel-section">
       <div class="section-label"><span class="n">2</span> Configure</div>
@@ -263,74 +273,91 @@
           <button type="button" class="mode-btn"        data-mode="fine"     onclick="setMode('fine')">✦ Fine Detail</button>
         </div>
         <div class="mode-desc" id="modeDesc">
-          <b style="color:var(--cream)">Standard</b> — high-resolution ink-first detection at 4× upscale.
-          Best for clear borders with thick lines, solid fills, and defined colour blocks.
+          <b style="color:var(--cream)">Standard</b> — 4× high-res ink-first detection. Best for clear borders with thick lines and solid colour blocks.
         </div>
       </div>
 
-      <!-- Controls row -->
+      <!-- Shuttle count (Fine Detail shows full multi-shuttle; Standard is fixed at 1) -->
+      <div id="shuttleCountWrap" style="margin-bottom:14px;display:none;">
+        <label class="fld">Shuttle count</label>
+        <select id="shuttleCount" aria-label="Shuttle count">
+          <option value="1">1 — Zari only</option>
+          <option value="2" selected>2 — Zari + Rani base</option>
+          <option value="3">3 — Zari + Meena 1 + Rani</option>
+          <option value="4">4 — Zari + Meena 1 + Meena 2 + Rani</option>
+        </select>
+        <div class="help">Rani is the auto plain-weave base.</div>
+      </div>
+
+      <!-- Detail + Fine controls (always visible, range changes by mode) -->
       <div class="control-grid">
         <div>
           <label class="fld">Detail retention</label>
-          <label class="toggle" style="margin-bottom:8px;"><input type="checkbox" id="autoDetail" onchange="var d=document.getElementById('detail');d.disabled=this.checked;d.style.opacity=this.checked?0.4:1;document.getElementById('detailHelp').textContent=this.checked?'Auto: the threshold is set per design to match the source\u2019s ink weight.':'Lower preserves finer lines. Higher = cleaner, may drop thin detail.';">
-            Auto-match source weight</label>
+          <label class="toggle" style="margin-bottom:8px;" id="autoDetailWrap">
+            <input type="checkbox" id="autoDetail" onchange="onAutoDetailChange()"> Auto-match weight
+          </label>
           <div class="slider-wrap">
-            <input type="range" id="detail" min="2" max="60" value="18">
+            <input type="range" id="detail" min="2" max="60" value="18" aria-label="Detail retention">
             <span class="slider-val" id="detailVal">0.18</span>
           </div>
-          <div class="help" id="detailHelp">Lower preserves finer lines. Higher = cleaner, may drop thin detail.</div>
+          <div class="help" id="detailHelp">Lower preserves finer lines. Higher = cleaner.</div>
+        </div>
+        <div>
+          <label class="fld">Min feature size <span class="fine-badge">fine</span></label>
+          <div class="slider-wrap">
+            <input type="range" id="noiseMin" min="1" max="6" value="1" aria-label="Min feature size">
+            <span class="slider-val" id="noiseMinVal">1</span>
+          </div>
+          <div class="help">1 = keep finest dots. Higher removes small noise.</div>
         </div>
       </div>
 
-      <!-- Fine-detail only: min feature size -->
-      <div class="control-grid" id="fineControls" style="display:none;margin-top:16px;">
-        <div>
-          <label class="fld">Min feature size (px) <span class="fine-badge">fine</span></label>
-          <div class="slider-wrap">
-            <input type="range" id="noiseMin" min="1" max="6" value="1">
-            <span class="slider-val" id="noiseMinVal">1</span>
-          </div>
-          <div class="help">1 = keep finest dots &amp; single-pixel elements. Higher removes smaller noise.</div>
-        </div>
-        <div style="padding-top:6px;">
-          <label class="toggle"><input type="checkbox" id="hiDetail" aria-label="High detail mode" checked>
-            Adaptive hi-res upscale <span class="fine-badge">fine</span></label>
-          <div class="help" style="margin-top:8px;">Auto-selects 4–8× based on source density for finest detail.</div>
-        </div>
+      <!-- Hi-res detection toggle (fine only) -->
+      <div style="margin-top:12px;" id="hiDetailWrap">
+        <label class="toggle">
+          <input type="checkbox" id="hiDetail" aria-label="Adaptive hi-res upscale" checked>
+          Adaptive hi-res upscale <span class="fine-badge">fine</span>
+        </label>
+        <div class="help" style="margin-top:6px;">Auto-selects 4–8× upscale based on source density.</div>
       </div>
 
       <!-- Colour assignment -->
-      <div style="margin-top:22px;">
-        <label class="fld">Assign each detected colour to a shuttle</label>
+      <div style="margin-top:20px;">
+        <label class="fld">Assign colours to shuttles</label>
         <div class="swatch-grid" id="swatches"></div>
       </div>
 
-      <!-- Single weave setting for the whole design -->
-      <div style="margin-top:22px;">
-        <label class="fld">Weave / fill <span style="color:var(--muted);font-size:10px;font-weight:normal;text-transform:none;letter-spacing:0">(applies to the entire border design)</span></label>
-        <div class="satin-shuttle" style="margin-bottom:0">
+      <!-- Weave settings (Standard = single panel; Fine = per-shuttle) -->
+      <div style="margin-top:20px;">
+        <label class="fld">Weave / fill</label>
+
+        <!-- Standard mode: single weave for whole design -->
+        <div id="singleWeaveWrap" class="satin-shuttle" style="margin-bottom:0">
           <div class="satin-row">
-            <label class="toggle"><input type="checkbox" id="weaveOn"> Apply weave</label>
-            <select id="satinPat" aria-label="Satin pattern type" disabled></select>
-            <select id="satinN" aria-label="Satin repeat count" disabled>
+            <label class="toggle"><input type="checkbox" id="weaveOn" onchange="onWeaveToggle()"> Apply weave</label>
+            <select id="satinPat" aria-label="Satin pattern" disabled></select>
+            <select id="satinN" aria-label="Satin repeat" disabled>
               <option>4</option><option>5</option><option>6</option>
               <option>7</option><option selected>8</option><option>16</option>
             </select>
-            <label class="toggle"><input type="checkbox" id="satinFlip" aria-label="Flip satin pattern" disabled> Flip</label>
+            <label class="toggle"><input type="checkbox" id="satinFlip" aria-label="Flip satin" disabled> Flip</label>
           </div>
           <div class="help">Off = solid crisp lines (recommended for fine border detail).</div>
         </div>
+
+        <!-- Fine mode: per-shuttle panel rendered by JS -->
+        <div id="satinPanel"></div>
       </div>
 
-      <div class="row" style="margin-top:18px;">
+      <div class="row" style="margin-top:16px;">
         <div>
           <label class="fld">Design name</label>
-          <input type="text" id="designName" value="border">
+          <input type="text" id="designName" value="border" aria-label="Design name">
         </div>
       </div>
 
       <div class="actions">
-        <button type="button" class="primary" id="generateBtn">Generate BMP files</button>
+        <button type="button" class="primary" id="generateBtn" style="flex:1">Generate BMP files</button>
         <button type="button" class="ghost"   id="backBtn">Re-upload</button>
       </div>
       <div class="msg" id="genMsg"></div>
@@ -343,30 +370,38 @@
     <div class="empty-state" id="emptyState">
       <div style="font-family:'Fraunces',serif;font-size:18px;color:var(--cream)">Border Studio</div>
       <p>Tuned for <b style="color:var(--gold2)">border &amp; running-line designs</b> — dense scrollwork,<br>
-         fine dots and thin lines. Upload a border, detect colours,<br>then generate.</p>
+         fine dots and thin lines. Upload a border, set mode,<br>then detect colours and generate.</p>
     </div>
 
-    <!-- ── STEP 3: Results ───────────────────────────────────────────────── -->
+    <!-- ── STEP 3: Results ──────────────────────────────────────────────────── -->
     <section class="step" id="step3" style="display:none">
-      <div class="section-label">Generated BMP files</div>
-      <div id="modeUsed" style="font-size:11px;color:var(--muted);margin-bottom:14px;"></div>
-      <div id="loomInfo" style="font-size:12px;margin-bottom:12px;"></div>
+      <div class="section-label" style="margin-bottom:10px;">Generated BMP files</div>
+      <div id="modeUsed" style="font-size:11px;color:var(--muted);margin-bottom:10px;"></div>
+      <div id="loomInfo" style="font-size:12px;margin-bottom:14px;"></div>
       <div class="preview-grid" id="previewGrid"></div>
       <div class="actions">
         <button type="button" class="primary" id="downloadBtn">↓ Download ZIP</button>
       </div>
     </section>
-  </div><!-- /right-panel -->
-</div><!-- /main -->
+  </div>
+</div>
 
 <script>
-const THREAD_COLORS = { thread1:'#c8a040', thread2:'#8ab4d8', background:'#555' };
-const THREAD_LABELS = { thread1:'Thread 1', thread2:'Thread 2', background:'Background' };
-// Internal mapping → backend always receives shuttle_count=1 with 'zari' as the key
-const THREAD_TO_SHUTTLE = { thread1:'zari', thread2:'zari', background:'background' };
+// ── Constants ─────────────────────────────────────────────────────────────────
+const SHUTTLE_COLORS = { zari:'#c8a040', meena1:'#8ab4d8', meena2:'#b890c8', rani:'#c87890', background:'#555' };
+const SHUTTLE_LABEL  = {
+  zari:  {label:'ZARI',   sub:'Gold thread'},
+  meena1:{label:'MEENA 1',sub:'Colour 1'},
+  meena2:{label:'MEENA 2',sub:'Colour 2'},
+  rani:  {label:'RANI',   sub:'Plain weave base'}
+};
+// Standard mode uses simplified thread names that map to zari on the backend
+const STD_THREAD_LABELS = { thread1:'Thread 1', thread2:'Thread 2', background:'Background' };
+const STD_TO_SHUTTLE    = { thread1:'zari', thread2:'zari', background:'background' };
+
 const MODE_DESCS = {
   standard: '<b style="color:var(--cream)">Standard</b> — 4× high-res ink-first detection. Best for clear borders with thick lines, solid fills, and defined colour blocks.',
-  fine:     '<b style="color:var(--gold2)">Fine Detail</b> — adaptive upscale (4–8×), dual-threshold pooling, and pre-pool closing. Preserves small dots, thin scroll lines, and fine secondary motifs.'
+  fine:     '<b style="color:var(--gold2)">Fine Detail</b> — adaptive upscale (4–8×), dual-threshold pooling, and pre-pool closing. Preserves small dots, thin scroll lines, and fine secondary motifs. Supports up to 4 shuttles.'
 };
 
 const state = {
@@ -380,30 +415,60 @@ const $ = id => document.getElementById(id);
 
 fetch('/api/fill-patterns').then(r=>r.json()).then(d=>{
   state.patterns = d.patterns || [];
-  initSatinPatterns();   // populate dropdown immediately if detect already ran
+  populateSingleWeavePatterns();
 }).catch(()=>{});
 
-// ── Mode toggle ────────────────────────────────────────────────────────────
+// ── Mode toggle ───────────────────────────────────────────────────────────────
 function setMode(m) {
   state.mode = m;
   document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode===m));
-  $('modeDesc').innerHTML       = MODE_DESCS[m];
-  $('modeDesc').className       = 'mode-desc' + (m==='fine' ? ' fine' : '');
-  $('fineControls').style.display = m==='fine' ? '' : 'none';
+  $('modeDesc').innerHTML  = MODE_DESCS[m];
+  $('modeDesc').className  = 'mode-desc' + (m==='fine' ? ' fine' : '');
+
   if (m === 'fine') {
-    $('detail').min='0'; $('detail').max='25'; $('detail').value='12';
-    $('detailVal').textContent='0.12';
-    $('detailHelp').textContent='Lower = more fine detail (0.00 = keep any ink coverage).';
+    // Fine: wider detail slider range, show shuttle count, per-shuttle weave, hide single weave
+    $('detail').min='0'; $('detail').max='25';
+    if (!$('autoDetail').checked) {
+      $('detail').value='12'; $('detailVal').textContent='0.12';
+    }
+    $('detailHelp').textContent = 'Lower = more fine detail. 0.00 = keep any ink coverage.';
+    $('shuttleCountWrap').style.display = '';
+    $('hiDetailWrap').style.display = '';
+    $('singleWeaveWrap').style.display = 'none';
+    $('satinPanel').style.display = '';
     $('designName').value = $('designName').value.replace(/^border$/, 'border_fine');
+    buildAssignments(); renderSwatches(); renderSatinPanel();
   } else {
-    $('detail').min='2'; $('detail').max='60'; $('detail').value='18';
-    $('detailVal').textContent='0.18';
-    $('detailHelp').textContent='Lower preserves finer lines. Higher = cleaner, may drop thin detail.';
+    // Standard: narrower slider, single weave, hide per-shuttle
+    $('detail').min='2'; $('detail').max='60';
+    if (!$('autoDetail').checked) {
+      $('detail').value='18'; $('detailVal').textContent='0.18';
+    }
+    $('detailHelp').textContent = 'Lower preserves finer lines. Higher = cleaner, may drop thin detail.';
+    $('shuttleCountWrap').style.display = 'none';
+    $('hiDetailWrap').style.display = 'none';
+    $('singleWeaveWrap').style.display = '';
+    $('satinPanel').style.display = 'none';
     $('designName').value = $('designName').value.replace(/^border_fine$/, 'border');
+    buildAssignments(); renderSwatches();
   }
 }
 
-// ── Upload ─────────────────────────────────────────────────────────────────
+function onAutoDetailChange() {
+  const on = $('autoDetail').checked;
+  $('detail').disabled = on; $('detail').style.opacity = on ? 0.4 : 1;
+  $('detailHelp').textContent = on
+    ? 'Auto: threshold set per design to match source ink weight.'
+    : (state.mode==='fine' ? 'Lower = more fine detail. 0.00 = keep any ink coverage.'
+                           : 'Lower preserves finer lines. Higher = cleaner.');
+}
+
+function onWeaveToggle() {
+  const on = $('weaveOn').checked;
+  [$('satinPat'), $('satinN'), $('satinFlip')].forEach(el => { el.disabled = !on; });
+}
+
+// ── Upload ────────────────────────────────────────────────────────────────────
 const dz=$('dropzone'), fi=$('fileInput');
 dz.onclick     = ()=> fi.click();
 dz.ondragover  = e=>{ e.preventDefault(); dz.classList.add('drag'); };
@@ -413,14 +478,14 @@ fi.onchange = ()=>{ if(fi.files[0]) loadFile(fi.files[0]); };
 
 function loadFile(f) {
   state.file = f;
-  const t = $('thumb'); t.src = URL.createObjectURL(f); t.style.display = 'block';
+  const t = $('thumb'); t.src = URL.createObjectURL(f); t.style.display='block';
   dz.querySelector('.big').textContent = f.name;
   $('detectBtn').disabled = false;
-  fetchSuggestions(f);   // kick off analysis immediately
+  fetchSuggestions(f);
 }
 
-// ── Smart suggestions ──────────────────────────────────────────────────────
-const _sug = {};   // stores latest suggestion values
+// ── Smart suggestions ─────────────────────────────────────────────────────────
+const _sug = {};
 
 async function fetchSuggestions(file) {
   $('suggestCard').style.display   = 'none';
@@ -430,19 +495,16 @@ async function fetchSuggestions(file) {
     const fd = new FormData(); fd.append('image', file);
     const r  = await fetch('/api/border-suggest', {method:'POST', body:fd});
     const d  = await r.json();
-    if (!d.success) throw new Error(d.error || 'analysis failed');
-
+    if (!d.success) throw new Error(d.error||'analysis failed');
     Object.assign(_sug, d);
-
-    $('sug-val-pins').textContent    = d.pins;
-    $('sug-why-pins').textContent    = d.reasons.pins;
-    $('sug-val-ink').textContent     = d.ink_sensitivity.toFixed(2);
-    $('sug-why-ink').textContent     = d.reasons.ink_sensitivity;
-    $('sug-val-detail').textContent  = d.detail_retention.toFixed(2);
-    $('sug-why-detail').textContent  = d.reasons.detail_retention;
-    $('sug-val-noise').textContent   = d.noise_min_size;
-    $('sug-why-noise').textContent   = d.reasons.noise_min_size;
-
+    $('sug-val-pins').textContent   = d.pins;
+    $('sug-why-pins').textContent   = d.reasons.pins;
+    $('sug-val-ink').textContent    = d.ink_sensitivity.toFixed(2);
+    $('sug-why-ink').textContent    = d.reasons.ink_sensitivity;
+    $('sug-val-detail').textContent = d.detail_retention.toFixed(2);
+    $('sug-why-detail').textContent = d.reasons.detail_retention;
+    $('sug-val-noise').textContent  = d.noise_min_size;
+    $('sug-why-noise').textContent  = d.reasons.noise_min_size;
     $('suggestLoading').style.display = 'none';
     $('suggestCard').style.display    = 'block';
   } catch(_) {
@@ -452,70 +514,53 @@ async function fetchSuggestions(file) {
 
 function applyOneSuggestion(key) {
   if (!_sug.pins) return;
-  if (key === 'pins') {
-    $('pins').value = _sug.pins;
-    flashEl($('pins'));
-  }
-  if (key === 'ink') {
-    const v = Math.round(_sug.ink_sensitivity * 100);
-    $('inkSens').value = v; $('inkSensVal').textContent = _sug.ink_sensitivity.toFixed(2);
-    flashEl($('inkSens'));
-  }
-  if (key === 'detail') {
-    _applyDetailVal(_sug.detail_retention);
-    flashEl($('detail'));
-  }
-  if (key === 'noise' && $('noiseMin')) {
-    $('noiseMin').value = _sug.noise_min_size;
-    $('noiseMinVal').textContent = _sug.noise_min_size;
-    flashEl($('noiseMin'));
-  }
+  if (key==='pins')   { $('pins').value=_sug.pins; flashEl($('pins')); }
+  if (key==='ink')    { const v=Math.round(_sug.ink_sensitivity*100); $('inkSens').value=v; $('inkSensVal').textContent=_sug.ink_sensitivity.toFixed(2); flashEl($('inkSens')); }
+  if (key==='detail') { _applyDetailVal(_sug.detail_retention); flashEl($('detail')); }
+  if (key==='noise')  { $('noiseMin').value=_sug.noise_min_size; $('noiseMinVal').textContent=_sug.noise_min_size; flashEl($('noiseMin')); }
 }
 
 function applyAllSuggestions() {
   if (!_sug.pins) return;
   $('pins').value = _sug.pins;
-  const inkV = Math.round(_sug.ink_sensitivity * 100);
-  $('inkSens').value = inkV; $('inkSensVal').textContent = _sug.ink_sensitivity.toFixed(2);
+  const v = Math.round(_sug.ink_sensitivity*100); $('inkSens').value=v; $('inkSensVal').textContent=_sug.ink_sensitivity.toFixed(2);
   _applyDetailVal(_sug.detail_retention);
-  if ($('noiseMin')) { $('noiseMin').value = _sug.noise_min_size; $('noiseMinVal').textContent = _sug.noise_min_size; }
-  // flash the card border to confirm
-  const card = $('suggestCard');
-  card.style.borderColor = 'var(--gold2)';
-  card.style.boxShadow   = '0 0 0 2px rgba(232,201,142,0.25)';
-  setTimeout(() => { card.style.borderColor = ''; card.style.boxShadow = ''; }, 1400);
+  $('noiseMin').value=_sug.noise_min_size; $('noiseMinVal').textContent=_sug.noise_min_size;
+  const card=$('suggestCard');
+  card.style.borderColor='var(--gold2)'; card.style.boxShadow='0 0 0 2px rgba(232,201,142,0.25)';
+  setTimeout(()=>{ card.style.borderColor=''; card.style.boxShadow=''; }, 1400);
 }
 
 function _applyDetailVal(val) {
-  // Clamp to current slider range (standard: 0-60, fine: 0-25)
   const maxV = parseInt($('detail').max);
-  const sliderV = Math.min(Math.round(val * 100), maxV);
-  $('detail').value = sliderV;
-  $('detailVal').textContent = (sliderV / 100).toFixed(2);
+  const v = Math.min(Math.round(val*100), maxV);
+  $('detail').value=v; $('detailVal').textContent=(v/100).toFixed(2);
 }
 
-function dismissSuggestions() { $('suggestWrap').style.display = 'none'; }
+function dismissSuggestions() { $('suggestWrap').style.display='none'; }
 
 function flashEl(el) {
   if (!el) return;
-  el.style.outline = '2px solid var(--gold)';
-  setTimeout(() => { el.style.outline = ''; }, 900);
+  el.style.outline='2px solid var(--gold)';
+  setTimeout(()=>{ el.style.outline=''; }, 900);
 }
 
+// ── Step management ───────────────────────────────────────────────────────────
 function setStep(n) {
   for(let i=1;i<=3;i++){
     const s=$('step'+i); if(s) s.classList.toggle('active', i<=n);
     const p=$('hstep-'+i);
     if(p){ p.classList.toggle('active', i===n); p.classList.toggle('done', i<n); }
   }
-  const es=$('emptyState'); if(es) es.style.display = (n>=3) ? 'none' : 'flex';
-  const s3=$('step3');      if(s3) s3.style.display = (n>=3) ? 'block' : 'none';
+  const es=$('emptyState'); if(es) es.style.display=(n>=3)?'none':'flex';
+  const s3=$('step3');      if(s3) s3.style.display=(n>=3)?'block':'none';
   if(n>=2) $('step2').scrollIntoView({behavior:'smooth',block:'start'});
+  if(n>=3) setTimeout(()=>$('step3').scrollIntoView({behavior:'smooth'}), 100);
 }
 function showMsg(id,txt,ok){ const e=$(id); e.textContent=txt; e.className='msg '+(ok?'ok':'err'); }
 function clearMsg(id){ const e=$(id); e.className='msg'; e.textContent=''; }
 
-// ── Detect ────────────────────────────────────────────────────────────────
+// ── Detect ────────────────────────────────────────────────────────────────────
 $('detectBtn').onclick = async () => {
   if(!state.file) return;
   clearMsg('detectMsg');
@@ -531,13 +576,13 @@ $('detectBtn').onclick = async () => {
     const r=await fetch('/api/border-detect',{method:'POST',body:fd});
     const d=await r.json();
     if(!d.success) throw new Error(d.error||'Detection failed');
-
     state.colors=d.colors; state.pins=d.pins; state.cards=d.cards;
     state.safeImageB64=d.original_image; state.fullImageB64=d.full_image||null;
     state.labelMap=d.label_map;
     $('cards').value=d.cards;
-
-    buildAssignments(); renderSwatches(); initSatinPatterns();
+    buildAssignments();
+    renderSwatches();
+    if(state.mode==='fine') renderSatinPanel(); else populateSingleWeavePatterns();
     setStep(2);
   } catch(err) {
     showMsg('detectMsg', err.message);
@@ -546,113 +591,164 @@ $('detectBtn').onclick = async () => {
   }
 };
 
-// Assign: index 0 → background, index 1 → thread1, index 2 → thread2, rest → background
+// ── Assignment helpers ────────────────────────────────────────────────────────
+function namedShuttles() {
+  const sc = parseInt($('shuttleCount').value);
+  if(sc<=2) return ['zari'];
+  if(sc===3) return ['zari','meena1'];
+  return ['zari','meena1','meena2'];
+}
+
 function buildAssignments() {
   state.assignments = {};
-  state.colors.forEach((c, i) => {
-    state.assignments[i] = i === 0 ? 'background' : i === 1 ? 'thread1' : i === 2 ? 'thread2' : 'background';
-  });
+  if(state.mode==='fine') {
+    const named = namedShuttles();
+    state.colors.forEach((c,i)=>{
+      state.assignments[i] = i===0 ? 'background' : (named[(i-1)%named.length]||'background');
+    });
+  } else {
+    state.colors.forEach((c,i)=>{
+      state.assignments[i] = i===0 ? 'background' : i===1 ? 'thread1' : i===2 ? 'thread2' : 'background';
+    });
+  }
 }
 
 function renderSwatches() {
-  const grid = $('swatches'); grid.innerHTML = '';
-  const opts = ['background', 'thread1', 'thread2'];
-  state.colors.forEach((c, i) => {
-    const div = document.createElement('div'); div.className = 'swatch';
-    const sel = opts.map(o =>
-      `<option value="${o}" ${state.assignments[i]===o?'selected':''}>${THREAD_LABELS[o]}</option>`
-    ).join('');
-    div.innerHTML = `<div class="chip" style="background:${c.hex}"></div>
+  const grid=$('swatches'); grid.innerHTML='';
+  let opts, labelFn;
+  if(state.mode==='fine'){
+    opts = ['background',...namedShuttles()];
+    labelFn = o => o==='background' ? 'Background' : SHUTTLE_LABEL[o].label;
+  } else {
+    opts = ['background','thread1','thread2'];
+    labelFn = o => STD_THREAD_LABELS[o];
+  }
+  state.colors.forEach((c,i)=>{
+    const div=document.createElement('div'); div.className='swatch';
+    const sel=opts.map(o=>`<option value="${o}" ${state.assignments[i]===o?'selected':''}>${labelFn(o)}</option>`).join('');
+    div.innerHTML=`<div class="chip" style="background:${c.hex}"></div>
       <div class="meta">
         <div class="pct">${c.percentage}%${c.is_genuine===false?' <span class="badge-artefact">· possible artefact</span>':''}</div>
         <select data-i="${i}">${sel}</select>
       </div>`;
     grid.appendChild(div);
   });
-  grid.querySelectorAll('select').forEach(s => {
-    s.onchange = () => { state.assignments[+s.dataset.i] = s.value; };
+  grid.querySelectorAll('select').forEach(s=>{
+    s.onchange=()=>{ state.assignments[+s.dataset.i]=s.value; if(state.mode==='fine') renderSatinPanel(); };
   });
 }
 
-// Populate the single satin pattern dropdown once patterns arrive
-function initSatinPatterns() {
-  const patSel = $('satinPat');
-  if (!patSel || patSel.options.length > 0) return;
-  const opts = state.patterns.length
-    ? state.patterns.map(p => `<option value="${p.id}">${p.label}</option>`).join('')
+$('shuttleCount').onchange = ()=>{ buildAssignments(); renderSwatches(); renderSatinPanel(); };
+
+// ── Weave panels ──────────────────────────────────────────────────────────────
+function populateSingleWeavePatterns() {
+  const patSel=$('satinPat');
+  if(!patSel || patSel.options.length>0) return;
+  patSel.innerHTML = state.patterns.length
+    ? state.patterns.map(p=>`<option value="${p.id}">${p.label}</option>`).join('')
     : '<option value="satin">Satin</option>';
-  patSel.innerHTML = opts;
 }
 
-$('weaveOn').onchange = () => {
-  const on = $('weaveOn').checked;
-  [$('satinPat'), $('satinN'), $('satinFlip')].forEach(el => { el.disabled = !on; });
-};
-$('detail').oninput   = () => { $('detailVal').textContent  = ($('detail').value/100).toFixed(2); };
-$('inkSens').oninput  = () => { $('inkSensVal').textContent = ($('inkSens').value/100).toFixed(2); };
-$('noiseMin').oninput = () => { $('noiseMinVal').textContent = $('noiseMin').value; };
-$('backBtn').onclick  = () => setStep(1);
+function activeNamedShuttles() {
+  const used=new Set(Object.values(state.assignments).filter(v=>v!=='background'));
+  return namedShuttles().filter(s=>used.has(s));
+}
 
-// ── Generate ──────────────────────────────────────────────────────────────
+function renderSatinPanel() {
+  const panel=$('satinPanel'); panel.innerHTML='';
+  const patternOpts = state.patterns.length
+    ? state.patterns.map(p=>`<option value="${p.id}">${p.label}</option>`).join('')
+    : '<option value="satin">Satin</option>';
+  activeNamedShuttles().forEach(s=>{
+    const div=document.createElement('div'); div.className='satin-shuttle';
+    div.dataset.shuttle=s;
+    div.innerHTML=`
+      <h4 style="color:${SHUTTLE_COLORS[s]}">${SHUTTLE_LABEL[s].label}</h4>
+      <div class="satin-row">
+        <label class="toggle"><input type="checkbox" class="weaveOn"> Apply weave</label>
+        <select class="pat" disabled>${patternOpts}</select>
+        <select class="nval" disabled>
+          <option>4</option><option>5</option><option>6</option><option>7</option><option selected>8</option><option>16</option>
+        </select>
+        <label class="toggle"><input type="checkbox" class="flip" disabled> Flip</label>
+      </div>
+      <div class="help">Off = solid crisp lines (recommended for fine border details).</div>`;
+    panel.appendChild(div);
+    const on=div.querySelector('.weaveOn');
+    on.onchange=()=>{ ['.pat','.nval','.flip'].forEach(q=>div.querySelector(q).disabled=!on.checked); };
+  });
+}
+
+// ── Slider live readouts ──────────────────────────────────────────────────────
+$('detail').oninput   = ()=>{ $('detailVal').textContent  = ($('detail').value/100).toFixed(2); };
+$('inkSens').oninput  = ()=>{ $('inkSensVal').textContent = ($('inkSens').value/100).toFixed(2); };
+$('noiseMin').oninput = ()=>{ $('noiseMinVal').textContent = $('noiseMin').value; };
+$('backBtn').onclick  = ()=> setStep(1);
+
+// ── Generate ──────────────────────────────────────────────────────────────────
 $('generateBtn').onclick = async () => {
   clearMsg('genMsg');
   const btn=$('generateBtn'); btn.disabled=true; btn.classList.add('loading');
   btn.innerHTML='<span class="spinner"></span>Generating…';
   try {
-    // Always one BMP — map thread1/thread2 both to 'zari' so the engine
-    // merges them into one combined border mask. Backend unchanged.
+    const isFine = state.mode==='fine';
     const finalAssign = {};
-    state.colors.forEach((c, i) => {
-      const t = state.assignments[i] || 'background';
-      finalAssign[i] = THREAD_TO_SHUTTLE[t] || 'background';
-    });
 
-    // Single satin config for the whole design
-    const weaveOn = $('weaveOn').checked;
-    const sa = {
-      zari: {
-        n:         parseInt($('satinN').value),
-        flip:      $('satinFlip').checked,
-        pattern:   $('satinPat').value || 'satin',
-        weave_off: !weaveOn,
-      }
-    };
+    if(isFine) {
+      // Fine mode: use full named shuttle assignments directly
+      state.colors.forEach((c,i)=>{ finalAssign[i]=state.assignments[i]||'background'; });
+    } else {
+      // Standard mode: map thread1/thread2 → 'zari', output always 1 BMP
+      state.colors.forEach((c,i)=>{
+        finalAssign[i] = STD_TO_SHUTTLE[state.assignments[i]] || 'background';
+      });
+    }
+
+    let sa = {};
+    if(isFine) {
+      // Per-shuttle satin settings from dynamically rendered panel
+      document.querySelectorAll('.satin-shuttle').forEach(div=>{
+        const s=div.dataset.shuttle;
+        const on=div.querySelector('.weaveOn').checked;
+        sa[s]={ n:parseInt(div.querySelector('.nval').value), flip:div.querySelector('.flip').checked, pattern:div.querySelector('.pat').value, weave_off:!on };
+      });
+    } else {
+      // Single satin config for whole design
+      const weaveOn=$('weaveOn').checked;
+      sa={ zari:{ n:parseInt($('satinN').value), flip:$('satinFlip').checked, pattern:$('satinPat').value||'satin', weave_off:!weaveOn } };
+    }
 
     const body = {
       image_b64:         state.safeImageB64,
-      full_image:        state.fullImageB64 || undefined,
+      full_image:        state.fullImageB64||undefined,
       label_map:         state.labelMap,
       pins:              state.pins,
       cards:             state.cards,
-      shuttle_count:     1,            // always one output BMP
-      design_name:       $('designName').value || 'border',
+      shuttle_count:     isFine ? parseInt($('shuttleCount').value) : 1,
+      design_name:       $('designName').value||'border',
       color_assignments: finalAssign,
       satin_settings:    sa,
-      palette:           state.colors.map(c => c.rgb),
-      detail_retention:  $('detail').value / 100,
+      palette:           state.colors.map(c=>c.rgb),
+      detail_retention:  $('detail').value/100,
       auto_detail:       $('autoDetail').checked,
-      ink_sensitivity:   $('inkSens').value / 100,
+      ink_sensitivity:   $('inkSens').value/100,
       hi_detail:         true,
     };
 
-    // Fine detail mode uses the enhanced endpoint + extra params
-    const isFine   = state.mode === 'fine';
-    const endpoint = isFine ? '/api/border-id-generate' : '/api/border-generate';
-    if (isFine) {
+    let endpoint = '/api/border-generate';
+    if(isFine) {
+      endpoint = '/api/border-id-generate';
       body.noise_min_size = parseInt($('noiseMin').value);
       body.hi_detail      = $('hiDetail').checked;
     }
 
-    const r = await fetch(endpoint, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
-    const d = await r.json();
-    if (!d.success) throw new Error(d.error || 'Generation failed');
+    const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d=await r.json();
+    if(!d.success) throw new Error(d.error||'Generation failed');
 
-    state.zipB64      = d.zip_b64;
-    state.zipFilename = d.zip_filename;
-    state.bmpB64      = d.bmp_b64 || {};
+    state.zipB64=d.zip_b64; state.zipFilename=d.zip_filename; state.bmpB64=d.bmp_b64||{};
     renderPreviews(d);
     setStep(3);
-    $('step3').scrollIntoView({behavior:'smooth'});
   } catch(err) {
     showMsg('genMsg', err.message);
   } finally {
@@ -660,35 +756,35 @@ $('generateBtn').onclick = async () => {
   }
 };
 
-// ── Previews ──────────────────────────────────────────────────────────────
+// ── Render previews ───────────────────────────────────────────────────────────
 function renderPreviews(data) {
   $('modeUsed').textContent = state.mode==='fine'
-    ? '✦ Generated with Fine Detail mode — adaptive upscale, dual-threshold pooling'
-    : '● Generated with Standard mode — 4× high-resolution ink-first detection';
-  // Physical size + loom warnings
-  const reed = parseFloat($('reed').value) || 60;
-  const pins = state.pins, cards = state.cards;
-  let li = '';
-  if (pins && cards) {
+    ? '✦ Fine Detail — adaptive upscale, dual-threshold pooling, pre-pool closing'
+    : '● Standard — 4× high-resolution ink-first detection';
+
+  const reed=parseFloat($('reed').value)||60, pins=state.pins, cards=state.cards;
+  let li='';
+  if(pins && cards){
     const wIn=pins/reed, hIn=cards/reed;
-    li += `<span style="color:var(--gold)">Woven size ${wIn.toFixed(1)}″ × ${hIn.toFixed(1)}″ `
-        + `(${(wIn*2.54).toFixed(1)} × ${(hIn*2.54).toFixed(1)} cm @ ${reed} ends/in)</span>`;
+    li+=`<span style="color:var(--gold)">Woven size ${wIn.toFixed(1)}″ × ${hIn.toFixed(1)}″ (${(wIn*2.54).toFixed(1)} × ${(hIn*2.54).toFixed(1)} cm @ ${reed} ends/in)</span>`;
   }
-  const warns = data.warnings || [];
-  if (warns.length) li += `<div style="color:var(--danger);margin-top:6px">`
-        + warns.map(w=>'⚠ '+w).join('<br>') + `</div>`;
-  $('loomInfo').innerHTML = li;
+  const warns=data.warnings||[];
+  if(warns.length) li+=`<div style="color:var(--danger);margin-top:6px;">`+warns.map(w=>'⚠ '+w).join('<br>')+`</div>`;
+  $('loomInfo').innerHTML=li;
+
   const grid=$('previewGrid'); grid.innerHTML='';
-  data.files.forEach(fname => {
-    const v   = data.verification[fname] || {};
-    const up  = (v.pure_black!=null && v.pure_white!=null)
-      ? (100*v.pure_black/(v.pure_black+v.pure_white)).toFixed(1) : '—';
-    const card = document.createElement('div'); card.className='preview-card';
+  data.files.forEach(fname=>{
+    const sname=Object.keys(SHUTTLE_LABEL).find(k=>fname.includes(k))||null;
+    const info = sname ? SHUTTLE_LABEL[sname] : {label:'BORDER',sub:'Design thread'};
+    const dotColor = sname ? (SHUTTLE_COLORS[sname]||'var(--gold)') : 'var(--gold)';
+    const v=data.verification[fname]||{};
+    const up=(v.pure_black!=null&&v.pure_white!=null)?(100*v.pure_black/(v.pure_black+v.pure_white)).toFixed(1):'—';
+    const card=document.createElement('div'); card.className='preview-card';
     card.innerHTML=`
       <div class="pc-head">
-        <span class="pc-dot" style="background:var(--gold)"></span>
-        <span class="pc-name">BORDER</span>
-        <span class="pc-sub">Design thread</span>
+        <span class="pc-dot" style="background:${dotColor}"></span>
+        <span class="pc-name">${info.label}</span>
+        <span class="pc-sub">${info.sub}</span>
       </div>
       <img src="data:image/png;base64,${data.previews[fname]}" alt="${fname}">
       <div class="pc-stat">
@@ -703,27 +799,22 @@ function renderPreviews(data) {
   });
 }
 
-// ── Edit in BMP Editor (opens in a new tab) ───────────────────────────────
+// ── Open in BMP Editor ────────────────────────────────────────────────────────
 function openInEditor(fname) {
-  // Open the tab synchronously inside the click gesture so popup blockers
-  // don't eat it; we set its URL once the BMP is stored server-side.
-  const win = window.open('', '_blank');
-  const bmpData=state.bmpB64[fname]||'';
+  const win=window.open('','_blank');
   fetch('/api/store-bmp',{
     method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({bmp_b64:bmpData, filename:fname, preview:''})
+    body:JSON.stringify({bmp_b64:state.bmpB64[fname]||'', filename:fname, preview:''})
   })
   .then(r=>r.json())
   .then(d=>{
-    const url = d.success&&d.token
-      ? `/edit?from_generator=1&token=${d.token}`
-      : '/edit?from_generator=1';
-    if (win) win.location.href = url; else window.open(url, '_blank');
+    const url=d.success&&d.token?`/edit?from_generator=1&token=${d.token}`:'/edit?from_generator=1';
+    if(win) win.location.href=url; else window.open(url,'_blank');
   })
-  .catch(()=>{ if (win) win.location.href='/edit?from_generator=1'; else window.open('/edit?from_generator=1','_blank'); });
+  .catch(()=>{ if(win) win.location.href='/edit?from_generator=1'; else window.open('/edit?from_generator=1','_blank'); });
 }
 
-// ── Download single ───────────────────────────────────────────────────────
+// ── Download helpers ──────────────────────────────────────────────────────────
 function downloadOne(fname) {
   const b64=state.bmpB64[fname]; if(!b64) return;
   const bin=atob(b64), arr=new Uint8Array(bin.length);
@@ -733,8 +824,7 @@ function downloadOne(fname) {
   a.download=fname; a.click();
 }
 
-// ── Download ZIP ──────────────────────────────────────────────────────────
-$('downloadBtn').onclick = () => {
+$('downloadBtn').onclick=()=>{
   if(!state.zipB64) return;
   const bin=atob(state.zipB64), arr=new Uint8Array(bin.length);
   for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
@@ -742,6 +832,9 @@ $('downloadBtn').onclick = () => {
   a.href=URL.createObjectURL(new Blob([arr],{type:'application/zip'}));
   a.download=state.zipFilename||'border_jacquard.zip'; a.click();
 };
+
+// Initialise to standard mode UI state on page load
+setMode('standard');
 </script>
 </body>
 </html>
