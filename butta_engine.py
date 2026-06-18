@@ -149,45 +149,93 @@ def reduce_butta(image: Image.Image, target_pins: int, target_cards: int | None 
     Reduce a (mono / B&W) butta to `target_pins` width, preserving negative space.
 
     target_cards : explicit output height. If None, height keeps the source
-                   aspect ratio. If set, the motif is fitted to that height
-                   (use to match a fixed loom card count).
-    detail : -1.0 .. +1.0  — 0 = auto (matches the SOURCE ink weight per design);
-                              + = more open (favour gaps); - = more solid.
-    thin_rescue : keep thin connectors/stems that would otherwise break at low
-                  pin counts (adds a little ink along thin lines).
+                   aspect ratio. If set, the motif is fitted to that height.
+    detail : -1.0 .. +1.0  — 0 = auto; + = more open; - = more solid.
+    thin_rescue : keep thin connectors at low pin counts. Auto-disabled when
+                  upscaling (compression < 1.2) to avoid over-thickening.
     Returns (mask, info) — mask bool (target_h x target_pins), True = ink/UP.
     """
     if autocrop:
         image = _autocrop(image)
-    hi, used_thresh = _binarize_full_res(image, thresh)
-    src_ink = float(hi.mean())
 
-    # Compute the coverage map ONCE — it is identical for every threshold, so the
-    # auto-search only needs to re-threshold it (cheap) rather than re-resize the
-    # full-resolution source 50 times (which made previews slow on large images).
-    frac, target_h = _coverage_map(hi, target_pins, target_cards)
+    src_w, src_h_orig = image.size
+    compression = src_w / target_pins
 
-    def _final(cov):
-        m = frac >= cov
-        if despeckle_px > 0:
-            m = _despeckle(m, despeckle_px)
-        return m
+    # ── Enhancement 1: recommended pin count ─────────────────────────────
+    # Ideal compression is 1.5–4×. Give the user the sweet-spot pin count.
+    recommended_pins = int(round(src_w * 0.60))   # ~1.7× compression
+    recommended_pins = max(40, min(600, recommended_pins))
 
-    # Auto baseline: match the source ink weight using the real output pipeline.
-    base_cov, best = 0.5, None
-    for cov in np.arange(0.30, 0.80, 0.01):
-        ink = float(_final(cov).mean())
-        d = abs(ink - src_ink)
-        if best is None or d < best:
-            best, base_cov = d, float(cov)
+    # ── Enhancement 2: upscale flag ───────────────────────────────────────
+    is_upscale = compression < 1.2   # target wider than source → upscaling
 
-    cov = float(min(0.85, max(0.20, base_cov + detail * 0.18)))
-    mask = _final(cov)
-    if thin_rescue:
-        mask = mask | _thin_rescue_mask(hi, target_pins, target_h)
+    # ── Enhancement 3: upscale-aware reduction ────────────────────────────
+    if is_upscale:
+        # When the source is smaller than the target, BOX resampling creates
+        # a coverage map where every source black pixel expands to fill ≥1
+        # output pixel with coverage 1.0 — any threshold produces over-thickened
+        # output. Fix: threshold at full source resolution with Otsu, then
+        # LANCZOS downsample the binary mask to get correct ink weight.
+        hi, used_thresh = _binarize_full_res(image, thresh)
+        src_ink = float(hi.mean())
+        target_h_val = target_cards if target_cards else max(1, round(src_h_orig * target_pins / src_w))
+        target_h_val = max(1, int(target_h_val))
+        # Downsample the binary mask with LANCZOS (high quality), then re-threshold
+        # at 0.5 so the output preserves exact ink weight from source.
+        hi_img = Image.fromarray((hi * 255).astype('uint8'), 'L')
+        reduced = hi_img.resize((target_pins, target_h_val), Image.LANCZOS)
+        reduced_arr = np.asarray(reduced, np.float32) / 255.0
+        # Use 0.5 as base, nudge by detail slider for open/solid balance
+        base_thresh_val = max(0.25, min(0.85, 0.50 - detail * 0.20))
+        mask = reduced_arr >= base_thresh_val
         if despeckle_px > 0:
             mask = _despeckle(mask, despeckle_px)
-    auto_h = max(1, round(hi.shape[0] * target_pins / hi.shape[1]))
+        # Enhancement 4: never apply thin_rescue when upscaling — it adds ink
+        # to an already over-thickened output, making it worse
+        target_h = target_h_val
+        frac = reduced_arr
+        cov = base_thresh_val
+    else:
+        # Normal compression path (compression ≥ 1.2) — original algorithm
+        hi, used_thresh = _binarize_full_res(image, thresh)
+        src_ink = float(hi.mean())
+        frac, target_h = _coverage_map(hi, target_pins, target_cards)
+
+        def _final(cov):
+            m = frac >= cov
+            if despeckle_px > 0:
+                m = _despeckle(m, despeckle_px)
+            return m
+
+        base_cov, best = 0.5, None
+        for cov in np.arange(0.30, 0.80, 0.01):
+            ink = float(_final(cov).mean())
+            d = abs(ink - src_ink)
+            if best is None or d < best:
+                best, base_cov = d, float(cov)
+
+        cov = float(min(0.85, max(0.20, base_cov + detail * 0.18)))
+        mask = _final(cov)
+
+        # Enhancement 4: auto-disable thin_rescue when compression < 1.5
+        # (borderline ratio — thin lines are already preserved naturally)
+        effective_thin_rescue = thin_rescue and compression >= 1.5
+        if effective_thin_rescue:
+            mask = mask | _thin_rescue_mask(hi, target_pins, target_h)
+            if despeckle_px > 0:
+                mask = _despeckle(mask, despeckle_px)
+
+    auto_h = max(1, round(src_h_orig * target_pins / src_w))
+
+    # ── Enhancement 5: upscale warning messages ───────────────────────────
+    upscale_warning = None
+    if is_upscale:
+        upscale_warning = (
+            f"Source image ({src_w}px wide) is smaller than the target pin count "
+            f"({target_pins}). Using {recommended_pins} pins will give better results "
+            f"with this image."
+        )
+
     info = {
         'source_size': list(image.size),
         'target_w': target_pins,
@@ -198,8 +246,11 @@ def reduce_butta(image: Image.Image, target_pins: int, target_cards: int | None 
         'source_ink': round(100 * src_ink, 1),
         'result_ink': round(100 * float(mask.mean()), 1),
         'threshold': round(used_thresh, 1),
-        'compression': round(image.size[0] / target_pins, 1),
-        'thin_rescue': bool(thin_rescue),
+        'compression': round(compression, 2),
+        'thin_rescue': bool(thin_rescue and not is_upscale),
+        'is_upscale': bool(is_upscale),
+        'recommended_pins': recommended_pins,
+        'upscale_warning': upscale_warning,
     }
     try:
         from loom_utils import loom_warnings
@@ -313,6 +364,14 @@ def reduce_butta_multi(image: Image.Image, target_pins: int,
         assignments[idx] = shuttles[(idx - 1) % len(shuttles)]
 
     ink_pct = round(100 * float((label_map > 0).mean()), 1)
+    src_w_m = image.size[0]
+    compression_m = src_w_m / target_pins
+    is_upscale_m = compression_m < 1.2
+    recommended_m = max(40, min(600, int(round(src_w_m * 0.60))))
+    upscale_warn_m = (
+        f"Source image ({src_w_m}px wide) is smaller than the target pin count "
+        f"({target_pins}). Using {recommended_m} pins will give better results."
+    ) if is_upscale_m else None
     info = {
         'source_size': list(image.size),
         'target_w': target_pins, 'target_h': target_h,
@@ -320,8 +379,11 @@ def reduce_butta_multi(image: Image.Image, target_pins: int,
         'cards_mode': 'set' if target_cards else 'auto',
         'n_colors': len(out_colors),
         'result_ink': ink_pct,
-        'compression': round(image.size[0] / target_pins, 1),
+        'compression': round(compression_m, 2),
         'palette': [list(c) for c in out_colors],
+        'is_upscale': bool(is_upscale_m),
+        'recommended_pins': recommended_m,
+        'upscale_warning': upscale_warn_m,
     }
     try:
         from loom_utils import loom_warnings
