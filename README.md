@@ -34,6 +34,7 @@ Upload a cropped design image (butta motif, running lines, full repeats, etc.), 
 | Page                   | Route        | What it's for                                                                 |
 | ---------------------- | ------------ | ----------------------------------------------------------------------------- |
 | **Generator**          | `/`          | Main flow: upload → detect colours → assign shuttles → generate BMPs          |
+| **Butta Studio**       | `/butta`     | Single-motif reduction: gap-preserving downscale to loom resolution           |
 | **BMP Editor**         | `/edit`      | Pixel-level editing of a generated/loaded BMP                                 |
 | **Trace Guide**        | `/trace`     | Turns a messy fabric photo into clean tracing references                      |
 | **Border Studio**      | `/border`    | High-detail pipeline for thin border / running-line designs                   |
@@ -110,11 +111,14 @@ jacquard-designer/
 ├── bmp_engine.py        # Core BMP generation: colour detect, fill patterns, writer
 ├── border_engine.py     # High-detail border generation pipeline
 ├── border_id_engine.py  # Border identification / generation
+├── butta_engine.py      # Butta motif reduction (gap-preserving downscale)
 ├── enhanced_engine.py   # Image preprocessing helpers (lighting, suggestions)
+├── loom_utils.py        # Physical-size conversion + weave-ability warnings
 ├── templates/
 │   ├── index.html       # Generator (main UI)
 │   ├── edit.html        # BMP Editor
 │   ├── trace.html       # Trace Guide
+│   ├── butta.html       # Butta Studio
 │   ├── border.html      # Border Studio
 │   └── border_id.html   # Border Identification
 ├── requirements.txt

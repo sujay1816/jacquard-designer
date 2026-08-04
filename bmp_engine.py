@@ -647,10 +647,13 @@ def detect_colors(image: Image.Image, n_colors: int, edge_recovery: bool = True)
     ~98% for JPEG source images. Safe for PNG too (dilation is small and only
     affects genuine boundary pixels).
 
-    Returns:
-        colors      : list of (R,G,B) tuples sorted by dominance (most dominant first)
-        counts      : list of int pixel counts per color
-        label_map   : (H x W) uint8 array — each pixel's color index
+    Returns a 4-tuple:
+        colors        : list of (R,G,B) tuples sorted by dominance (most dominant first)
+        counts        : list of int pixel counts per color
+        label_map     : (H x W) uint8 array — each pixel's color index
+        genuine_flags : list of bool, parallel to colors — False marks a cluster
+                        judged to be a compression/anti-aliasing artefact rather
+                        than a real design colour (see _is_genuine_colour)
     """
     img_rgb = image.convert('RGB')
     arr     = np.array(img_rgb).reshape(-1, 3).astype(np.float32)
@@ -1566,8 +1569,6 @@ def generate_bmps(
 
         # Determine background type for supersample decision
         _arr_rgb  = np.array(resized)
-        _bg_bright = float(np.array(_arr_rgb, dtype=float).mean(axis=2).flatten()
-                           [np.argsort(np.array(_arr_rgb).mean(axis=2).flatten())[-1]])
         _is_light_bg = np.array(_arr_rgb).mean(axis=2).mean() > 100 and                        float(np.percentile(np.array(_arr_rgb).mean(axis=2), 95)) > 180
 
         if not emboss:

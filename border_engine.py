@@ -49,7 +49,6 @@ from bmp_engine import (
     generate_fill_pattern,
     generate_plain_weave,
     write_1bit_bmp,
-    verify_bmp,
 )
 
 # Border designs are line-art, not large solid bodies -> default solid crisp

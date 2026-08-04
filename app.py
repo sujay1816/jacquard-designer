@@ -2,12 +2,12 @@
 Jacquard Designer App — Flask Backend
 """
 
-from flask import Flask, request, jsonify, render_template, session
+from flask import Flask, request, jsonify, render_template
 from PIL import Image, ImageOps, UnidentifiedImageError
 import numpy as np
 import io, os, zipfile, base64
 from bmp_engine import (detect_colors, generate_bmps, verify_bmp, enhance_image,
-                        assess_image_quality, extract_outline,
+                        assess_image_quality,
                         generate_fill_pattern, FILL_PATTERNS, write_1bit_bmp)
 from border_engine import generate_border_bmps, detect_border
 from border_id_engine import generate_border_id_bmps
@@ -77,7 +77,6 @@ def api_store_bmp():
 
 @app.route('/edit')
 def edit_page_redirect():
-    import uuid as _uuid
     token    = request.args.get('token', '')
     entry    = _bmp_store.pop(token, {}) if token else {}
     bmp_b64  = entry.get('bmp_b64', '')
@@ -230,7 +229,6 @@ def api_detect_colors():
         })
 
     except Exception as e:
-        import traceback
         return _json_error(f'Unexpected error: {e}')
 
 
@@ -432,7 +430,6 @@ def api_generate():
         # Raised by generate_bmps for label_map shape mismatch
         return _json_error(str(e))
     except Exception as e:
-        import traceback
         return _json_error(f'Generation failed: {e}')
 
 
@@ -648,7 +645,6 @@ def api_trace_guide():
         })
 
     except Exception as e:
-        import traceback
         return jsonify({'success': False, 'error': str(e)})
 
 
@@ -749,11 +745,9 @@ def api_bmp_process():
 
         elif op == 'fill_pattern':
             # Apply a weave fill pattern inside the design (UP) pixels
-            from bmp_engine import generate_fill_pattern
             pat     = params.get('pattern', 'satin')
             n_val   = max(4, min(16, int(params.get('n', 8))))
             flip    = bool(params.get('flip', False))
-            min_h   = max(1, int(params.get('min_height', 1)))
             fill    = generate_fill_pattern(pat, n_val, W, H, flip=flip)
             # fill: 0=UP, 1=DOWN  |  mask: True=design pixel
             # Apply: where mask=True, use fill pattern; where mask=False, keep DOWN
@@ -804,7 +798,6 @@ def api_bmp_process():
         })
 
     except Exception as e:
-        import traceback
         return jsonify({'success': False, 'error': str(e)})
 
 
@@ -913,7 +906,6 @@ def api_border_detect():
         })
 
     except Exception as e:
-        import traceback
         return _json_error(f'Border detection failed: {e}')
 
 
@@ -1083,7 +1075,6 @@ def api_border_generate():
     except ValueError as e:
         return _json_error(str(e))
     except Exception as e:
-        import traceback
         return _json_error(f'Border generation failed: {e}')
 
 
@@ -1244,7 +1235,6 @@ def api_border_id_generate():
     except ValueError as e:
         return _json_error(str(e))
     except Exception as e:
-        import traceback
         return _json_error(f'Border identification failed: {e}')
 
 

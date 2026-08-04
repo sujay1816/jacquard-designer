@@ -2,7 +2,7 @@
 Jacquard Designer — Launcher
 Double-click this file or run: python run.py
 """
-import subprocess, sys, os, webbrowser, time, threading
+import os, webbrowser, time, threading
 
 def open_browser():
     time.sleep(2)
