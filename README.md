@@ -86,6 +86,43 @@ always produce the same BMPs.
 
 ---
 
+## Design assistant (optional, requires an API key)
+
+The Generator can take instructions in plain language — "make the gold satin
+finer", "put the green on meena 2", "480 pins" — and translate them into
+settings changes.
+
+**The model never touches pixels.** It emits a structured settings patch, which
+is validated against loom and shuttle limits before anything runs. Every edit is
+executed by the same deterministic code as the manual controls, so output
+remains loom-safe and reproducible. The assistant will refuse a request that
+cannot be woven — for example, assigning a third thread on a two-shuttle loom —
+and explain the real options instead.
+
+### Enabling it
+
+The assistant needs an Anthropic API key, supplied by you. **No key ships with
+the app.** Without one the panel is hidden and everything else works normally.
+
+Either set an environment variable:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+or create `config.json` next to `app.py`:
+
+```json
+{ "anthropic_api_key": "sk-ant-..." }
+```
+
+`config.json` is gitignored — do not commit it.
+
+Note this is the **only** feature that uses the network. Uploads, colour
+detection, and BMP generation all stay on your machine.
+
+---
+
 ## Installation
 
 Works on Windows, macOS, and Linux.

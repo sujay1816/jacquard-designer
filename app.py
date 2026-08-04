@@ -13,6 +13,7 @@ from border_engine import generate_border_bmps, detect_border
 from border_id_engine import generate_border_id_bmps
 from enhanced_engine import preprocess_fabric_image, analyze_border_image
 from vision_engine import detect_colors_smart
+import assistant_engine
 import butta_engine
 
 app = Flask(__name__)
@@ -239,6 +240,40 @@ def api_detect_colors():
 
     except Exception as e:
         return _json_error(f'Unexpected error: {e}')
+
+
+@app.route('/api/assistant-status', methods=['GET'])
+def api_assistant_status():
+    """Report whether an API key is configured, so the UI can hide the panel."""
+    return jsonify({'success': True, 'available': assistant_engine.is_available()})
+
+
+@app.route('/api/assistant', methods=['POST'])
+def api_assistant():
+    """
+    One conversational turn against the Generator settings.
+
+    The model proposes a settings patch; assistant_engine validates it against
+    loom and shuttle limits before it is returned. The patch is applied by the
+    frontend only after the weaver confirms it, so nothing changes silently.
+    """
+    try:
+        data = request.get_json() or {}
+        message = str(data.get('message', '')).strip()
+        if not message:
+            return _json_error('No message provided.')
+        if len(message) > 2000:
+            return _json_error('Message too long.')
+
+        state = data.get('state') or {}
+        history = data.get('history') or []
+        if not isinstance(state, dict) or not isinstance(history, list):
+            return _json_error('Malformed assistant state.')
+
+        result = assistant_engine.ask(message, state, history[-10:])
+        return jsonify({'success': result['ok'], **result})
+    except Exception as e:
+        return _json_error(f'Assistant failed: {e}')
 
 
 @app.route('/api/generate', methods=['POST'])
