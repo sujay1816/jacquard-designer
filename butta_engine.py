@@ -142,7 +142,82 @@ def _thin_rescue_mask(hi, target_w, target_h, low_cov=0.12):
     return thin_frac >= low_cov
 
 
-def reduce_butta(image: Image.Image, target_pins: int, target_cards: int | None = None,
+def reduce_butta(image: Image.Image, target_pins: int,
+                 target_cards: int | None = None, auto_sharp: bool = True,
+                 **kwargs):
+    """
+    Reduce a butta to loom resolution, picking the strategy from the source.
+
+    When the source carries at least two threads per stroke the original path
+    runs unchanged. Below that the original path is measurably broken: a stroke
+    and its neighbouring gap compete for the same output cells, ink always
+    wins, and the design thickens while its gaps close. Measured on a 340x201
+    line-art butta at 240 pins, the white ground fragmented from 13 regions
+    into 147. Thinning strokes by one iteration before area-coverage pooling
+    holds it at 18, at the cost of ~27% lighter linework.
+
+    That trade is made automatically because heavier lines with closed gaps are
+    always wrong, while lighter lines with correct topology still read. Pass
+    auto_sharp=False to force the original path.
+
+    info['path'] records which ran, and info['warnings'] carries the message
+    for the UI, so the weaver is told what happened rather than silently
+    receiving a blurred motif.
+    """
+    if not auto_sharp:
+        return _reduce_butta_standard(image, target_pins,
+                                      target_cards=target_cards, **kwargs)
+
+    try:
+        from loom_utils import source_resolution_check
+        chk = source_resolution_check(image, target_pins)
+        tps = chk.get('threads_per_stroke')
+    except Exception:
+        chk, tps = {}, None
+
+    if tps is None or tps >= 2.0:
+        mask, info = _reduce_butta_standard(image, target_pins,
+                                            target_cards=target_cards, **kwargs)
+        info = dict(info or {})
+        info.setdefault('warnings', [])
+        info.update({'path': 'standard', 'threads_per_stroke': tps})
+        return mask, info
+
+    mask, info = _thin_then_pool(image, target_pins, target_cards)
+    info.update({
+        'threads_per_stroke': tps,
+        'recommended_min_pins': chk.get('recommended_min_pins'),
+        'warnings': [
+            f"Source detail is low ({tps:.1f} threads per stroke). Strokes were "
+            f"thinned to keep the gaps between them open, so linework is "
+            f"lighter than the source. For full stroke weight use at least "
+            f"{chk.get('recommended_min_pins')} pins or higher-resolution art."
+        ],
+    })
+    return mask, info
+
+
+def _thin_then_pool(image: Image.Image, target_pins: int,
+                    target_cards: int | None = None):
+    """Structure-preserving reduction for under-resolution sources."""
+    from bmp_engine import downsample_mask
+    from skimage.morphology import thin as _thin
+
+    hi = _binarize_full_res(image)
+    if isinstance(hi, tuple):
+        hi = hi[0]
+    hi = np.asarray(hi, dtype=bool)
+
+    cards = target_cards or max(1, int(round(
+        target_pins * hi.shape[0] / max(hi.shape[1], 1))))
+    mask = _despeckle_butta(
+        downsample_mask(_thin(hi, max_num_iter=1), target_pins, cards,
+                        min_coverage=0.16))
+    return mask, {'path': 'thin-then-pool',
+                  'target_w': target_pins, 'target_h': cards}
+
+
+def _reduce_butta_standard(image: Image.Image, target_pins: int, target_cards: int | None = None,
                  detail: float = 0.0, despeckle_px: int = 1, autocrop: bool = True,
                  thresh: float | None = None, thin_rescue: bool = False):
     """
@@ -404,69 +479,9 @@ def labelmap_to_preview_png(label_map: np.ndarray, colors, scale: int = 1) -> Im
 
 
 def reduce_butta_auto(image: Image.Image, target_pins: int,
-                      target_cards: int | None = None,
-                      min_threads_per_stroke: float = 2.0):
-    """
-    Reduce a butta, choosing the strategy from the source's own detail level.
-
-    Two regimes, decided by measurement rather than by the user:
-
-      * >= min_threads_per_stroke available -> the standard path. Every stroke
-        lands on two or more threads, so full stroke weight survives.
-
-      * below that -> thin-then-pool. At sub-2x headroom a stroke and its
-        adjacent gap compete for the same output cells and ink always wins,
-        which thickens the design and closes the gaps that make it readable.
-        Thinning strokes by one morphological iteration at source resolution
-        gives the gaps room, then area-coverage pooling keeps what remains.
-
-    The second path trades stroke WEIGHT for stroke STRUCTURE, because a motif
-    with the right topology and light lines reads correctly, while one with
-    heavy lines and closed gaps does not. Measured on a 340x201 line-art butta
-    reduced to 240 pins: the standard path fragmented the white ground from 13
-    regions into 147, while thin-then-pool held it at 17 with 27% lighter ink.
-
-    Returns (mask, info) where info records which path ran and why, so the UI
-    can tell the weaver what trade was made.
-    """
-    from bmp_engine import downsample_mask
-    from loom_utils import source_resolution_check
-
-    chk = source_resolution_check(image, target_pins,
-                                  min_threads_per_stroke=min_threads_per_stroke)
-    tps = chk.get('threads_per_stroke')
-
-    if tps is None or tps >= min_threads_per_stroke:
-        mask, info = reduce_butta(image, target_pins, target_cards)
-        info = dict(info or {})
-        info.update({'path': 'standard', 'threads_per_stroke': tps,
-                     'note': 'Source carries enough detail; full stroke weight kept.'})
-        return mask, info
-
-    from skimage.morphology import thin as _thin
-
-    hi = _binarize_full_res(image)
-    if isinstance(hi, tuple):
-        hi = hi[0]
-    hi = np.asarray(hi, dtype=bool)
-
-    cards = target_cards or max(1, int(round(
-        target_pins * hi.shape[0] / max(hi.shape[1], 1))))
-    mask = downsample_mask(_thin(hi, max_num_iter=1), target_pins, cards,
-                           min_coverage=0.16)
-    mask = _despeckle_butta(mask)
-
-    info = {
-        'path': 'thin-then-pool',
-        'threads_per_stroke': tps,
-        'recommended_min_pins': chk.get('recommended_min_pins'),
-        'note': ('Source detail is below two threads per stroke, so strokes '
-                 'were thinned to preserve the gaps between them. Linework '
-                 'will be lighter than the source. For full stroke weight use '
-                 f"at least {chk.get('recommended_min_pins')} pins."),
-        'warnings': chk.get('warnings', []),
-    }
-    return mask, info
+                      target_cards: int | None = None, **kwargs):
+    """Deprecated alias — reduce_butta now auto-selects by default."""
+    return reduce_butta(image, target_pins, target_cards=target_cards, **kwargs)
 
 
 def _despeckle_butta(mask: np.ndarray, min_px: int = 2) -> np.ndarray:

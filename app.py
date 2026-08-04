@@ -46,6 +46,18 @@ def _json_error(msg: str, status: int = 400):
     return jsonify({'success': False, 'error': msg}), status
 
 
+@app.errorhandler(404)
+def not_found(_e):
+    """
+    Friendly 404. API paths get JSON so the frontend can parse the failure;
+    page paths get the app shell with navigation, so a stale bookmark (notably
+    the retired /border-id) is a signpost rather than a dead end.
+    """
+    if request.path.startswith('/api/'):
+        return _json_error(f'No such endpoint: {request.path}', 404)
+    return render_template('404.html', requested_path=request.path), 404
+
+
 @app.errorhandler(413)
 def too_large(_e):
     """Override Flask's default HTML 413 page with JSON so the frontend can parse it."""
