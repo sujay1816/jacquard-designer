@@ -83,6 +83,10 @@ KMEANS_FIT_SAMPLES = 200_000
 # white on white) carry all their signal in luminance.
 LAB_WEIGHTS = (0.45, 1.0, 1.0)
 
+# Choosing this weight per image (from how far cluster centroids spread along
+# L versus chroma) was tried and measured WORSE on a tonal floral: isolated
+# single pixels rose from 323 to 473 at n=4. The fixed weight stays.
+
 
 def flatten_illumination(image: Image.Image, strength: float = 1.0) -> Image.Image:
     """
@@ -197,6 +201,29 @@ def _thin_rescue(winner, coverage, bg_class, order):
     return out
 
 
+def _despeckle_labels(labels: np.ndarray, bg_class: int, min_size: int = 2):
+    """
+    Fold design components smaller than min_size cells back into background.
+
+    Anything this small cannot be woven: a single lifted thread with no
+    neighbours produces a defect, not a motif.
+    """
+    from scipy import ndimage
+    out = labels.copy()
+    for c in np.unique(labels):
+        if c == bg_class:
+            continue
+        m = (labels == c)
+        lbl, n = ndimage.label(m, structure=np.ones((3, 3)))
+        if n == 0:
+            continue
+        sizes = np.bincount(lbl.ravel())
+        sizes[0] = 0
+        tiny = np.isin(lbl, np.where((sizes > 0) & (sizes < min_size))[0])
+        out[tiny] = bg_class
+    return out
+
+
 def detect_colors_smart(image: Image.Image,
                         n_colors: int,
                         pins: int,
@@ -204,6 +231,7 @@ def detect_colors_smart(image: Image.Image,
                         flatten_light: bool = False,
                         superpixels: bool = False,
                         thin_rescue: bool = True,
+                        despeckle: int = 2,
                         hires_factor: int = DEFAULT_HIRES_FACTOR):
     """
     High-accuracy replacement for bmp_engine.detect_colors.
@@ -292,6 +320,15 @@ def detect_colors_smart(image: Image.Image,
     if thin_rescue and k > 1 and n_found > 1:
         design_order = [c for c in np.argsort(hi_area) if c != bg_class]
         winner = _thin_rescue(winner, coverage, bg_class, design_order)
+
+    # ── Despeckle ───────────────────────────────────────────────────────────
+    # Clustering at native resolution sees antialiased edges that the legacy
+    # path blurs away, and thin_rescue cannot distinguish a real 1px vine from
+    # a shading gradient, so it promotes some edge speckle into design cells.
+    # Isolated single pixels will not weave (loom_utils flags them), so they
+    # are folded back into the background here.
+    if despeckle and n_found > 1:
+        winner = _despeckle_labels(winner, bg_class, min_size=despeckle)
 
     # ── Sort by dominance at loom resolution, background first ──────────────
     final_counts = np.bincount(winner.ravel(), minlength=n_found)

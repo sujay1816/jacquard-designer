@@ -118,6 +118,16 @@ or create `config.json` next to `app.py`:
 
 `config.json` is gitignored — do not commit it.
 
+The default model is `claude-sonnet-5`. Override it with the
+`JQ_ASSISTANT_MODEL` environment variable, or a `"model"` key in
+`config.json`. Model IDs are pinned to fixed snapshots, so the assistant's
+behaviour will not drift under a design already in production.
+
+**No design image is sent to the API.** The assistant receives only numeric
+settings (shuttle count, pins, cards, detected colour count) and your typed
+message — never the uploaded photo, the label map, or any BMP data. It uses
+`urllib` from the standard library, so there is nothing extra to install.
+
 Note this is the **only** feature that uses the network. Uploads, colour
 detection, and BMP generation all stay on your machine.
 
@@ -164,6 +174,15 @@ The app opens automatically at **http://localhost:5000**.
 - **Phase-corrected Rani** — plain-weave phase is tracked per column and resynced at design boundaries, eliminating mis-picks (weft floats) in multi-shuttle mode.
 - **Pixel-perfect label map** — colour assignments from the detect step are carried straight through to generation (no second KMeans run, no boundary drift).
 - **Noise removal** — isolated single-pixel KMeans artefacts are stripped before masks are built.
+- **Outline / edging** — motif boundaries are extracted with a DISK structuring
+  element, so the ring width stays uniform around curves. A square element
+  over-erodes on the diagonals: at `stroke_thickness=5` it produced a ring
+  spanning 7px of radius instead of 5.
+- **Continuous outlines at any reed** — outline masks are pooled to loom
+  resolution by area coverage rather than LANCZOS-plus-threshold. Interpolating
+  a 1px ring drops most of it below the 50% threshold: a single closed loop
+  measured 16 fragments at reed 80 and 42 at reed 60. Coverage pooling keeps it
+  as one closed loop, with no dilation of solid fills.
 - **Hand-written 1-bit BMP writer** — emits a correct BITMAPINFOHEADER, bottom-up rows, and 4-byte row padding (padded with white) so output is loom-ready and consistent across the generator and editor.
 
 ---

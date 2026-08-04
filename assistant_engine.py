@@ -22,9 +22,33 @@ import urllib.error
 import urllib.request
 
 API_URL = "https://api.anthropic.com/v1/messages"
-API_MODEL = "claude-sonnet-4-6"
 API_VERSION = "2023-06-01"
 API_TIMEOUT = 60
+
+# Model IDs from the 4.6 generation onward are PINNED, not evergreen aliases:
+# a given ID always maps to one fixed snapshot and Anthropic never changes its
+# weights. That matters here — it means the assistant's behaviour cannot drift
+# under a design that is already in production. Overridable via the
+# JQ_ASSISTANT_MODEL environment variable or "model" in config.json, so a site
+# can pin an older ID or move to a newer one without editing source.
+DEFAULT_MODEL = "claude-sonnet-5"
+
+
+def _config():
+    """Read config.json next to this file, or {} if absent/unreadable."""
+    try:
+        here = os.path.dirname(os.path.abspath(__file__))
+        with open(os.path.join(here, 'config.json'), encoding='utf-8') as fh:
+            return json.load(fh) or {}
+    except Exception:
+        return {}
+
+
+def model_id():
+    """Resolve the model ID: env var, then config.json, then the default."""
+    return (os.environ.get('JQ_ASSISTANT_MODEL', '').strip()
+            or str(_config().get('model', '')).strip()
+            or DEFAULT_MODEL)
 
 # ── Hardware and loom limits ────────────────────────────────────────────────
 # These mirror the limits already enforced in app.py and loom_utils, and are
@@ -51,12 +75,7 @@ def _key():
     k = os.environ.get('ANTHROPIC_API_KEY', '').strip()
     if k:
         return k
-    try:
-        here = os.path.dirname(os.path.abspath(__file__))
-        with open(os.path.join(here, 'config.json'), encoding='utf-8') as fh:
-            return (json.load(fh).get('anthropic_api_key') or '').strip() or None
-    except Exception:
-        return None
+    return (_config().get('anthropic_api_key') or '').strip() or None
 
 
 def is_available():
@@ -333,7 +352,7 @@ def ask(message: str, state: dict, history=None) -> dict:
     })
 
     body = json.dumps({
-        "model": API_MODEL,
+        "model": model_id(),
         "max_tokens": 1024,
         "system": SYSTEM_PROMPT,
         "tools": [UPDATE_SETTINGS_TOOL],
