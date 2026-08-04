@@ -21,6 +21,23 @@ app.secret_key = os.environ.get('JQ_SECRET_KEY', 'jq-designer-2024')
 _bmp_store = {}  # token → {bmp_b64, filename, preview}
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024   # 50 MB upload cap
 
+# Bumped whenever the shared navigation changes, so a stale build is easy to
+# spot: compare /api/build against the marker in any page's HTML source.
+NAV_BUILD = '2026.08.04-nav-unified'
+
+
+@app.context_processor
+def _inject_nav_build():
+    return {'nav_build': NAV_BUILD}
+
+
+@app.route('/api/build', methods=['GET'])
+def api_build():
+    """Report the running build so a stale copy can be identified quickly."""
+    return jsonify({'success': True, 'nav_build': NAV_BUILD,
+                    'pages': ['/', '/butta', '/border', '/edit', '/trace']})
+
+
 ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.webp', '.heic', '.heif'}
 
 
@@ -1131,13 +1148,8 @@ def api_border_generate():
 # pre-pool closing.
 # ─────────────────────────────────────────────────────────────────────────────
 
-@app.route('/border-id')
-def border_id_page():
-    """Border ID has been merged into Border Studio (/border). Permanent redirect."""
-    from flask import redirect
-    return redirect('/border', code=301)
-
-
+# NOTE: the /border-id PAGE was removed; this endpoint is retained because
+# Border Studio's fine-detail mode posts here (see templates/border.html).
 @app.route('/api/border-id-generate', methods=['POST'])
 def api_border_id_generate():
     """

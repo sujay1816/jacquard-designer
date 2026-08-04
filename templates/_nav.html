@@ -1,0 +1,65 @@
+{#
+  Shared top navigation.
+
+  Included by every page so the menu is identical everywhere. Previously each
+  template carried its own copy with a different class system (nav-link,
+  nav-btn, hbtn nav, bare anchors), different container classes, and
+  inconsistent active-state markup — edit.html had no nav element at all and
+  omitted its own link.
+
+  The active item is derived from request.path, so pages do not have to pass
+  anything and the highlight can never fall out of sync with the route.
+
+  Colours are inherited via currentColor rather than hardcoded, so this sits
+  correctly on the light and dark headers used across the app.
+
+  Do not add /border-id here: that page has been removed entirely. Border ID
+  was merged into Border Studio, and only its API endpoint survives, which
+  Border Studio calls for fine-detail mode.
+#}
+<!-- jq-nav build {{ nav_build }} : if this comment is absent, the browser is
+     serving an old cached page or the app is running from a stale copy -->
+<nav class="jq-nav" aria-label="Main">
+  <a href="/"       class="jq-nav-link{% if request.path == '/' %} is-active{% endif %}"{% if request.path == '/' %} aria-current="page"{% endif %} title="BMP Generator">◈ Generator</a>
+  <a href="/butta"  class="jq-nav-link{% if request.path == '/butta' %} is-active{% endif %}"{% if request.path == '/butta' %} aria-current="page"{% endif %} title="Butta Studio">❁ Butta</a>
+  <a href="/border" class="jq-nav-link{% if request.path == '/border' %} is-active{% endif %}"{% if request.path == '/border' %} aria-current="page"{% endif %} title="Border Studio">⬡ Border</a>
+  <a href="/edit"   class="jq-nav-link{% if request.path == '/edit' %} is-active{% endif %}"{% if request.path == '/edit' %} aria-current="page"{% endif %} title="BMP Editor">✏ BMP Editor</a>
+  <a href="/trace"  class="jq-nav-link{% if request.path == '/trace' %} is-active{% endif %}"{% if request.path == '/trace' %} aria-current="page"{% endif %} title="Tracing Guide">✦ Tracing Guide</a>
+</nav>
+<style>
+  .jq-nav {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  .jq-nav .jq-nav-link {
+    display: inline-block;
+    padding: 6px 12px;
+    font-size: 13px;
+    line-height: 1.2;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    text-decoration: none;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: inherit;
+    opacity: 0.62;
+    transition: opacity 0.15s ease, background 0.15s ease;
+  }
+  .jq-nav .jq-nav-link:hover,
+  .jq-nav .jq-nav-link:focus-visible {
+    opacity: 1;
+    background: rgba(128, 128, 128, 0.16);
+  }
+  .jq-nav .jq-nav-link.is-active {
+    opacity: 1;
+    font-weight: 500;
+    background: rgba(128, 128, 128, 0.14);
+    box-shadow: inset 0 -2px 0 currentColor;
+  }
+  @media (max-width: 720px) {
+    .jq-nav .jq-nav-link { padding: 5px 8px; font-size: 12px; }
+  }
+</style>
