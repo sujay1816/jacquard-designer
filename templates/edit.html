@@ -61,8 +61,8 @@
     /* Vertical divider that visually groups header buttons */
     .hsep { width:1px; height:20px; background:var(--border); margin:0 6px; flex-shrink:0; }
     /* Plain navigation links (other pages) — quieter than action buttons */
-    .hbtn.nav { color: var(--text); opacity: 1; border-color: var(--border2); background: var(--surface2); }
-    .hbtn.nav:hover { border-color: var(--gold); color: var(--gold); background: rgba(200,169,110,0.08); }
+    .hbtn.util { color: var(--text); opacity: 1; border-color: var(--border2); background: var(--surface2); }
+    .hbtn.util:hover { border-color: var(--gold); color: var(--gold); background: rgba(200,169,110,0.08); }
     .hbtn {
       padding: 4px 12px;
       border: 1px solid var(--border);
@@ -541,7 +541,7 @@
   <button type="button" class="hbtn gold" onclick="sendToGenerator()" title="Send the current edited image to the Generator to re-detect colours">→ Send to Generator</button>
   <span class="hsep"></span>
   {% include '_nav.html' %}
-  <button type="button" class="hbtn nav" onclick="toggleKbOverlay()" title="Keyboard shortcuts (?)">⌨ Shortcuts</button>
+  <button type="button" class="hbtn util" onclick="toggleKbOverlay()" title="Keyboard shortcuts (?)">⌨ Shortcuts</button>
 </div>
 
 <!-- ─── LEFT TOOLBAR ────────────────────────────────────────── -->
