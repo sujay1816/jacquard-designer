@@ -12,6 +12,7 @@ from bmp_engine import (detect_colors, generate_bmps, verify_bmp, enhance_image,
 from border_engine import generate_border_bmps, detect_border
 from border_id_engine import generate_border_id_bmps
 from enhanced_engine import preprocess_fabric_image, analyze_border_image
+from vision_engine import detect_colors_smart
 import butta_engine
 
 app = Flask(__name__)
@@ -173,8 +174,16 @@ def api_detect_colors():
             img = enhance_image(img)             # sharpen / contrast (existing step)
 
         # ── Detect colours ───────────────────────────────────────────────────
-        resized = img.resize((pins, cards), Image.LANCZOS)
-        colors, counts, label_map, genuine_flags = detect_colors(resized, n_colors)
+        # Smart mode clusters at source resolution and pools the LABEL MAP down
+        # by area coverage. The legacy path resizes the photo first, which
+        # destroys thin features before clustering ever sees them.
+        smart = request.form.get('smart_detect', 'false').lower() == 'true'
+        if smart:
+            colors, counts, label_map, genuine_flags = detect_colors_smart(
+                img, n_colors, pins, cards)
+        else:
+            resized = img.resize((pins, cards), Image.LANCZOS)
+            colors, counts, label_map, genuine_flags = detect_colors(resized, n_colors)
 
         total_pixels = pins * cards
         color_data = [

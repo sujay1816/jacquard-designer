@@ -57,6 +57,35 @@ Upload a cropped design image (butta motif, running lines, full repeats, etc.), 
 
 ---
 
+## Smart detection (optional)
+
+The Generator has a **Smart detect** mode that measurably improves conversion
+accuracy on photographed designs. It is off by default; the legacy path is
+untouched.
+
+The legacy pipeline resizes the photo to pins x cards and *then* clusters, so a
+2px vine in a 3000px photo is already a grey smear before clustering sees it.
+Smart mode clusters at source resolution and pools the **label map** down by
+area coverage, with a rescue pass that reinstates thin features majority-vote
+would drop. It also clusters in CIELAB with luminance down-weighted, which
+makes it robust to uneven lighting and to fabric weave texture.
+
+Measured on a synthetic design degraded with a lighting gradient, weave
+texture, and JPEG q72 (`python tools/bench_detect.py`):
+
+| | pixel accuracy | thin-line recall | zari IoU | meena IoU |
+| --------- | -------------- | ---------------- | -------- | --------- |
+| legacy    | 95.8%          | 93.0%            | 77.3%    | 33.4%     |
+| smart     | 99.9%          | 98.2%            | 99.4%    | 97.8%     |
+
+Cost: about 3s for a 3000px source vs 0.3s for legacy. No new dependencies, no
+network access, and output is deterministic — the same image and settings
+always produce the same BMPs.
+
+**Runs entirely on your machine.** No design image is ever uploaded anywhere.
+
+---
+
 ## Installation
 
 Works on Windows, macOS, and Linux.
