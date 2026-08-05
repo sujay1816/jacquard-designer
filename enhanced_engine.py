@@ -171,3 +171,76 @@ def analyze_border_image(image: Image.Image) -> dict:
                                   f'{"preserves finest dots" if noise_n == 1 else "removes sub-pixel noise"}'),
         },
     }
+
+
+def estimate_noise(image, flat_quantile: float = 0.25) -> dict:
+    """
+    Estimate true image noise by measuring only FLAT regions.
+
+    assess_image_quality measures variance across the whole frame, which works
+    on simple images but saturates on dense artwork: a clean line-art JPEG
+    scored 100/100 for noise while a synthetic image with heavy gaussian noise
+    scored 24.5. It was reading design detail as noise, so every detailed
+    design was told to enable fabric enhancement — which measurably fragmented
+    the result (ink components 249 -> 1159 on a real border).
+
+    Noise and detail separate cleanly by local gradient: an edge in the design
+    has a strong, consistent gradient, while sensor or compression noise sits
+    in areas that should be uniform. Sampling local variation only where the
+    gradient is lowest therefore measures noise and ignores the artwork.
+
+    Returns:
+        noise_sigma  : float — estimated std-dev in grey levels (0-255 scale)
+        noise_level  : float — 0-100 for display
+        flat_frac    : float — proportion of the image that is flat
+        recommend_enhance : bool — whether denoising is likely to help
+        reason       : str
+    """
+    import numpy as np
+    from scipy import ndimage
+
+    grey = np.asarray(image.convert('L'), dtype=np.float32)
+    if grey.size < 64:
+        return {'noise_sigma': 0.0, 'noise_level': 0.0, 'flat_frac': 0.0,
+                'recommend_enhance': False, 'reason': 'Image too small to assess.'}
+
+    # Gradient magnitude marks design structure.
+    gx = ndimage.sobel(grey, axis=1)
+    gy = ndimage.sobel(grey, axis=0)
+    grad = np.hypot(gx, gy)
+
+    # Local standard deviation over a small window.
+    mean = ndimage.uniform_filter(grey, size=3)
+    sq = ndimage.uniform_filter(grey * grey, size=3)
+    local_std = np.sqrt(np.maximum(sq - mean * mean, 0.0))
+
+    # Flat = lowest-gradient quantile. Those pixels should be uniform, so any
+    # variation left in them is noise.
+    thr = float(np.quantile(grad, flat_quantile))
+    flat = grad <= thr
+    if flat.sum() < 32:
+        return {'noise_sigma': 0.0, 'noise_level': 0.0, 'flat_frac': 0.0,
+                'recommend_enhance': False,
+                'reason': 'No flat areas to measure noise in.'}
+
+    # Median is robust to the few structured pixels that slip through.
+    sigma = float(np.median(local_std[flat]))
+    level = float(min(100.0, sigma * 10.0))
+
+    # The 3x3 estimator is biased low by a consistent factor of about 0.53
+    # against true gaussian sigma (measured: true 8.0 -> 4.24, true 15.0 ->
+    # 7.92, true 30.0 -> 15.51), so a threshold of 3.0 here corresponds to
+    # roughly 6 real grey levels. Below that, denoising removes design detail
+    # without removing meaningful noise.
+    recommend = sigma >= 3.0
+    if recommend:
+        reason = (f'Flat areas vary by {sigma:.1f} grey levels — real noise. '
+                  f'Enhancement should help.')
+    else:
+        reason = (f'Flat areas vary by only {sigma:.1f} grey levels. The image '
+                  f'is clean; enhancement would soften detail without removing '
+                  f'noise.')
+
+    return {'noise_sigma': round(sigma, 2), 'noise_level': round(level, 1),
+            'flat_frac': round(float(flat.mean()), 3),
+            'recommend_enhance': bool(recommend), 'reason': reason}

@@ -470,12 +470,23 @@ def api_generate():
             rani_weave = 'plain'
         curvilinear_satin = bool(data.get('curvilinear_satin', False))
 
-        # Auto-preprocessing: apply JPEG deblock + enhance when artifacts detected.
-        # Runs a quick quality check on the image and auto-enhances if needed.
+        # Auto-preprocessing: denoise ONLY when the image is genuinely noisy.
+        #
+        # This previously triggered on assess_image_quality's whole-frame noise
+        # and JPEG scores (> 20 / > 15). Those metrics saturate on dense
+        # artwork — both a real saree border and a clean line-art butta scored
+        # 86-100 — so enhancement ran on every detailed design. Measured effect
+        # on a real border: ink components rose from 249 to 1159 and background
+        # regions from 997 to 1485. It was shattering the designs it claimed to
+        # clean.
+        #
+        # estimate_noise measures variation only in low-gradient areas, which
+        # separates sensor noise from design detail, so this now fires on
+        # genuinely noisy photographs and leaves clean artwork alone.
         try:
-            from bmp_engine import assess_image_quality
-            _q = assess_image_quality(img)
-            if _q.get('jpeg_artifacts', 0) > 15 or _q.get('noise_level', 0) > 20:
+            from enhanced_engine import estimate_noise
+            _n = estimate_noise(img)
+            if _n.get('recommend_enhance'):
                 img = preprocess_fabric_image(img)
                 img = enhance_image(img)
         except Exception:
@@ -563,6 +574,21 @@ def assess_quality():
         img = Image.open(file.stream)
         img = ImageOps.exif_transpose(img).convert('RGB')
         quality = assess_image_quality(img)
+        try:
+            from enhanced_engine import estimate_noise
+            _noise = estimate_noise(img)
+            quality['noise_level'] = _noise['noise_level']
+            quality['noise_sigma'] = _noise['noise_sigma']
+            quality['recommend_enhance'] = _noise['recommend_enhance']
+            # Replace the blanket "high noise" advice with the measured verdict.
+            quality['suggestions'] = [
+                t for t in (quality.get('suggestions') or [])
+                if 'noise' not in t.lower() and 'artifact' not in t.lower()
+            ]
+            if _noise['recommend_enhance']:
+                quality['suggestions'].append(_noise['reason'])
+        except Exception:
+            pass
         return jsonify({'success': True, **quality})
 
     except Exception as e:
