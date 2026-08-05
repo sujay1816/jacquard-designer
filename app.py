@@ -41,6 +41,35 @@ def api_build():
 ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.webp', '.heic', '.heif'}
 
 
+MAX_PINS  = 2640          # ends across the warp — matches loom_utils
+MAX_CARDS = 6000          # picks / cards
+MAX_CELLS = 6_000_000     # pins*cards ceiling: guards against OOM
+
+
+def _bounds_error(pins, cards=None):
+    """
+    Reject dimensions that would exhaust memory. Returns an error response, or
+    None when the values are usable.
+
+    Only a lower bound was previously enforced, so pins=50000 x cards=50000
+    (2.5 billion cells) allocated until the OS killed the process, taking the
+    user's whole session with it. A local single-process server has no
+    supervisor to restart it, so a typo with one extra zero was unrecoverable.
+    """
+    if pins > MAX_PINS:
+        return _json_error(
+            f'{pins} pins exceeds the maximum of {MAX_PINS}.')
+    if cards is not None:
+        if cards > MAX_CARDS:
+            return _json_error(
+                f'{cards} cards exceeds the maximum of {MAX_CARDS}.')
+        if pins * cards > MAX_CELLS:
+            return _json_error(
+                f'{pins} x {cards} is {pins * cards:,} cells, above the '
+                f'{MAX_CELLS:,} limit. Reduce pins or cards.')
+    return None
+
+
 def _json_error(msg: str, status: int = 400):
     """Return a JSON error response (never HTML)."""
     return jsonify({'success': False, 'error': msg}), status
@@ -164,6 +193,8 @@ def api_detect_colors():
             return _json_error('Pins must be a whole number.')
         if pins < 10:
             return _json_error('Pins must be at least 10.')
+        _e = _bounds_error(pins)
+        if _e: return _e
 
         try:
             n_colors = int(request.form.get('n_colors', 4))
@@ -179,6 +210,8 @@ def api_detect_colors():
                 cards = int(cards_raw)
                 if cards < 10:
                     return _json_error('Cards must be at least 10.')
+                _e = _bounds_error(pins, cards)
+                if _e: return _e
             except ValueError:
                 return _json_error('Cards must be a whole number.')
 
@@ -208,11 +241,15 @@ def api_detect_colors():
         # by area coverage. The legacy path resizes the photo first, which
         # destroys thin features before clustering ever sees them.
         smart = request.form.get('smart_detect', 'false').lower() == 'true'
+        # 'resized' is the loom-resolution preview returned to the frontend as
+        # original_image, so it must exist on BOTH paths. Smart mode does not
+        # need it for detection (that is the point — it clusters at source
+        # resolution) but the response still does.
+        resized = img.resize((pins, cards), Image.LANCZOS)
         if smart:
             colors, counts, label_map, genuine_flags = detect_colors_smart(
                 img, n_colors, pins, cards)
         else:
-            resized = img.resize((pins, cards), Image.LANCZOS)
             colors, counts, label_map, genuine_flags = detect_colors(resized, n_colors)
 
         total_pixels = pins * cards
@@ -342,8 +379,12 @@ def api_generate():
 
         if pins < 10:
             return _json_error('Pins must be at least 10.')
+        _e = _bounds_error(pins)
+        if _e: return _e
         if cards < 10:
             return _json_error('Cards must be at least 10.')
+        _e = _bounds_error(pins, cards)
+        if _e: return _e
         if shuttle_count not in (1, 2, 3, 4):
             return _json_error('Shuttle count must be 1, 2, 3, or 4.')
 
@@ -496,6 +537,7 @@ def api_generate():
             'previews':     previews,
             'bmp_b64':      bmp_b64,
             'warnings':     _design_warnings(bmp_files, pins, cards),
+            'fidelity':     _fidelity_of(label_map, img),
             'composite_b64': _composite_render(bmp_files, pins, cards),
         })
 
@@ -914,6 +956,8 @@ def api_border_detect():
             return _json_error('Pins must be a whole number.')
         if pins < 10:
             return _json_error('Pins must be at least 10.')
+        _e = _bounds_error(pins)
+        if _e: return _e
 
         try:
             n_colors = int(request.form.get('n_colors', 3))
@@ -935,6 +979,8 @@ def api_border_detect():
                 cards = int(cards_raw)
                 if cards < 10:
                     return _json_error('Cards must be at least 10.')
+                _e = _bounds_error(pins, cards)
+                if _e: return _e
             except ValueError:
                 return _json_error('Cards must be a whole number.')
 
@@ -1015,8 +1061,12 @@ def api_border_generate():
 
         if pins < 10:
             return _json_error('Pins must be at least 10.')
+        _e = _bounds_error(pins)
+        if _e: return _e
         if cards < 10:
             return _json_error('Cards must be at least 10.')
+        _e = _bounds_error(pins, cards)
+        if _e: return _e
         if shuttle_count not in (1, 2, 3, 4):
             return _json_error('Shuttle count must be 1, 2, 3, or 4.')
 
@@ -1192,6 +1242,8 @@ def api_border_id_generate():
 
         if pins  < 10: return _json_error('Pins must be at least 10.')
         if cards < 10: return _json_error('Cards must be at least 10.')
+        _e = _bounds_error(pins, cards)
+        if _e: return _e
         if shuttle_count not in (1, 2, 3, 4):
             return _json_error('Shuttle count must be 1, 2, 3, or 4.')
 
@@ -1373,6 +1425,30 @@ def _shuttle_of(filename):
     base = str(filename).lower().rsplit('.', 1)[0]
     tok = base.rsplit('_', 1)[-1]
     return tok if tok in _SHUTTLE_NAMES else None
+
+
+def _fidelity_of(label_map, source_image):
+    """
+    Compare the reduced DESIGN against the uploaded source.
+
+    Deliberately uses the label map, not the generated BMPs. The BMPs carry
+    weave fill, and a satin float pattern punches thousands of tiny holes in
+    the ink by design — measuring those counts the weave rather than the
+    artwork. On a real border this read 21,367 background areas against the
+    source's 377 and wrongly reported total failure, when the design geometry
+    was intact and only the satin texture differed.
+
+    The design mask is every non-background label, which is exactly the
+    geometry that reduction can damage.
+    """
+    try:
+        from fidelity import fidelity_report
+        lm = np.asarray(label_map)
+        if lm.ndim != 2 or lm.size == 0:
+            return None
+        return fidelity_report(source_image, lm > 0)
+    except Exception:
+        return None
 
 
 def _design_warnings(bmp_files, pins, cards):
