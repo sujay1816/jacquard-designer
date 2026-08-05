@@ -12,7 +12,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from assistant_engine import validate_patch, advisories, interpret_response
+from assistant_engine import (validate_patch, advisories, interpret_response,
+                              interpret_analysis)
 
 PASS = FAIL = 0
 
@@ -137,6 +138,56 @@ def main():
 
     check("empty response does not crash",
           interpret_response({}, BASE)['patch'] == {})
+
+    print("\nDesign analysis — colour grouping")
+
+    C4 = [(240, 220, 210), (200, 140, 150), (150, 70, 90), (60, 20, 50)]
+
+    def analysis(assignments, **extra):
+        inp = {'assignments': assignments, 'explanation': 'x'}
+        inp.update(extra)
+        return {'content': [{'type': 'tool_use', 'name': 'group_colours', 'input': inp}]}
+
+    # The whole point: tonal shades merged onto one shuttle.
+    r = interpret_analysis(analysis(
+        {'0': 'zari', '1': 'zari', '2': 'meena1', '3': 'background'}), C4, 2)
+    check("tonal shades may share a shuttle",
+          r['assignments'].get('0') == 'zari' and r['assignments'].get('1') == 'zari', r)
+    check("no rejections for a valid grouping", not r['rejected'], r['rejected'])
+
+    # Over-budget must fail even though every colour is assigned.
+    r = interpret_analysis(analysis(
+        {'0': 'zari', '1': 'meena1', '2': 'meena2', '3': 'background'}), C4, 2)
+    check("three threads on a two-shuttle loom is refused",
+          r['assignments'] == {}, r)
+
+    # A dropped colour would silently vanish from the design.
+    r = interpret_analysis(analysis({'0': 'zari', '1': 'zari', '3': 'background'}), C4, 2)
+    check("incomplete grouping is refused", r['assignments'] == {}, r)
+    check("missing colour is named",
+          any('2' in m for m in r['rejected']), r['rejected'])
+
+    # The ground must be unambiguous.
+    r = interpret_analysis(analysis(
+        {'0': 'background', '1': 'zari', '2': 'zari', '3': 'background'}), C4, 2)
+    check("two backgrounds refused", r['assignments'] == {}, r)
+    r = interpret_analysis(analysis(
+        {'0': 'zari', '1': 'zari', '2': 'zari', '3': 'meena1'}), C4, 2)
+    check("no background refused", r['assignments'] == {}, r)
+
+    # Hallucinated index beyond what was detected.
+    r = interpret_analysis(analysis(
+        {'0': 'zari', '1': 'zari', '2': 'meena1', '3': 'background', '9': 'meena2'}), C4, 3)
+    check("undetected colour index refused", r['assignments'] == {}, r)
+
+    # Confidence is surfaced so a weaver knows when to check.
+    r = interpret_analysis(analysis(
+        {'0': 'zari', '1': 'zari', '2': 'meena1', '3': 'background'},
+        confidence='low'), C4, 2)
+    check("low confidence is passed through", r['confidence'] == 'low', r)
+
+    check("empty analysis response does not crash",
+          interpret_analysis({}, C4, 2)['assignments'] == {})
 
     print(f"\n{PASS} passed, {FAIL} failed\n")
     return 1 if FAIL else 0

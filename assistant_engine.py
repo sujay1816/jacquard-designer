@@ -405,3 +405,192 @@ def interpret_response(data: dict, state: dict) -> dict:
         'rejected': result['rejected'],
         'advisories': advisories(result['patch'], state),
     }
+
+
+# ── Design analysis: colour grouping ────────────────────────────────────────
+#
+# This is the one task in the pipeline that is genuinely a judgement call
+# rather than a measurement. Detection returns visual tones; a loom weaves
+# threads. A saree motif rendered with cream, light pink and deep pink is
+# usually ONE zari thread with shading, not three shuttles — but nothing in
+# the pixels says so. Clustering can only report that the colours differ.
+#
+# Everything the model proposes is validated against the shuttle budget before
+# it can reach the generator, exactly as with update_settings.
+
+GROUP_COLOURS_TOOL = {
+    "name": "group_colours",
+    "description": (
+        "Assign each detected colour to a loom shuttle. Colours that are "
+        "tonal variations of the same thread (highlight, shadow, or shading of "
+        "one yarn) must share a shuttle. Only visually distinct threads get "
+        "their own. The ground colour of the cloth is 'background'."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "assignments": {
+                "type": "object",
+                "description": ("Map colour index (as a string) to a shuttle "
+                                "name: zari, meena1, meena2, or background."),
+            },
+            "groups": {
+                "type": "array",
+                "description": ("One entry per shuttle used, explaining which "
+                                "detected colours were merged and why."),
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "shuttle": {"type": "string"},
+                        "colour_indices": {"type": "array", "items": {"type": "integer"}},
+                        "rationale": {"type": "string"},
+                    },
+                },
+            },
+            "confidence": {
+                "type": "string",
+                "enum": ["high", "medium", "low"],
+                "description": "Low when the grouping is genuinely ambiguous.",
+            },
+            "explanation": {"type": "string"},
+        },
+        "required": ["assignments", "explanation"],
+    },
+}
+
+ANALYSIS_PROMPT = """You are reading a woven textile design to decide how its \
+colours map onto loom shuttles.
+
+The critical judgement: detection reports visual TONES, but a loom weaves \
+THREADS. Artwork routinely renders one gold zari thread as cream in the \
+highlights and deep ochre in the shadows. Those are one shuttle, not two. \
+Assign separate shuttles only to threads a weaver would actually load \
+separately — typically a metallic (zari) and one or two contrast colours \
+(meena).
+
+Rules you cannot break:
+- Never use more distinct shuttles than the loom has.
+- Exactly one colour should be 'background' — the ground of the cloth, \
+usually the most dominant area.
+- Every detected colour index must be assigned.
+
+Say so plainly if the grouping is ambiguous, and set confidence to low. A \
+weaver can correct a low-confidence guess; they cannot correct one presented \
+as certain."""
+
+
+def analyze_design(image_b64, colors, counts, shuttle_count, media_type='image/png'):
+    """
+    Ask the model how the detected colours should map onto shuttles.
+
+    image_b64    : base64 of the design image (no data: prefix)
+    colors       : list of (R,G,B) tuples, detection order
+    counts       : list of pixel counts, parallel to colors
+    shuttle_count: how many shuttles the loom has
+
+    Returns {'ok', 'reply', 'assignments', 'groups', 'confidence', 'rejected'}.
+    The assignments are validated against the shuttle budget, so an
+    over-budget or hallucinated proposal never reaches the generator.
+    """
+    key = _key()
+    if not key:
+        return {'ok': False, 'reply': 'No API key configured.',
+                'assignments': {}, 'groups': [], 'confidence': None, 'rejected': []}
+
+    total = max(1, sum(counts or [1]))
+    palette = "\n".join(
+        f"  index {i}: RGB{tuple(int(v) for v in c)}  "
+        f"{100.0 * (counts[i] if i < len(counts) else 0) / total:.1f}% of the design"
+        for i, c in enumerate(colors or []))
+
+    body = json.dumps({
+        "model": model_id(),
+        "max_tokens": 1024,
+        "system": ANALYSIS_PROMPT,
+        "tools": [GROUP_COLOURS_TOOL],
+        "messages": [{
+            "role": "user",
+            "content": [
+                {"type": "image", "source": {"type": "base64",
+                                             "media_type": media_type,
+                                             "data": image_b64}},
+                {"type": "text", "text": (
+                    f"This design was reduced to {len(colors or [])} colours:\n"
+                    f"{palette}\n\n"
+                    f"The loom has {shuttle_count} shuttle"
+                    f"{'s' if shuttle_count != 1 else ''}. Group these colours "
+                    f"onto shuttles.")},
+            ],
+        }],
+    }).encode()
+
+    req = urllib.request.Request(API_URL, data=body, headers={
+        "content-type": "application/json",
+        "x-api-key": key,
+        "anthropic-version": API_VERSION,
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=API_TIMEOUT) as resp:
+            data = json.loads(resp.read().decode())
+    except urllib.error.HTTPError as e:
+        detail = 'check the API key' if e.code in (401, 403) else f'HTTP {e.code}'
+        return {'ok': False, 'reply': f'Analysis unavailable ({detail}).',
+                'assignments': {}, 'groups': [], 'confidence': None, 'rejected': []}
+    except Exception:
+        return {'ok': False, 'reply': 'Analysis unreachable.',
+                'assignments': {}, 'groups': [], 'confidence': None, 'rejected': []}
+
+    return interpret_analysis(data, colors, shuttle_count)
+
+
+def interpret_analysis(data, colors, shuttle_count):
+    """Parse and validate an analysis response. Split out so it is testable offline."""
+    text, proposed = [], {}
+    for block in (data.get('content') or []):
+        if block.get('type') == 'text' and block.get('text'):
+            text.append(block['text'])
+        elif block.get('type') == 'tool_use' and block.get('name') == 'group_colours':
+            proposed = dict(block.get('input') or {})
+
+    assignments = proposed.get('assignments') or {}
+    result = validate_patch({'color_assignments': assignments},
+                            {'shuttle_count': shuttle_count,
+                             'detected_colors': len(colors or [])})
+    clean = result['patch'].get('color_assignments', {})
+    rejected = list(result['rejected'])
+
+    # Grouping is all-or-nothing, unlike a settings patch. If the model
+    # referenced a colour that does not exist, or named a shuttle the loom does
+    # not have, its reading of the palette is wrong and the rest of its
+    # reasoning cannot be trusted either. Applying the surviving fragment would
+    # silently hand the weaver a grouping the model never actually proposed.
+    if rejected:
+        clean = {}
+
+    # Every detected colour must be assigned, or the generator would silently
+    # drop one. An incomplete grouping is rejected rather than half-applied.
+    missing = [i for i in range(len(colors or [])) if str(i) not in clean]
+    if clean and missing:
+        rejected.append(
+            f"Colour{'s' if len(missing) != 1 else ''} "
+            f"{', '.join(map(str, missing))} were not assigned to any shuttle.")
+        clean = {}
+
+    # Exactly one background keeps the ground unambiguous.
+    if clean:
+        bg = [i for i, sh in clean.items() if sh == 'background']
+        if len(bg) != 1:
+            rejected.append(
+                f"{len(bg)} colours were marked as background; exactly one "
+                f"ground colour is required.")
+            clean = {}
+
+    return {
+        'ok': True,
+        'reply': ' '.join(t.strip() for t in text if t.strip())
+                 or proposed.get('explanation', ''),
+        'assignments': clean,
+        'groups': proposed.get('groups') or [],
+        'confidence': proposed.get('confidence'),
+        'rejected': rejected,
+    }

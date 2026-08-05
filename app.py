@@ -314,6 +314,50 @@ def api_assistant_status():
     return jsonify({'success': True, 'available': assistant_engine.is_available()})
 
 
+@app.route('/api/analyze-design', methods=['POST'])
+def api_analyze_design():
+    """
+    Ask the model how the detected colours should map onto shuttles.
+
+    This is the one step in the pipeline that is a judgement call rather than a
+    measurement: clustering reports visual tones, but artwork routinely renders
+    a single zari thread as cream in the highlights and deep ochre in shadow.
+    Nothing in the pixels distinguishes 'two tones of one thread' from 'two
+    threads'.
+
+    The proposal is validated against the shuttle budget before it is returned,
+    and grouping is all-or-nothing, so a partially-wrong reading is never
+    silently applied.
+    """
+    try:
+        data = request.get_json() or {}
+        image_b64 = str(data.get('image_b64', '') or '')
+        if ',' in image_b64[:64]:
+            image_b64 = image_b64.split(',', 1)[1]      # strip data: prefix
+        if not image_b64:
+            return _json_error('No image provided.')
+
+        colors = data.get('colors') or []
+        counts = data.get('counts') or []
+        shuttle_count = _coerce_shuttles(data.get('shuttle_count', 2))
+        if not colors:
+            return _json_error('Run colour detection first.')
+
+        result = assistant_engine.analyze_design(
+            image_b64, colors, counts, shuttle_count,
+            media_type=str(data.get('media_type', 'image/png')))
+        return jsonify({'success': result['ok'], **result})
+    except Exception as e:
+        return _json_error(f'Analysis failed: {e}')
+
+
+def _coerce_shuttles(v):
+    try:
+        return max(1, min(4, int(v)))
+    except (TypeError, ValueError):
+        return 2
+
+
 @app.route('/api/assistant', methods=['POST'])
 def api_assistant():
     """
