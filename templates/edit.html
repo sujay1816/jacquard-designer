@@ -502,6 +502,9 @@
       <div class="kb-row"><span>Eraser</span><kbd>E</kbd></div>
       <div class="kb-row"><span>Flood fill</span><kbd>F</kbd></div>
       <div class="kb-row"><span>Line</span><kbd>L</kbd></div>
+      <div class="kb-row"><span>Rectangle</span><kbd>R</kbd></div>
+      <div class="kb-row"><span>Ellipse</span><kbd>O</kbd></div>
+      <div class="kb-row"><span>Magic wand</span><kbd>A</kbd></div>
       <div class="kb-row"><span>Select rect</span><kbd>S</kbd></div>
       <div class="kb-row"><span>Select all</span><kbd>Ctrl A</kbd></div>
       <div class="kb-row"><span>Eyedropper</span><kbd>I</kbd></div>
@@ -552,7 +555,9 @@
   <button type="button" class="tbtn"    id="tbtn-satin"  onclick="setTool('satin')"  data-tip="Satin Brush (W) — click to paint fill pattern; configure in Weave popup (Q)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><polygon points="8,2 13,5 13,11 8,14 3,11 3,5" stroke-width="1.2"/><line x1="8" y1="5" x2="8" y2="11"/><line x1="5" y1="6.5" x2="11" y2="6.5"/><line x1="5" y1="9.5" x2="11" y2="9.5"/></svg></button>
   <button type="button" class="tbtn"    id="tbtn-line"   onclick="setTool('line')"   data-tip="Straight line (L)"><svg width="16" height="16" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.8"><line x1="3" y1="13" x2="13" y2="3"/></svg></button>
   <button type="button" class="tbtn"    id="tbtn-rect"   onclick="setTool('rect')"   data-tip="Filled rectangle (R)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="10" height="8" rx="1"/></svg></button>
+  <button type="button" class="tbtn"    id="tbtn-ellipse" onclick="setTool('ellipse')" data-tip="Filled ellipse (O) — hold Shift for a circle, Alt for outline only"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><ellipse cx="8" cy="8" rx="6" ry="4"/></svg></button>
   <button type="button" class="tbtn"    id="tbtn-select" onclick="setTool('select')" data-tip="Select rectangle — drag to select, then Copy (Ctrl+C) (S)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2,1.5"><rect x="2" y="2" width="12" height="12" rx="1"/></svg></button>
+  <button type="button" class="tbtn"    id="tbtn-wand" onclick="setTool('wand')" data-tip="Magic Wand (A) — click a region to select its bounds"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="3" y1="13" x2="10" y2="6"/><path d="M11 2 L12 4 L14 5 L12 6 L11 8 L10 6 L8 5 L10 4 Z"/></svg></button>
   <button type="button" class="tbtn" id="tbtn-morph" onclick="openPopup('morph',this)" data-tip="Morphological tools — Dilate, Erode, Close Gaps, Clean Noise (M)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><circle cx="8" cy="8" r="6" stroke-dasharray="2,2"/></svg></button>
   <button type="button" class="tbtn" id="tbtn-weave" onclick="openPopup('weave',this)" data-tip="Weave / Fill Pattern — paint satin, twill, honeycomb and more (Q)"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="3" height="3" rx=".4"/><rect x="6" y="1" width="3" height="3" rx=".4" opacity=".4"/><rect x="11" y="1" width="3" height="3" rx=".4"/><rect x="1" y="6" width="3" height="3" rx=".4" opacity=".4"/><rect x="6" y="6" width="3" height="3" rx=".4"/><rect x="11" y="6" width="3" height="3" rx=".4" opacity=".4"/><rect x="1" y="11" width="3" height="3" rx=".4"/><rect x="6" y="11" width="3" height="3" rx=".4" opacity=".4"/><rect x="11" y="11" width="3" height="3" rx=".4"/></svg></button>
   <button type="button" class="tbtn" id="tbtn-fill-int" onclick="openPopup('fillint',this)" data-tip="Fill Interiors (J) — flood-fill enclosed design regions with a weave pattern">⬡</button>
@@ -568,7 +573,7 @@
   <button type="button" class="tbtn"    id="tbtn-zsel"   onclick="zoomToSelection()" data-tip="Zoom to selection — fits the current selection in view">⊡</button>
   <button type="button" class="tbtn"    id="tbtn-sym"     onclick="cycleSymmetry()"   data-tip="Mirror drawing: off / horizontal / vertical / quad">⇄</button>
   <div class="tsep"></div>
-  <button type="button" class="tbtn" onclick="openCanvasSizePopup(event)" data-tip="Canvas Size — extend or crop (C)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="2" width="8" height="8" rx="1"/><path d="M12 6v8M6 12h8" stroke-width="1.8"/></svg></button>
+  <button type="button" class="tbtn" onclick="openCanvasSizePopup(event)" data-tip="Canvas Size (C) — add or remove pins/cards by amount, on any edge"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="2" width="8" height="8" rx="1"/><path d="M12 6v8M6 12h8" stroke-width="1.8"/></svg></button>
   <button type="button" class="tbtn"                     onclick="document.getElementById('file-input2').click()" data-tip="Upload BMP or PNG from disk">📂</button>
   <input type="file" id="file-input2" accept=".bmp,.png" style="display:none" onchange="loadFile(this.files[0])">
 </div>
@@ -1011,22 +1016,56 @@
     <button type="button" onclick="document.getElementById('cs-popup').style.display='none'"
       style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;line-height:1">✕</button>
   </div>
-  <div style="font-size:9px;color:var(--muted);margin-bottom:10px;line-height:1.5">Extend or crop. Existing pixels stay top-left.</div>
-  <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 8px;align-items:center;margin-bottom:10px">
-    <span style="font-size:10px;color:var(--muted)">Width (pins)</span>
-    <input type="number" id="cs-w" min="1" max="9999" placeholder="current"
+  <div style="font-size:9px;color:var(--muted);margin-bottom:8px;line-height:1.5">
+    Current: <b id="cs-cur" style="color:var(--text)">—</b>
+  </div>
+
+  <div style="display:flex;gap:3px;margin-bottom:9px">
+    <button type="button" id="cs-mode-add" onclick="setCSMode('add')"
+      style="flex:1;padding:5px 2px;border-radius:4px;font-size:9px;cursor:pointer;
+             font-family:'DM Mono',monospace;border:1px solid var(--border2)">Add</button>
+    <button type="button" id="cs-mode-remove" onclick="setCSMode('remove')"
+      style="flex:1;padding:5px 2px;border-radius:4px;font-size:9px;cursor:pointer;
+             font-family:'DM Mono',monospace;border:1px solid var(--border2)">Remove</button>
+    <button type="button" id="cs-mode-set" onclick="setCSMode('set')"
+      style="flex:1;padding:5px 2px;border-radius:4px;font-size:9px;cursor:pointer;
+             font-family:'DM Mono',monospace;border:1px solid var(--border2)">Set</button>
+  </div>
+
+  <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 8px;align-items:center;margin-bottom:8px">
+    <span style="font-size:10px;color:var(--muted)" id="cs-wlab">Pins</span>
+    <input type="number" id="cs-w" min="0" max="9999" value="0" oninput="updateCSPreview()"
       style="padding:4px 6px;background:var(--surface2);border:1px solid var(--border);
              color:var(--text);border-radius:4px;font-size:11px;width:100%;font-family:'DM Mono',monospace">
-    <span style="font-size:10px;color:var(--muted)">Height (cards)</span>
-    <input type="number" id="cs-h" min="1" max="9999" placeholder="current"
+    <span style="font-size:10px;color:var(--muted)" id="cs-hlab">Cards</span>
+    <input type="number" id="cs-h" min="0" max="9999" value="0" oninput="updateCSPreview()"
       style="padding:4px 6px;background:var(--surface2);border:1px solid var(--border);
              color:var(--text);border-radius:4px;font-size:11px;width:100%;font-family:'DM Mono',monospace">
   </div>
+
+  <div id="cs-sides" style="display:grid;grid-template-columns:auto 1fr;gap:6px 8px;align-items:center;margin-bottom:8px">
+    <span style="font-size:10px;color:var(--muted)">Side (W)</span>
+    <select id="cs-sx" onchange="updateCSPreview()"
+      style="padding:4px 6px;background:var(--surface2);border:1px solid var(--border);
+             color:var(--text);border-radius:4px;font-size:10px;width:100%;font-family:'DM Mono',monospace">
+      <option value="right">Right</option><option value="left">Left</option><option value="both">Both sides</option>
+    </select>
+    <span style="font-size:10px;color:var(--muted)">Side (H)</span>
+    <select id="cs-sy" onchange="updateCSPreview()"
+      style="padding:4px 6px;background:var(--surface2);border:1px solid var(--border);
+             color:var(--text);border-radius:4px;font-size:10px;width:100%;font-family:'DM Mono',monospace">
+      <option value="bottom">Bottom</option><option value="top">Top</option><option value="both">Both ends</option>
+    </select>
+  </div>
+
+  <div id="cs-preview" style="font-size:9px;color:var(--muted);margin-bottom:10px;
+       line-height:1.5;padding:6px;background:var(--surface2);border-radius:4px;min-height:28px"></div>
+
   <div style="display:flex;gap:6px">
     <button type="button" onclick="setCSSFromCurrent()"
       style="flex:1;padding:6px;background:var(--surface2);border:1px solid var(--border2);
              color:var(--muted);border-radius:4px;font-size:10px;cursor:pointer;font-family:'DM Mono',monospace">
-      Current
+      Reset
     </button>
     <button type="button" onclick="applyCanvasSize()"
       style="flex:1;padding:6px;background:linear-gradient(135deg,var(--gold),var(--gold2));
@@ -1095,6 +1134,7 @@ const _SESSION_PREVIEW  = {{ editor_preview  | tojson }};
 const S = {
   pixels: null, W: 0, H: 0, filename: '',
   zoom: 2, tool: 'pencil', drawCol: 'black', brushSz: 1,
+  ellStart: null, selMove: null,
   painting: false, lx: -1, ly: -1, _btn: 0,
   lineStart: null, rectStart: null, panStart: null,
   showGrid: false,
@@ -1667,6 +1707,13 @@ function onMD(e) {
   if (S.tool==='pan') { S.panStart={mx:e.clientX,my:e.clientY,sx:_canvasArea.scrollLeft,sy:_canvasArea.scrollTop}; MC.style.cursor='grabbing'; return; }
 
   if (S.tool==='select') {
+    // Pressing inside an existing selection moves its pixels instead of
+    // starting a new marquee — the behaviour designers expect from a raster
+    // editor, and previously only possible via cut-then-paste.
+    if (S.selActive && S.sel && x>=S.sel.x0 && x<=S.sel.x1 && y>=S.sel.y0 && y<=S.sel.y1) {
+      beginSelMove(x, y);
+      return;
+    }
     S.selStart={x,y}; S.sel=null; S.selActive=false;
     updateSelInfo(); drawSelectionRect();
     return;
@@ -1683,6 +1730,8 @@ function onMD(e) {
   }
   if (S.tool==='line') { S.lineStart={x,y}; MC.style.cursor='copy'; return; }
   if (S.tool==='rect') { S.rectStart={x,y}; MC.style.cursor='copy'; return; }
+  if (S.tool==='ellipse') { S.ellStart={x,y}; MC.style.cursor='copy'; return; }
+  if (S.tool==='wand') { wandSelect(x,y); return; }
   S.painting=true; S.lx=x; S.ly=y; brush(x,y,e.button); render();
 }
 
@@ -1705,6 +1754,9 @@ function onMM(e) {
     return;
   }
 
+  // Moving lifted selection pixels
+  if (S.selMove && e.buttons > 0) { updateSelMove(x, y); return; }
+
   // Selection drag
   if (S.tool==='select' && S.selStart && e.buttons > 0) {
     S.sel = {
@@ -1719,6 +1771,7 @@ function onMM(e) {
     // Show live preview for line and rect tools while dragging
     if (S.tool==='line' && S.lineStart) { drawLinePreview(x, y); return; }
     if (S.tool==='rect' && S.rectStart) { drawRectPreview(x, y); return; }
+    if (S.tool==='ellipse' && S.ellStart) { drawEllipsePreview(x, y); return; }
     return;
   }
   if (S.tool==='pencil'||S.tool==='eraser') { line(S.lx,S.ly,x,y,S._btn); S.lx=x; S.ly=y; renderRAF(); }
@@ -1731,6 +1784,9 @@ function onMU(e) {
 
   // End paste drag
   if (S.pasteDrag) { S.pasteDrag=null; return; }
+
+  // Finish moving lifted selection pixels
+  if (S.selMove) { commitSelMove(); return; }
 
   if (S.tool==='pan') { S.panStart=null; MC.style.cursor='grab'; return; }
 
@@ -1752,6 +1808,11 @@ function onMU(e) {
     pushHist('Rectangle');
     S.rectStart=null; MC.style.cursor='crosshair'; render(); updateStats(); return;
   }
+  if (S.tool==='ellipse'&&S.ellStart) {
+    drawEllipse(S.ellStart.x, S.ellStart.y, x, y, dv(S._btn), e.shiftKey, e.altKey);
+    pushHist(e.altKey ? 'Ellipse outline' : 'Ellipse');
+    S.ellStart=null; MC.style.cursor='crosshair'; render(); updateStats(); return;
+  }
   if (S.painting) {
     pushHist(S.tool==='satin' ? 'Satin brush' : 'Draw');
     S.painting=false; updateStats();
@@ -1759,6 +1820,7 @@ function onMU(e) {
 }
 
 function onML() {
+  if (S.selMove) commitSelMove();
   if (S.painting) { pushHist(S.tool==='satin' ? 'Satin brush' : 'Draw'); S.painting=false; updateStats(); }
   // If panning, cancel the active drag so re-entry doesn't snap from a stale origin
   if (S.tool==='pan' && S.panStart) { S.panStart=null; MC.style.cursor='grab'; }
@@ -1791,7 +1853,7 @@ function onPD(e) {
     _gestureLock = true;
     if (S.painting && S.history[S.hi]) S.pixels = _histToPixels(S.history[S.hi]);
     S.painting = false; S.panStart = null;
-    S.lineStart = null; S.rectStart = null; S.selStart = null;
+    S.lineStart = null; S.rectStart = null; S.ellStart = null; S.selStart = null; S.selMove = null;
     render();
     const p = [..._pointers.values()];
     _gesture = { d0: Math.max(1, _ptDist(p[0], p[1])), z0: S.zoom, mid: _ptMid(p[0], p[1]) };
@@ -1934,16 +1996,16 @@ function cycleSymmetry() {
 function setTool(t) {
   if (S.tool !== t) {
     // Clear any stale line/rect start-point and its overlay preview
-    if (S.lineStart || S.rectStart) {
-      S.lineStart = null; S.rectStart = null;
+    if (S.lineStart || S.rectStart || S.ellStart) {
+      S.lineStart = null; S.rectStart = null; S.ellStart = null;
       drawSelectionRect(); // removes ghost from overlay
     }
   }
   S.tool=t;
   _toolBtns.forEach(b=>b.classList.remove('on'));
   const b=document.getElementById('tbtn-'+t); if(b) b.classList.add('on');
-  MC.style.cursor={pencil:'crosshair',eraser:'cell',fill:'copy',line:'crosshair',rect:'crosshair',pan:'grab',satin:'cell',select:'crosshair','weave-fill':'crosshair','invert-region':'crosshair','smart-fill':'crosshair'}[t]||'crosshair';
-  const toolNames={pencil:'Pencil',eraser:'Eraser',fill:'Flood Fill',line:'Line',rect:'Rectangle',pan:'Pan',satin:'Satin Brush',select:'Select','weave-fill':'Weave Fill (click a region)','invert-region':'Invert Region (click any region)','smart-fill':'Smart Fill (click a region)'};
+  MC.style.cursor={pencil:'crosshair',eraser:'cell',fill:'copy',line:'crosshair',rect:'crosshair',ellipse:'crosshair',wand:'cell',pan:'grab',satin:'cell',select:'crosshair','weave-fill':'crosshair','invert-region':'crosshair','smart-fill':'crosshair'}[t]||'crosshair';
+  const toolNames={pencil:'Pencil',eraser:'Eraser',fill:'Flood Fill',line:'Line',rect:'Rectangle',ellipse:'Ellipse — Shift = circle, Alt = outline',wand:'Magic Wand — click a region',pan:'Pan',satin:'Satin Brush',select:'Select','weave-fill':'Weave Fill (click a region)','invert-region':'Invert Region (click any region)','smart-fill':'Smart Fill (click a region)'};
   if (_headerSub) _headerSub.textContent = toolNames[t] || 'BMP Editor';
 }
 
@@ -2950,6 +3012,152 @@ function drawRectPreview(x, y) {
   ox.setLineDash([]);
 }
 
+
+// ═══════════════════════════════════════════════════
+// ELLIPSE TOOL
+// ───────────────────────────────────────────────────
+// Buttas and paisleys are built from curves, so a rectangle-only shape tool
+// forced designers to trace every arc by hand with the pencil.
+//
+// Uses a scanline test rather than midpoint-arc plotting: for a FILLED shape
+// the arc algorithm leaves seams at the poles where consecutive arc steps skip
+// a row. Testing (dx/rx)^2+(dy/ry)^2 <= 1 per row is exact and cannot gap.
+//   Shift → constrain to a circle
+//   Alt   → outline only, at the current brush size
+function drawEllipse(x0, y0, x1, y1, v, circle, outlineOnly) {
+  let rx = Math.abs(x1 - x0) / 2, ry = Math.abs(y1 - y0) / 2;
+  if (circle) { const r = Math.max(rx, ry); rx = r; ry = r; }
+  if (rx < 0.5 || ry < 0.5) { spx(x0, y0, v); return; }
+
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  // Outline thickness follows the brush, so the tool respects the same
+  // control as every other drawing tool.
+  const t = Math.max(1, S.brushSz);
+  const irx = rx - t, iry = ry - t;
+
+  for (let py = Math.floor(cy - ry); py <= Math.ceil(cy + ry); py++) {
+    for (let px = Math.floor(cx - rx); px <= Math.ceil(cx + rx); px++) {
+      const nx = (px - cx) / rx, ny = (py - cy) / ry;
+      if (nx * nx + ny * ny > 1) continue;
+      if (outlineOnly && irx > 0 && iry > 0) {
+        const ix = (px - cx) / irx, iy = (py - cy) / iry;
+        if (ix * ix + iy * iy <= 1) continue;   // inside the inner ellipse
+      }
+      spx(px, py, v);
+    }
+  }
+}
+
+function drawEllipsePreview(x, y) {
+  drawSelectionRect();
+  if (!S.ellStart) return;
+  const z = S.zoom;
+  const ex0 = Math.min(S.ellStart.x, x), ex1 = Math.max(S.ellStart.x, x);
+  const ey0 = Math.min(S.ellStart.y, y), ey1 = Math.max(S.ellStart.y, y);
+  ox.strokeStyle = 'rgba(255,210,60,0.85)';
+  ox.lineWidth = 1; ox.setLineDash([4, 3]);
+  ox.beginPath();
+  ox.ellipse((ex0 + ex1 + 1) / 2 * z, (ey0 + ey1 + 1) / 2 * z,
+             Math.max(1, (ex1 - ex0 + 1) / 2 * z),
+             Math.max(1, (ey1 - ey0 + 1) / 2 * z), 0, 0, Math.PI * 2);
+  ox.stroke();
+  ox.setLineDash([]);
+}
+
+// ═══════════════════════════════════════════════════
+// MAGIC WAND
+// ───────────────────────────────────────────────────
+// Selects the bounding box of the connected region under the cursor. The
+// selection model here is rectangular, so a true per-pixel wand mask would
+// need every selection consumer rewritten; the bounding box gives most of the
+// benefit (isolate a motif, then copy/zoom/transform) at no structural risk.
+function wandSelect(sx, sy) {
+  if (!S.pixels) return;
+  const tgt = gpx(sx, sy);
+  if (tgt < 0) return;
+  const W = S.W, H = S.H;
+  const seen = new Uint8Array(W * H);
+  const stack = [sy * W + sx];
+  seen[sy * W + sx] = 1;
+  let x0 = sx, x1 = sx, y0 = sy, y1 = sy, count = 0;
+
+  while (stack.length) {
+    const i = stack.pop(), cx = i % W, cy = (i / W) | 0;
+    count++;
+    if (cx < x0) x0 = cx; if (cx > x1) x1 = cx;
+    if (cy < y0) y0 = cy; if (cy > y1) y1 = cy;
+    const nb = [[cx-1,cy],[cx+1,cy],[cx,cy-1],[cx,cy+1]];
+    for (const [nx, ny] of nb) {
+      if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+      const j = ny * W + nx;
+      if (seen[j] || gpx(nx, ny) !== tgt) continue;
+      seen[j] = 1; stack.push(j);
+    }
+  }
+
+  S.sel = { x0, y0, x1, y1 };
+  S.selActive = true;
+  setTool('select');
+  updateSelInfo(); drawSelectionRect();
+  toast(`Wand: ${count} ${tgt ? 'UP' : 'DOWN'} pixels — bounds ${x1-x0+1}x${y1-y0+1}`);
+}
+
+// ═══════════════════════════════════════════════════
+// MOVE SELECTION
+// ───────────────────────────────────────────────────
+// Lifts the selected pixels, leaving DOWN behind, and follows the pointer.
+// Committed on release as a single undo step.
+function beginSelMove(x, y) {
+  const {x0, y0, x1, y1} = S.sel;
+  const w = x1 - x0 + 1, h = y1 - y0 + 1;
+  const buf = new Uint8Array(w * h);
+  for (let j = 0; j < h; j++)
+    for (let i = 0; i < w; i++)
+      buf[j * w + i] = gpx(x0 + i, y0 + j) ? 1 : 0;
+  for (let j = 0; j < h; j++)
+    for (let i = 0; i < w; i++) spx(x0 + i, y0 + j, 0);
+  S.selMove = { buf, w, h, ox: x0, oy: y0, gx: x - x0, gy: y - y0, dx: 0, dy: 0 };
+  MC.style.cursor = 'move';
+  render();
+}
+
+function updateSelMove(x, y) {
+  const m = S.selMove; if (!m) return;
+  m.dx = x - m.gx - m.ox;
+  m.dy = y - m.gy - m.oy;
+  render();
+  drawSelMovePreview();
+}
+
+function drawSelMovePreview() {
+  const m = S.selMove; if (!m) return;
+  const z = S.zoom;
+  ox.fillStyle = 'rgba(20,20,20,0.92)';
+  for (let j = 0; j < m.h; j++)
+    for (let i = 0; i < m.w; i++)
+      if (m.buf[j * m.w + i])
+        ox.fillRect(Math.round((m.ox + m.dx + i) * z), Math.round((m.oy + m.dy + j) * z),
+                    Math.max(1, Math.round(z)), Math.max(1, Math.round(z)));
+  ox.strokeStyle = 'rgba(255,210,60,0.9)';
+  ox.setLineDash([4, 3]);
+  ox.strokeRect(Math.round((m.ox + m.dx) * z) + 0.5, Math.round((m.oy + m.dy) * z) + 0.5,
+                Math.round(m.w * z), Math.round(m.h * z));
+  ox.setLineDash([]);
+}
+
+function commitSelMove() {
+  const m = S.selMove; if (!m) return;
+  for (let j = 0; j < m.h; j++)
+    for (let i = 0; i < m.w; i++)
+      if (m.buf[j * m.w + i]) spx(m.ox + m.dx + i, m.oy + m.dy + j, 1);
+  S.sel = { x0: m.ox + m.dx, y0: m.oy + m.dy,
+            x1: m.ox + m.dx + m.w - 1, y1: m.oy + m.dy + m.h - 1 };
+  S.selMove = null;
+  pushHist('Move selection');
+  MC.style.cursor = 'crosshair';
+  render(); updateStats(); updateSelInfo(); drawSelectionRect();
+}
+
 // ── Select All ────────────────────────────────────
 function selectAll() {
   if (!S.pixels) return;
@@ -3152,7 +3360,9 @@ function openCanvasSizePopup(e) {
     popup.style.left = r ? (r.right + 10) + 'px' : '90px';
     popup.style.top  = r ? Math.min(r.top, window.innerHeight - 280) + 'px' : '400px';
     popup.style.display = 'block';
-    setCSSFromCurrent();
+    const w = document.getElementById('cs-w'), h = document.getElementById('cs-h');
+    if (w) w.value = 0; if (h) h.value = 0;
+    setCSMode(S.csMode || 'add');
   } else {
     popup.style.display = 'none';
   }
@@ -3161,40 +3371,176 @@ function openCanvasSizePopup(e) {
 // Escape for canvas size handled in main keyboard handler
 
 function setCSSFromCurrent() {
+  // In Set mode this loads the current dimensions; in Add/Remove mode the
+  // fields hold amounts, so the equivalent useful action is clearing them.
   if (!S.pixels) return;
-  const wi=document.getElementById('cs-w'); if(wi) wi.value=S.W;
-  const hi=document.getElementById('cs-h'); if(hi) hi.value=S.H;
+  const wi = document.getElementById('cs-w'), hi = document.getElementById('cs-h');
+  const v = (S.csMode === 'set');
+  if (wi) wi.value = v ? S.W : 0;
+  if (hi) hi.value = v ? S.H : 0;
+  updateCSPreview();
+}
+
+// ═══════════════════════════════════════════════════
+// CANVAS SIZE  —  Add / Remove / Set
+// ───────────────────────────────────────────────────
+// The tool previously accepted only an absolute size and pre-filled it with
+// the current dimensions, so extending a 360-pin design by 100 pins meant
+// working out 460 by hand. Worse, content always anchored top-left, so pins
+// could only ever be added to the right or removed from the right — extending
+// a border on its left edge was impossible.
+//
+// Now the number entered means what the mode says: in Add mode, 100 pins adds
+// 100 pins. The chosen edge decides where they go, and the result is shown
+// before anything is applied.
+S.csMode = 'add';
+
+function setCSMode(m) {
+  S.csMode = m;
+  for (const k of ['add', 'remove', 'set']) {
+    const b = document.getElementById('cs-mode-' + k);
+    if (!b) continue;
+    const on = (k === m);
+    b.style.background = on ? 'linear-gradient(135deg,var(--gold),var(--gold2))' : 'var(--surface2)';
+    b.style.color      = on ? '#1a1510' : 'var(--muted)';
+    b.style.fontWeight = on ? '600' : '400';
+  }
+  const wl = document.getElementById('cs-wlab'), hl = document.getElementById('cs-hlab');
+  const sides = document.getElementById('cs-sides');
+  if (m === 'set') {
+    if (wl) wl.textContent = 'Width (pins)';
+    if (hl) hl.textContent = 'Height (cards)';
+    if (sides) sides.style.display = 'none';
+    const w = document.getElementById('cs-w'), h = document.getElementById('cs-h');
+    if (w) w.value = S.W; if (h) h.value = S.H;
+  } else {
+    if (wl) wl.textContent = (m === 'add' ? 'Add pins' : 'Remove pins');
+    if (hl) hl.textContent = (m === 'add' ? 'Add cards' : 'Remove cards');
+    if (sides) sides.style.display = 'grid';
+    const w = document.getElementById('cs-w'), h = document.getElementById('cs-h');
+    if (w && +w.value === S.W) w.value = 0;
+    if (h && +h.value === S.H) h.value = 0;
+  }
+  updateCSPreview();
+}
+
+// Resolve the entered numbers into a target size and the offset at which the
+// existing content lands. A negative offset crops that edge.
+function csResolve() {
+  const a = Math.max(0, parseInt(document.getElementById('cs-w')?.value || 0) || 0);
+  const b = Math.max(0, parseInt(document.getElementById('cs-h')?.value || 0) || 0);
+  const sx = document.getElementById('cs-sx')?.value || 'right';
+  const sy = document.getElementById('cs-sy')?.value || 'bottom';
+
+  if (S.csMode === 'set') {
+    return { newW: a, newH: b, offX: 0, offY: 0, dW: a - S.W, dH: b - S.H };
+  }
+  const sign = (S.csMode === 'add') ? 1 : -1;
+  const newW = S.W + sign * a, newH = S.H + sign * b;
+
+  let offX = 0, offY = 0;
+  if (S.csMode === 'add') {
+    if (sx === 'left') offX = a; else if (sx === 'both') offX = Math.floor(a / 2);
+    if (sy === 'top')  offY = b; else if (sy === 'both') offY = Math.floor(b / 2);
+  } else {
+    if (sx === 'left') offX = -a; else if (sx === 'both') offX = -Math.floor(a / 2);
+    if (sy === 'top')  offY = -b; else if (sy === 'both') offY = -Math.floor(b / 2);
+  }
+  return { newW, newH, offX, offY, dW: sign * a, dH: sign * b };
+}
+
+function updateCSPreview() {
+  const el = document.getElementById('cs-preview');
+  const cur = document.getElementById('cs-cur');
+  if (cur) cur.textContent = S.pixels ? `${S.W} × ${S.H}` : '—';
+  if (!el) return;
+  if (!S.pixels) { el.textContent = 'No file loaded.'; return; }
+
+  const r = csResolve();
+  if (r.newW < 1 || r.newH < 1) {
+    el.innerHTML = `<span style="color:var(--danger,#e06c6c)">Cannot remove that much — ` +
+                   `at least 1 pin and 1 card must remain.</span>`;
+    return;
+  }
+  if (r.newW > 9999 || r.newH > 9999) {
+    el.innerHTML = `<span style="color:var(--danger,#e06c6c)">Result exceeds 9999.</span>`;
+    return;
+  }
+  if (r.dW === 0 && r.dH === 0) { el.textContent = 'No change.'; return; }
+
+  const parts = [];
+  if (r.dW) parts.push(`${r.dW > 0 ? '+' : ''}${r.dW} pins`);
+  if (r.dH) parts.push(`${r.dH > 0 ? '+' : ''}${r.dH} cards`);
+  let warn = '';
+  if (S.csMode === 'remove') {
+    const lost = countInkOutside(r);
+    if (lost > 0) warn = `<br><span style="color:var(--gold)">${lost.toLocaleString()} UP ` +
+                         `thread${lost === 1 ? '' : 's'} will be cut away.</span>`;
+  }
+  el.innerHTML = `${parts.join(', ')}<br><b style="color:var(--text)">` +
+                 `${S.W} × ${S.H} → ${r.newW} × ${r.newH}</b>${warn}`;
+}
+
+// How much design would be destroyed by a crop — shown before it happens,
+// because removing canvas silently discards thread and there is no way to
+// tell from the numbers alone.
+function countInkOutside(r) {
+  if (!S.pixels) return 0;
+  let n = 0;
+  for (let y = 0; y < S.H; y++) {
+    for (let x = 0; x < S.W; x++) {
+      const nx = x + r.offX, ny = y + r.offY;
+      if (nx >= 0 && ny >= 0 && nx < r.newW && ny < r.newH) continue;
+      if (S.pixels[(y * S.W + x) * 4] < 128) n++;
+    }
+  }
+  return n;
 }
 
 function applyCanvasSize() {
   if (!S.pixels) { toast('No file loaded'); return; }
-  const newW = parseInt(document.getElementById('cs-w')?.value||0);
-  const newH = parseInt(document.getElementById('cs-h')?.value||0);
-  if (!newW||!newH||newW<1||newH<1||newW>9999||newH>9999) {
-    toast('Enter valid width and height (1–9999)'); return;
+  const r = csResolve();
+  const { newW, newH, offX, offY } = r;
+
+  if (!newW || !newH || newW < 1 || newH < 1) {
+    toast(S.csMode === 'remove'
+      ? 'Cannot remove that much — at least 1 pin and 1 card must remain'
+      : 'Enter a valid size (1–9999)');
+    return;
   }
-  if (newW===S.W && newH===S.H) { toast('Same size — no change'); return; }
-  const label = `Resize canvas ${S.W}×${S.H} → ${newW}×${newH}`;
-  const newPx = new Uint8ClampedArray(newW*newH*4).fill(255);
-  // Set alpha
-  for (let i=3;i<newPx.length;i+=4) newPx[i]=255;
-  // Copy existing pixels into top-left corner
-  const cpW=Math.min(S.W,newW), cpH=Math.min(S.H,newH);
-  for (let dy=0;dy<cpH;dy++) for (let dx=0;dx<cpW;dx++) {
-    const si=(dy*S.W+dx)*4, di=(dy*newW+dx)*4;
-    newPx[di]=newPx[di+1]=newPx[di+2]=S.pixels[si]; newPx[di+3]=255;
+  if (newW > 9999 || newH > 9999) { toast('Result exceeds 9999'); return; }
+  if (newW === S.W && newH === S.H) { toast('Same size — no change'); return; }
+
+  const verb = S.csMode === 'add' ? 'Add' : (S.csMode === 'remove' ? 'Remove' : 'Resize');
+  const label = `${verb} canvas ${S.W}×${S.H} → ${newW}×${newH}`;
+
+  const newPx = new Uint8ClampedArray(newW * newH * 4).fill(255);
+  for (let i = 3; i < newPx.length; i += 4) newPx[i] = 255;
+
+  // Copy with offset. Negative offsets crop the leading edge; positive offsets
+  // pad it. Bounds are checked per pixel so both directions work in one pass.
+  for (let y = 0; y < S.H; y++) {
+    const ny = y + offY;
+    if (ny < 0 || ny >= newH) continue;
+    for (let x = 0; x < S.W; x++) {
+      const nx = x + offX;
+      if (nx < 0 || nx >= newW) continue;
+      const si = (y * S.W + x) * 4, di = (ny * newW + nx) * 4;
+      newPx[di] = newPx[di + 1] = newPx[di + 2] = S.pixels[si];
+      newPx[di + 3] = 255;
+    }
   }
-  // Apply
-  MC.width=OC.width=S.W=newW;
-  MC.height=OC.height=S.H=newH;
-  S.pixels=newPx;
-  pushHist(label);   // capture new state WITH new dimensions (undo-safe)
-  S.fillPat=null; // invalidate fill pattern
+
+  MC.width = OC.width = S.W = newW;
+  MC.height = OC.height = S.H = newH;
+  S.pixels = newPx;
+  pushHist(label);          // capture new state WITH new dimensions (undo-safe)
+  S.fillPat = null;         // invalidate fill pattern
   clearSelection();
   cancelPaste();
   applyZoom(); render(); updateStats();
-  toast(`Canvas resized to ${newW}×${newH}`);
-  const p=document.getElementById('cs-popup'); if(p) p.style.display='none';
+  toast(`${verb === 'Resize' ? 'Canvas resized to' : verb + 'ed —'} ${newW}×${newH}`);
+  const p = document.getElementById('cs-popup'); if (p) p.style.display = 'none';
 }
 
 // Selection is drawn by render() above
@@ -3227,6 +3573,8 @@ document.addEventListener('keydown', e=>{
     case 'f': case 'F': setTool('fill');   break;
     case 'l': case 'L': setTool('line');   break;
     case 'r': case 'R': setTool('rect');   break;
+    case 'o': case 'O': setTool('ellipse'); break;
+    case 'a': case 'A': setTool('wand');    break;
     case 'h': case 'H': setTool('pan');    break;
     case 'g': case 'G': toggleGrid();      break;
     case 'c': case 'C': openCanvasSizePopup(null); break;
@@ -3249,7 +3597,7 @@ document.addEventListener('keydown', e=>{
       else { const p=document.getElementById('cs-popup'); if(p) p.style.display='none'; }
       if (S.selActive) clearSelection();
       // Cancel any in-progress line or rect (clear start point + overlay preview)
-      if (S.lineStart || S.rectStart) {
+      if (S.lineStart || S.rectStart || S.ellStart) {
         S.lineStart = null; S.rectStart = null;
         MC.style.cursor = 'crosshair';
         drawSelectionRect();   // redraws grid + selection; removes line/rect ghost
