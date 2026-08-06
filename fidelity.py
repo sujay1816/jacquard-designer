@@ -53,9 +53,29 @@ _INK_CONN = np.ones((3, 3), dtype=bool)
 _BG_CONN = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]], dtype=bool)
 
 
-def _binary(image, threshold=128):
-    """Ink mask from a PIL image: True where thread is up."""
-    return np.asarray(image.convert('L')) < threshold
+def _binary(image, threshold=None):
+    """
+    Ink mask from a PIL image: True where thread is up.
+
+    The threshold is chosen from the image's own histogram (Otsu) rather than
+    fixed at mid-grey. Faint artwork breaks a fixed threshold completely: a
+    pencil-drawn saree layout scanned on white paper has its linework around
+    190-230 grey, so at 128 only 0.6% of the page registered as ink and the
+    report claimed +3759% coverage drift on a conversion that was correct.
+
+    Otsu splits paper from graphite wherever the ink actually sits, so the
+    comparison holds for faint sketches, dense colour artwork, and clean line
+    art alike. An explicit threshold can still be passed if needed.
+    """
+    grey = np.asarray(image.convert('L'))
+    if threshold is None:
+        try:
+            from skimage.filters import threshold_otsu
+            vals = grey[np.isfinite(grey)]
+            threshold = float(threshold_otsu(vals)) if vals.size else 128
+        except Exception:
+            threshold = 128
+    return grey < threshold
 
 
 def _topology(mask):
@@ -71,12 +91,13 @@ def _topology(mask):
     return int(ink_n), int(white_n), isolated
 
 
-def fidelity_report(source_image, output_mask, threshold=128):
+def fidelity_report(source_image, output_mask, threshold=None):
     """
     Compare a generated design mask against the uploaded source.
 
     source_image : PIL image as uploaded (any resolution)
     output_mask  : 2D bool array at loom resolution, True where thread is up
+    threshold    : ink cutoff for the source; None picks it per image (Otsu)
 
     Returns a dict of metrics plus 'verdict' ('ok' | 'warn' | 'fail') and
     'messages', written for a weaver rather than a developer.
