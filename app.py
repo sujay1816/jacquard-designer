@@ -354,6 +354,76 @@ def api_assistant_status():
     return jsonify({'success': True, 'available': assistant_engine.is_available()})
 
 
+def _label_map_b64(label_map):
+    """
+    Encode a label map as a base64 PNG for the frontend to hand back at
+    generate time. Values are class indices, not brightness, so PNG (lossless)
+    is required — a lossy format would silently reassign pixels to the wrong
+    shuttle.
+    """
+    buf = io.BytesIO()
+    Image.fromarray(np.asarray(label_map).astype(np.uint8), 'L').save(buf, 'PNG')
+    return base64.b64encode(buf.getvalue()).decode()
+
+
+@app.route('/api/auto-convert', methods=['POST'])
+def api_auto_convert():
+    """
+    Convert with self-checking: generate, score against the source, retry.
+
+    The app's failure mode has always been silence — a clean, valid BMP whose
+    design had been ruined, with nothing to flag it. This tries the settings
+    that have historically been the right answer, scores each against the
+    uploaded image, and returns the winner together with what it cost and what
+    the alternatives were.
+
+    Returns a PROPOSAL, not a file. Pin count and shuttle mapping are craft and
+    hardware decisions; the weaver confirms before anything is generated.
+    """
+    try:
+        if 'image' not in request.files:
+            return _json_error('No image uploaded.')
+        raw = request.files['image'].read()
+        if not raw:
+            return _json_error('Uploaded file is empty.')
+        img = ImageOps.exif_transpose(Image.open(io.BytesIO(raw))).convert('RGB')
+
+        pins = request.form.get('pins')
+        pins = int(pins) if pins and str(pins).strip().isdigit() else None
+        if pins is not None:
+            if pins < 10:
+                return _json_error('Pins must be at least 10.')
+            _e = _bounds_error(pins)
+            if _e:
+                return _e
+
+        n_colors = max(2, min(8, int(request.form.get('n_colors', 2) or 2)))
+
+        from auto_convert import auto_convert
+        result = auto_convert(img, pins=pins, n_colors=n_colors)
+        best = result.get('best')
+        if not best:
+            return _json_error(result.get('summary', 'Conversion failed.'))
+
+        return jsonify({
+            'success': True,
+            'verdict': result['verdict'],
+            'summary': result['summary'],
+            'advice': result['advice'],
+            'attempts': result['attempts'],
+            'pins': best['pins'],
+            'cards': best['cards'],
+            'settings': best['settings'],
+            'report': best['report'],
+            'label_map': _label_map_b64(best['label_map']),
+            'alternatives': result['alternatives'],
+        })
+    except UnidentifiedImageError:
+        return _json_error('That file is not a readable image.')
+    except Exception as e:
+        return _json_error(f'Auto-convert failed: {e}')
+
+
 @app.route('/api/analyze-design', methods=['POST'])
 def api_analyze_design():
     """
