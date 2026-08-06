@@ -308,6 +308,46 @@ def api_detect_colors():
         return _json_error(f'Unexpected error: {e}')
 
 
+@app.route('/api/check-trace', methods=['POST'])
+def api_check_trace():
+    """
+    Score a hand-traced design against the original it was traced from.
+
+    Closes the loop for beginners: the Tracing Guide explains how to trace, but
+    until now nothing told them whether the result would actually weave. The
+    common failure is invisible on screen — strokes drawn a little heavy look
+    bolder, and only reveal themselves at the loom when every gap has closed
+    and the motif comes out solid.
+
+    Takes both files so no server-side state is needed; the browser still holds
+    the original from the analyse step.
+    """
+    try:
+        if 'original' not in request.files or 'traced' not in request.files:
+            return _json_error('Upload both the original image and your traced file.')
+
+        def _load(key):
+            raw = request.files[key].read()
+            if not raw:
+                raise ValueError(f'{key} file is empty.')
+            if len(raw) > 50 * 1024 * 1024:
+                raise ValueError(f'{key} file is too large (max 50 MB).')
+            return ImageOps.exif_transpose(Image.open(io.BytesIO(raw)))
+
+        original = _load('original').convert('RGB')
+        traced = _load('traced')
+
+        from fidelity import trace_feedback
+        report = trace_feedback(original, traced)
+        return jsonify({'success': True, 'report': report})
+    except UnidentifiedImageError:
+        return _json_error('One of the files is not a readable image.')
+    except ValueError as e:
+        return _json_error(str(e))
+    except Exception as e:
+        return _json_error(f'Could not check the trace: {e}')
+
+
 @app.route('/api/assistant-status', methods=['GET'])
 def api_assistant_status():
     """Report whether an API key is configured, so the UI can hide the panel."""

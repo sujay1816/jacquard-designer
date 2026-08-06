@@ -344,6 +344,25 @@
 
     </div>
 
+    <!-- Check your trace. The guide explained how to trace but never whether
+         the result would weave; the common failure (slightly heavy strokes)
+         looks fine on screen and only shows up at the loom. -->
+    <div id="checkTrace" class="instructions" style="display:none;margin-bottom:18px">
+      <div class="instr-header"><div class="instr-title">Check your trace</div></div>
+      <div class="instr-body">
+        <p style="margin:0 0 12px;line-height:1.7">Finished tracing? Upload it here and it will be
+        scored against your original — coverage, gaps, and stray pixels — before you commit it
+        to the loom.</p>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <input type="file" id="tracedFile" accept="image/*"
+                 style="font-size:11px;color:var(--muted);max-width:260px">
+          <button type="button" class="btn" onclick="checkTrace()">✓ Check my trace</button>
+        </div>
+        <div id="traceResult" style="display:none;margin-top:14px;padding:12px 14px;
+             border-radius:6px;border:1px solid var(--border);line-height:1.7;font-size:12.5px"></div>
+      </div>
+    </div>
+
     <!-- Weaving fundamentals. The page taught Photopea mechanics but never
          what a jacquard BMP actually is, so a beginner could follow every step
          and still not know what they were drawing or why it mattered. -->
@@ -455,6 +474,9 @@
 
   function handleFile(file) {
     if (!file) return;
+    // Kept so 'Check your trace' can compare against the original without the
+    // user re-uploading it.
+    window._originalFile = file;
     const allowed = ['image/jpeg','image/png','image/bmp','image/webp','image/tiff'];
     if (!allowed.some(t => file.type === t || file.name.match(/\.(jpg|jpeg|png|bmp|webp|tiff?)$/i))) {
       showError('Unsupported file type. Please upload JPG, PNG, BMP or WebP.');
@@ -604,6 +626,43 @@
   // for most sources: what a design can hold depends on how wide its thinnest
   // stroke is in the original file. A 340px butta and an 858px pencil scan
   // need very different numbers.
+  // Score a finished trace against the original.
+  // Both files are sent so the server holds no state; the browser still has
+  // the original from the analyse step.
+  async function checkTrace() {
+    const inp = document.getElementById('tracedFile');
+    const box = document.getElementById('traceResult');
+    if (!inp || !inp.files || !inp.files[0]) { showError('Choose your traced file first.'); return; }
+    if (!window._originalFile) { showError('Analyse the original image first.'); return; }
+
+    box.style.display = 'block';
+    box.style.borderColor = 'var(--border)';
+    box.innerHTML = 'Checking…';
+
+    try {
+      const fd = new FormData();
+      fd.append('original', window._originalFile);
+      fd.append('traced', inp.files[0]);
+      const r = await fetch('/api/check-trace', { method: 'POST', body: fd });
+      const d = await r.json();
+      if (!d.success) throw new Error(d.error || 'Check failed');
+
+      const rep = d.report;
+      const tone = { good: '#6fbf73', fair: 'var(--gold)', redo: '#e06c6c' }[rep.grade] || 'var(--gold)';
+      const label = { good: 'Ready to weave', fair: 'Usable — worth fixing', redo: 'Needs redrawing' }[rep.grade];
+      box.style.borderColor = tone;
+      box.innerHTML =
+        `<div style="color:${tone};font-weight:600;margin-bottom:8px">${label}</div>` +
+        rep.advice.map(a => `<div style="margin-bottom:6px">• ${a}</div>`).join('') +
+        `<div style="margin-top:10px;opacity:.7;font-size:11px">` +
+        `thread ${rep.source_ink_pct}% → ${rep.output_ink_pct}% · ` +
+        `gaps ${rep.source_white_regions} → ${rep.output_white_regions}</div>`;
+    } catch (e) {
+      box.style.borderColor = '#e06c6c';
+      box.innerHTML = e.message || 'Could not check the trace.';
+    }
+  }
+
   function showPinAdvice(a) {
     const box = document.getElementById('pinAdvice');
     const txt = document.getElementById('pinAdviceText');

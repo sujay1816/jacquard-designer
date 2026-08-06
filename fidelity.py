@@ -69,12 +69,20 @@ def _binary(image, threshold=None):
     """
     grey = np.asarray(image.convert('L'))
     if threshold is None:
-        try:
-            from skimage.filters import threshold_otsu
-            vals = grey[np.isfinite(grey)]
-            threshold = float(threshold_otsu(vals)) if vals.size else 128
-        except Exception:
-            threshold = 128
+        uniq = np.unique(grey)
+        if uniq.size <= 2:
+            # Already binary. Otsu is degenerate here — given only two values
+            # it returns the LOWER one, so `grey < threshold` matches nothing
+            # and a perfectly good traced file reads as empty. Split midway
+            # between the two levels instead.
+            threshold = (float(uniq[0]) + float(uniq[-1])) / 2.0 + 0.5 \
+                if uniq.size == 2 else 128.0
+        else:
+            try:
+                from skimage.filters import threshold_otsu
+                threshold = float(threshold_otsu(grey))
+            except Exception:
+                threshold = 128.0
     return grey < threshold
 
 
@@ -186,3 +194,95 @@ def fidelity_report(source_image, output_mask, threshold=None):
             f"({100*drift:+.0f}% thread, {o_white} background areas vs {s_white}).")
 
     return report
+
+
+# Tracing feedback thresholds. A hand trace is not expected to match the source
+# pixel for pixel — the point is whether it will WEAVE as the same design.
+TRACE_HEAVY = 0.25         # 25% more thread than the source: strokes too thick
+TRACE_LIGHT = -0.30        # 30% less: detail was skipped
+TRACE_GAPS_LOST = 0.55     # kept under 55% of the source's enclosed gaps
+
+
+def trace_feedback(source_image, traced_image):
+    """
+    Score a hand-traced design against the original and say what to fix.
+
+    Distinct from fidelity_report, which judges an automatic conversion. A
+    beginner tracing by hand makes different mistakes, and the advice has to
+    name them: strokes drawn too thick (the most common error, because the
+    instinct is always to trace heavier), interior detail skipped, or gaps
+    closed up so motifs read as blobs.
+
+    Both images are thresholded with Otsu, so a pencil scan and a clean
+    black-on-white export are comparable even though neither is binary to
+    start with, and neither needs to be the same size.
+
+    Returns the fidelity metrics plus 'grade' and beginner-facing 'advice'.
+    """
+    trc = _binary(traced_image)
+
+    rep = fidelity_report(source_image, trc)
+
+    drift = rep['ink_drift_pct'] / 100.0
+    s_white = rep['source_white_regions'] or 0
+    t_white = rep['output_white_regions'] or 0
+    gap_ratio = (t_white / s_white) if s_white else 1.0
+
+    advice, grade = [], 'good'
+
+    def flag(level, msg):
+        nonlocal grade
+        advice.append(msg)
+        order = {'good': 0, 'fair': 1, 'redo': 2}
+        if order[level] > order[grade]:
+            grade = level
+
+    if drift >= TRACE_HEAVY:
+        flag('redo' if drift >= 0.6 else 'fair',
+             f"Your lines are {100*drift:.0f}% heavier than the original. This is the "
+             f"most common tracing mistake — thick strokes look bolder on screen but "
+             f"close the gaps that make a motif readable. Trace at the thinnest width "
+             f"that stays connected.")
+    elif drift <= TRACE_LIGHT:
+        flag('fair',
+             f"Your trace has {abs(100*drift):.0f}% less thread than the original. "
+             f"Some detail was probably skipped — check the motif interiors against "
+             f"the Layer Map.")
+
+    if s_white and gap_ratio < TRACE_GAPS_LOST:
+        flag('redo',
+             f"Only {t_white} enclosed gaps survived against the original's {s_white}. "
+             f"The white spaces inside your motifs have filled in, so they will weave "
+             f"as solid shapes rather than patterns.")
+    elif s_white and gap_ratio > 3.0:
+        flag('fair',
+             f"Your trace has {t_white} enclosed gaps against the original's {s_white}. "
+             f"Lines may be breaking up — check that every path is closed.")
+
+    if rep['isolated_cells']:
+        flag('fair' if rep['isolated_cells'] < 50 else 'redo',
+             f"{rep['isolated_cells']} stray single pixels. These cannot weave and show "
+             f"as faults — clean them with Remove Isolated in the BMP Editor.")
+
+    grey = _grey_fraction(traced_image)
+    if grey > 0.02:
+        flag('redo',
+             f"{100*grey:.0f}% of your file is grey rather than pure black or white. "
+             f"Export as PNG with anti-aliasing off, or run it through Auto-Cleaned "
+             f"first — the loom cannot act on a half-lifted thread.")
+
+    if not advice:
+        advice.append(
+            f"Coverage and structure both match the original "
+            f"({100*drift:+.0f}% thread, {t_white} gaps vs {s_white}). Ready for the "
+            f"Generator.")
+
+    rep['grade'] = grade
+    rep['advice'] = advice
+    return rep
+
+
+def _grey_fraction(image):
+    """Proportion of pixels that are neither near-black nor near-white."""
+    g = np.asarray(image.convert('L'))
+    return float(((g > 40) & (g < 215)).mean())
