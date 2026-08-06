@@ -275,7 +275,18 @@ def _lineart_labels(image, pins, cards, thin_strokes):
     else:
         cov = 0.30
 
-    mask = _pool_ink(hi, pins, cards, cov)
+    # Coverage pooling assigns each SOURCE pixel to one target cell, which is
+    # correct when reducing but leaves most cells empty when the target is
+    # larger than the source — measured at 960 pins from an 858px scan, the
+    # linework shattered into 15,284 pieces against the source's 1,568.
+    # At or above 1:1 there is nothing to pool, so the mask is resampled
+    # directly instead.
+    if pins >= hi.shape[1] or cards >= hi.shape[0]:
+        mask = np.asarray(
+            Image.fromarray(hi.astype(np.uint8) * 255, 'L')
+                 .resize((pins, cards), Image.NEAREST)) > 127
+    else:
+        mask = _pool_ink(hi, pins, cards, cov)
     return mask, thr
 
 
@@ -341,14 +352,24 @@ def detect_colors_smart(image: Image.Image,
     if lineart and n_colors == 2 and _is_achromatic(arr):
         try:
             src_w = image.size[0]
+            reduction = src_w / max(pins, 1)
+
+            # Thinning is only ever correct when REDUCING. It exists because a
+            # stroke and its neighbouring gap compete for the same output cell
+            # and ink wins; at or above 1:1 there is no competition, and
+            # thinning simply eats the design. Measured on a 858px pencil scan
+            # rendered at 960 pins (an upscale): thinning gave -21% ink and
+            # shattered the linework into 15,284 pieces against the source's
+            # 1,568.
             thin_strokes = False
-            try:
-                from loom_utils import source_resolution_check
-                chk = source_resolution_check(image, pins)
-                tps = chk.get('threads_per_stroke')
-                thin_strokes = (tps is not None and tps < 2.0)
-            except Exception:
-                thin_strokes = src_w < pins * 2
+            if reduction > 1.05:
+                try:
+                    from loom_utils import source_resolution_check
+                    chk = source_resolution_check(image, pins)
+                    tps = chk.get('threads_per_stroke')
+                    thin_strokes = (tps is not None and tps < 2.0)
+                except Exception:
+                    thin_strokes = src_w < pins * 2
 
             mask, thr = _lineart_labels(image, pins, cards, thin_strokes)
             if despeckle:
