@@ -197,6 +197,11 @@ def reduce_butta(image: Image.Image, target_pins: int,
     return mask, info
 
 
+# Shared with vision_engine.THIN_POOL_COVERAGE — see the note there on why
+# 0.16 over-inks dense motif artwork.
+_THIN_POOL_COVERAGE = 0.28
+
+
 def _thin_then_pool(image: Image.Image, target_pins: int,
                     target_cards: int | None = None):
     """Structure-preserving reduction for under-resolution sources."""
@@ -212,7 +217,7 @@ def _thin_then_pool(image: Image.Image, target_pins: int,
         target_pins * hi.shape[0] / max(hi.shape[1], 1))))
     mask = _despeckle_butta(
         downsample_mask(_thin(hi, max_num_iter=1), target_pins, cards,
-                        min_coverage=0.16))
+                        min_coverage=_THIN_POOL_COVERAGE))
     return mask, {'path': 'thin-then-pool',
                   'target_w': target_pins, 'target_h': cards}
 

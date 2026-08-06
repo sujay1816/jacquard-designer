@@ -238,6 +238,17 @@ ACHROMATIC_SAT_MAX = 30.0
 # against thumbnail 13.0 and out-of-focus 0.8.
 BLUR_SHARPEN_MAX = 25.0
 
+# Coverage a loom cell must have before it counts as ink during reduction.
+#
+# 0.16 was carried over from butta work, where the goal was rescuing 1px lines
+# that would otherwise vanish. On dense motif artwork it does the opposite
+# damage: almost every cell touching a stroke turns solid, so motifs thicken
+# and their interior gaps close. Measured on a brocade at 480 pins, 0.16 gave
+# +14% ink and 1.8x the source's gap count (fragmentation, not detail), while
+# 0.28 gave -11% ink and 0.8x. The same ordering held on a pencil sketch
+# (+18% vs -10%) and the butta was unchanged to slightly better.
+THIN_POOL_COVERAGE = 0.28
+
 
 def _is_achromatic(arr_uint8: np.ndarray) -> bool:
     """True when the image is effectively greyscale."""
@@ -377,7 +388,7 @@ def _lineart_labels(image, pins, cards, thin_strokes):
         try:
             from skimage.morphology import thin as _thin
             hi = _thin(hi, max_num_iter=1)
-            cov = 0.16
+            cov = THIN_POOL_COVERAGE
         except Exception:
             cov = 0.30
     else:
