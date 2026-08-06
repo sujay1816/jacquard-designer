@@ -250,6 +250,13 @@
   <div class="error-msg" id="error-msg"></div>
 
   <!-- Results -->
+  <div id="pinAdvice" style="display:none;margin:0 0 18px;padding:12px 14px;
+       border:1px solid var(--gold);border-radius:6px;background:rgba(200,169,110,0.07)">
+    <div style="font-size:11px;letter-spacing:.08em;color:var(--gold);margin-bottom:5px">
+      ◈ PIN COUNT FOR THIS IMAGE</div>
+    <div id="pinAdviceText" style="font-size:12px;line-height:1.6"></div>
+  </div>
+
   <div id="results">
 
     <div class="stats-bar" id="stats-bar">
@@ -328,12 +335,44 @@
         </div>
         <div class="output-card-footer">
           <button type="button" class="btn btn-success" onclick="sendToGenerator('cleaned')">→ Send to Generator</button>
+          <button type="button" class="btn" onclick="traceInEditor()" title="Open in the built-in BMP Editor — no other software needed">✏ Trace in BMP Editor</button>
           <button type="button" class="btn btn-outline" id="invert-btn" onclick="toggleInvertCleaned()" title="Flip black↔white — use when the background was detected as design">⇄ Invert</button>
           <button type="button" class="btn btn-outline" onclick="downloadImg('img-cleaned','auto_cleaned.png')">↓ Download</button>
           <button type="button" class="btn btn-outline" onclick="viewFullSize('img-cleaned')">⤢ Full size</button>
         </div>
       </div>
 
+    </div>
+
+    <!-- Weaving fundamentals. The page taught Photopea mechanics but never
+         what a jacquard BMP actually is, so a beginner could follow every step
+         and still not know what they were drawing or why it mattered. -->
+    <div class="instructions" style="margin-bottom:18px">
+      <div class="instr-header"><div class="instr-title">Before you start — what you are making</div></div>
+      <div class="instr-body" style="line-height:1.75">
+        <p style="margin:0 0 12px"><strong>Black lifts the thread. White leaves it down.</strong>
+        A jacquard BMP is not a picture, it is an instruction sheet: each black pixel tells the
+        loom to raise one thread on one pick. Your traced design must be pure black on pure
+        white — no grey anywhere, or the loom gets an instruction it cannot follow.</p>
+
+        <p style="margin:0 0 12px"><strong>One file per shuttle.</strong>
+        A loom carries a limited number of threads — commonly zari (metallic) plus one or two
+        meena (colour) shuttles. The Generator writes a separate BMP for each. So when tracing,
+        think about which <em>thread</em> makes each part, not which colour it looks like.
+        Several shades of the same gold are usually one shuttle with shading, not three
+        separate threads.</p>
+
+        <p style="margin:0 0 12px"><strong>The gaps matter as much as the lines.</strong>
+        What makes a motif readable is the white space between its strokes. If two lines sit
+        closer together than the loom can resolve, they merge and the motif becomes a blob.
+        That is why the pin count above matters: it is the resolution your design is woven at.
+        Tracing thicker lines does not help — it closes the gaps.</p>
+
+        <p style="margin:0"><strong>Long unbroken runs cause trouble.</strong>
+        A thread lifted for many picks in a row sits loose on the cloth surface and snags.
+        The Generator warns about these, and weave patterns like satin and twill exist to break
+        them up. Small solid areas are fine; whole solid bands are not.</p>
+      </div>
     </div>
 
     <!-- Instructions — open by default -->
@@ -381,7 +420,7 @@
             <div class="instr-step-num">5</div>
             <div class="instr-step-content">
               <h4>Upload to BMP Generator</h4>
-              <p>Go to the <strong>BMP Generator</strong> and upload your traced PNG. Use <strong>960 pins</strong> for best detail. The app will detect the design cleanly — no grid, no noise.</p>
+              <p>Go to the <strong>BMP Generator</strong> and upload your traced PNG. Use the pin count shown in <strong>Pin count for this image</strong> above — it is measured from your own file, not a fixed number. The app will detect the design cleanly — no grid, no noise.</p>
             </div>
           </div>
 
@@ -560,6 +599,60 @@
   }
 
   // ── Send to Generator (opens in a new tab — keeps trace page alive) ──
+  // Show the pin count this specific image can actually carry.
+  // The written guide used to say "use 960 pins" for everyone, which is wrong
+  // for most sources: what a design can hold depends on how wide its thinnest
+  // stroke is in the original file. A 340px butta and an 858px pencil scan
+  // need very different numbers.
+  function showPinAdvice(a) {
+    const box = document.getElementById('pinAdvice');
+    const txt = document.getElementById('pinAdviceText');
+    if (!box || !txt || !a) { if (box) box.style.display = 'none'; return; }
+    let html = a.note || '';
+    if (a.recommended_pins) {
+      html += `<br><b style="color:var(--gold)">Use ${a.recommended_pins} pins` +
+              `</b> in the Generator for this image.`;
+    }
+    if (!a.achievable) {
+      html += `<br><span style="opacity:.85">Rescanning at roughly ` +
+              `${Math.round((a.source_width || 0) * 2 / 100) * 100}px would remove ` +
+              `this trade-off entirely.</span>`;
+    }
+    txt.innerHTML = html;
+    box.style.display = 'block';
+  }
+
+  // Open the auto-cleaned result in the built-in BMP Editor.
+  // Beginners previously had only the Photopea route, which means learning a
+  // second application before drawing a single line. The editor already has
+  // pencil, line, ellipse, magic wand, symmetry and undo, so simple designs
+  // never need to leave the app.
+  async function traceInEditor() {
+    const img = document.getElementById('img-cleaned');
+    if (!img || !img.src) { showError('Analyse an image first.'); return; }
+    try {
+      setProcessing(true, 'Opening in editor…');
+      const blob = await (await fetch(img.src)).blob();
+      const b64 = await new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(String(r.result).split(',')[1]);
+        r.onerror = rej;
+        r.readAsDataURL(blob);
+      });
+      const r = await fetch('/api/store-bmp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bmp_b64: b64, filename: 'traced.png' }),
+      });
+      const d = await r.json();
+      if (!d.success) throw new Error(d.error || 'Could not open the editor');
+      window.location.href = '/edit?token=' + encodeURIComponent(d.token);
+    } catch (e) {
+      setProcessing(false);
+      showError(e.message || 'Could not open the editor');
+    }
+  }
+
   function sendToGenerator(which) {
     // Always read from the current img.src so the Invert toggle is preserved.
     // _results[key] holds the original server data and would silently ignore

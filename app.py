@@ -813,8 +813,43 @@ def api_trace_guide():
         n_design_regions = int((sizes >= min_region).sum()) if len(sizes) else 0
         design_pct = round(100 * clean.sum() / (H * W), 1)
 
+        # Pin advice computed from THIS image rather than a fixed number. The
+        # page previously told everyone to use 960 pins, which is wrong for
+        # most sources: what a design can carry depends on how wide its
+        # thinnest stroke is in the original file, not on a default. Measured
+        # against the ORIGINAL upload, not the downscaled working copy.
+        pin_advice = None
+        try:
+            from loom_utils import source_resolution_check
+            orig = Image.open(io.BytesIO(raw))
+            orig = ImageOps.exif_transpose(orig).convert('RGB')
+            best = None
+            for cand in (240, 360, 480, 600, 720, 858, 960, 1200):
+                chk = source_resolution_check(orig, cand)
+                if chk.get('ok'):
+                    best = cand
+                    break
+            probe = source_resolution_check(orig, best or 480)
+            pin_advice = {
+                'source_width': orig.size[0],
+                'stroke_px': probe.get('stroke_px'),
+                'recommended_pins': best or probe.get('recommended_min_pins'),
+                'achievable': bool(best),
+                'note': (
+                    f"Your finest strokes are about {probe.get('stroke_px')}px wide in a "
+                    f"{orig.size[0]}px image. "
+                    + (f"At {best} pins each stroke lands on two or more threads, "
+                       f"so detail survives."
+                       if best else
+                       "No standard pin count keeps two threads per stroke — rescan "
+                       "larger, or accept lighter linework.")),
+            }
+        except Exception:
+            pass
+
         return jsonify({
             'success':   True,
+            'pin_advice': pin_advice,
             'width':     W,
             'height':    H,
             'faded':     _to_b64(faded_out),
