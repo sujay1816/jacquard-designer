@@ -228,12 +228,123 @@ def _despeckle_labels(labels: np.ndarray, bg_class: int, min_size: int = 2):
 # information at all — a pencil scan, a photocopy, a greyscale print.
 ACHROMATIC_SAT_MAX = 30.0
 
+# Focus measure below which an image is sharpened before thresholding.
+#
+# Raw Laplacian blur score cannot be used directly: it falls with CONTRAST as
+# well as with focus, and it falls again after denoising. Dividing by dynamic
+# range removes the contrast confound, and measuring before the median filter
+# removes the denoise confound. The normalised measure separates the cases
+# cleanly — clean 90.2, noisy 99.8, low-contrast 40.9 (all sharp enough),
+# against thumbnail 13.0 and out-of-focus 0.8.
+BLUR_SHARPEN_MAX = 25.0
+
 
 def _is_achromatic(arr_uint8: np.ndarray) -> bool:
     """True when the image is effectively greyscale."""
     a = arr_uint8.astype(np.int16)
     sat = a.max(axis=2) - a.min(axis=2)
     return float(np.percentile(sat, 99)) < ACHROMATIC_SAT_MAX
+
+
+def _prepare_lineart(image):
+    """
+    Normalise an upload so greyscale artwork is recognised as such.
+
+    Two common conditions hide achromatic art from the saturation test:
+
+      * A colour cast from tungsten or fluorescent light tints the whole page,
+        so a pencil drawing measures as coloured and gets routed to the colour
+        path (measured: +50% ink drift, verdict FAIL).
+      * Sensor noise adds random chroma per pixel, with the same effect
+        (measured: +144% drift and 47,536 spurious gaps).
+
+    Grey-world balancing removes the cast, and a small median filter removes
+    the chroma noise while leaving edges intact. Both are cheap and neither
+    changes a clean image meaningfully.
+    """
+    from PIL import ImageFilter
+
+    rgb = image.convert('RGB')
+    a = np.asarray(rgb, dtype=np.float32)
+
+    # Focus is measured on the ORIGINAL, before any denoising, because the
+    # median filter lowers the blur score and would make a noisy image look
+    # out of focus.
+    soft = False
+    try:
+        from bmp_engine import assess_image_quality
+        q = assess_image_quality(rgb)
+        soft = (q.get('blur_score', 1e9) /
+                max(1.0, q.get('dynamic_range', 1))) < BLUR_SHARPEN_MAX
+    except Exception:
+        pass
+
+    # Grey-world: equalise the channel means so a global tint disappears.
+    means = a.reshape(-1, 3).mean(axis=0)
+    if means.min() > 1.0:
+        a = np.clip(a * (means.mean() / means), 0, 255)
+    out = Image.fromarray(a.astype(np.uint8))
+
+    try:
+        from enhanced_engine import estimate_noise
+        if estimate_noise(out).get('recommend_enhance'):
+            out = out.filter(ImageFilter.MedianFilter(size=3))
+    except Exception:
+        pass
+
+    # Soft edges make a threshold capture the blur halo, so strokes come back
+    # far heavier than drawn: an out-of-focus photo measured +119% ink and a
+    # chat-thumbnail downscale +52%. Sharpening restores the edge, but it
+    # THICKENS a already-sharp image (-16% on clean input), so it is gated on
+    # measured focus. Laplacian blur score separates the cases cleanly:
+    # clean 4248, noisy 4760, shadowed 2858 — all left alone — against
+    # thumbnail 478 and out-of-focus 22, both sharpened.
+    if soft:
+        out = out.filter(ImageFilter.UnsharpMask(
+            radius=3, percent=220, threshold=2))
+    return out
+
+
+def _ink_threshold_mask(grey):
+    """
+    Split ink from paper, using a local threshold only when the illumination
+    demands it.
+
+    A global Otsu is correct and safest for evenly-lit artwork. Under a shadow
+    it is badly wrong: on a design with a shadow across one side, Otsu chose
+    189 globally while the three vertical thirds wanted 208, 172 and 124. The
+    single value floods the dark side with ink (measured +171% drift).
+
+    So the frame is probed in tiles; if the tile thresholds disagree
+    substantially, a local threshold is used instead.
+    """
+    from skimage.filters import threshold_otsu
+
+    h, w = grey.shape
+    tiles = []
+    for j in range(3):
+        for i in range(3):
+            t = grey[j * h // 3:(j + 1) * h // 3, i * w // 3:(i + 1) * w // 3]
+            if t.size and t.max() > t.min():
+                try:
+                    tiles.append(float(threshold_otsu(t)))
+                except Exception:
+                    pass
+
+    uneven = bool(tiles) and (max(tiles) - min(tiles)) > 35.0
+    if uneven:
+        try:
+            from skimage.filters import threshold_local
+            block = max(51, (min(h, w) // 8) | 1)     # odd, scales with image
+            return grey < threshold_local(grey, block_size=block, offset=6), None
+        except Exception:
+            pass
+
+    try:
+        thr = float(threshold_otsu(grey))
+    except Exception:
+        thr = 128.0
+    return grey < thr, thr
 
 
 def _lineart_labels(image, pins, cards, thin_strokes):
@@ -256,14 +367,11 @@ def _lineart_labels(image, pins, cards, thin_strokes):
     With thinning and despeckling this reached +17% ink drift and zero isolated
     cells, against +71% for the colour path.
     """
-    from skimage.filters import threshold_otsu
-
-    grey = np.asarray(image.convert('L'))
-    try:
-        thr = float(threshold_otsu(grey))
-    except Exception:
-        thr = 128.0
-    hi = grey < thr
+    prepared = _prepare_lineart(image)
+    grey = np.asarray(prepared.convert('L'))
+    hi, thr = _ink_threshold_mask(grey)
+    if thr is None:                       # local threshold used
+        thr = float(np.median(grey[~hi])) if (~hi).any() else 128.0
 
     if thin_strokes:
         try:
@@ -349,7 +457,9 @@ def detect_colors_smart(image: Image.Image,
 
     # Achromatic two-tone artwork takes a dedicated path: there is no colour to
     # cluster on, and KMeans absorbs the soft halo around drawn lines.
-    if lineart and n_colors == 2 and _is_achromatic(arr):
+    if lineart and n_colors == 2 and _is_achromatic(
+            np.asarray(_prepare_lineart(image).resize(
+                (min(400, image.size[0]), min(400, image.size[1]))), dtype=np.uint8)):
         try:
             src_w = image.size[0]
             reduction = src_w / max(pins, 1)
