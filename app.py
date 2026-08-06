@@ -2,7 +2,7 @@
 Jacquard Designer App — Flask Backend
 """
 
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, send_file
 from PIL import Image, ImageOps, UnidentifiedImageError
 import numpy as np
 import io, os, zipfile, base64
@@ -364,6 +364,99 @@ def _label_map_b64(label_map):
     buf = io.BytesIO()
     Image.fromarray(np.asarray(label_map).astype(np.uint8), 'L').save(buf, 'PNG')
     return base64.b64encode(buf.getvalue()).decode()
+
+
+@app.route('/agent')
+def agent_page():
+    """Conversational conversion. Degrades to an explanatory notice with no key."""
+    from flask import make_response
+    resp = make_response(render_template('agent.html'))
+    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    return resp
+
+
+@app.route('/api/agent/start', methods=['POST'])
+def api_agent_start():
+    """Upload a design and open a conversation about converting it."""
+    try:
+        if not agent_engine_available():
+            return _json_error(
+                'The assistant needs an API key. Set ANTHROPIC_API_KEY or add '
+                '"anthropic_api_key" to config.json.')
+        if 'image' not in request.files:
+            return _json_error('No image uploaded.')
+        f = request.files['image']
+        raw = f.read()
+        if not raw:
+            return _json_error('Uploaded file is empty.')
+        if len(raw) > 50 * 1024 * 1024:
+            return _json_error('Image is too large (max 50 MB).')
+        img = ImageOps.exif_transpose(Image.open(io.BytesIO(raw))).convert('RGB')
+
+        import agent_engine
+        token = agent_engine.new_session(img, f.filename or 'design')
+        session = agent_engine.get_session(token)
+        result = agent_engine.converse(
+            session, 'I have uploaded a design. Please look at it and tell me '
+                     'what you see, then ask what I need.')
+        return jsonify({'success': result['ok'], 'token': token,
+                        'reply': result['reply'],
+                        'tools_used': result['tools_used'],
+                        'has_files': result['has_files']})
+    except UnidentifiedImageError:
+        return _json_error('That file is not a readable image.')
+    except Exception as e:
+        return _json_error(f'Could not start: {e}')
+
+
+@app.route('/api/agent/message', methods=['POST'])
+def api_agent_message():
+    """Continue a conversation."""
+    try:
+        data = request.get_json() or {}
+        message = str(data.get('message', '')).strip()
+        if not message:
+            return _json_error('No message provided.')
+        if len(message) > 2000:
+            return _json_error('Message too long.')
+
+        import agent_engine
+        session = agent_engine.get_session(str(data.get('token', '')))
+        if not session:
+            return _json_error('That conversation has expired. Upload the design again.')
+
+        result = agent_engine.converse(session, message)
+        return jsonify({'success': result['ok'], 'reply': result['reply'],
+                        'tools_used': result['tools_used'],
+                        'has_files': result['has_files']})
+    except Exception as e:
+        return _json_error(f'Assistant failed: {e}')
+
+
+@app.route('/api/agent/download', methods=['GET'])
+def api_agent_download():
+    """Download the BMPs the agent generated for this conversation."""
+    try:
+        import agent_engine
+        session = agent_engine.get_session(request.args.get('token', ''))
+        if not session:
+            return _json_error('That conversation has expired.')
+        payload, name = agent_engine.files_zip(session)
+        if not payload:
+            return _json_error('No files have been generated yet.')
+        return send_file(io.BytesIO(payload), mimetype='application/zip',
+                         as_attachment=True, download_name=name)
+    except Exception as e:
+        return _json_error(f'Download failed: {e}')
+
+
+def agent_engine_available():
+    """True when an API key is configured, so the UI can hide the panel."""
+    try:
+        import assistant_engine
+        return assistant_engine.is_available()
+    except Exception:
+        return False
 
 
 @app.route('/api/auto-convert', methods=['POST'])

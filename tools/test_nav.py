@@ -21,6 +21,7 @@ PAGES = {
     '/butta': 'Butta',
     '/border': 'Border',
     '/edit': 'BMP Editor',
+    '/agent': 'Assistant',
     '/trace': 'Tracing Guide',
 }
 REMOVED = ['/border-id']

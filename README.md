@@ -35,6 +35,7 @@ Upload a cropped design image (butta motif, running lines, full repeats, etc.), 
 | ---------------------- | ------------ | ----------------------------------------------------------------------------- |
 | **Generator**          | `/`          | Main flow: upload → detect colours → assign shuttles → generate BMPs          |
 | **Butta Studio**       | `/butta`     | Single-motif reduction: gap-preserving downscale to loom resolution           |
+| **Assistant**          | `/agent`     | Conversational conversion: upload, answer one question, download              |
 | **BMP Editor**         | `/edit`      | Pixel-level editing of a generated/loaded BMP                                 |
 | **Trace Guide**        | `/trace`     | Turns a messy fabric photo into clean tracing references                      |
 | **Border Studio**      | `/border`    | High-detail pipeline for thin border / running-line designs                   |
@@ -83,6 +84,28 @@ network access, and output is deterministic — the same image and settings
 always produce the same BMPs.
 
 **Runs entirely on your machine.** No design image is ever uploaded anywhere.
+
+---
+
+## Conversational assistant (`/agent`, requires an API key)
+
+Upload a design and talk to it. The assistant inspects the image, asks what the
+job needs, converts it, tells you honestly what the conversion cost, and hands
+back a ZIP of loom-ready BMPs.
+
+**The model never touches pixels.** It calls three tools by name —
+`inspect_design`, `convert`, `generate_files` — and every pixel operation,
+measurement and validation is done by the same deterministic code the manual
+pages use. A model that misreads a design produces a bad sentence, not a bad
+BMP.
+
+Every conversion is scored against your uploaded image before it is offered,
+so a design that will not weave properly gets said out loud rather than
+shipped. Output is reproducible: the same image and the same confirmed pin
+count always produce identical files.
+
+Enable it with the same key as the design assistant below. Without one the
+page explains how to set it up and every other page works normally.
 
 ---
 
