@@ -10,6 +10,7 @@ Run:  python tools/test_agent.py
 import os
 import sys
 
+import numpy as np
 from PIL import Image, ImageDraw
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -27,6 +28,10 @@ def check(name, cond, detail=''):
     else:
         FAIL += 1
         print(f'  FAIL  {name}  {detail}')
+
+
+def _working_of(session):
+    return session.get('working')
 
 
 def design(w=600, h=400):
@@ -118,6 +123,71 @@ def main():
            say('Done — two files ready.'))
     out = ag.converse(s2, 'yes please')
     check('files flagged after generation', out['has_files'] is True, out)
+
+    print('\nEditing')
+    te = ag.new_session(design(), 'e.png')
+    se = ag.get_session(te)
+    check('edit before convert refused',
+          'error' in ag.run_tool('edit_design', {'operation': 'thicken'}, se))
+    ag.run_tool('convert', {'pins': 300}, se)
+
+    r = ag.run_tool('edit_design', {'operation': 'thicken', 'amount': 2}, se)
+    check('thicken applies', r.get('applied') == 'thicken', r)
+    check('fidelity is rescored after an edit', 'thread_drift_pct' in r, r)
+    check('a damaging edit is flagged, not hidden', 'warning' in r, r)
+
+    check('unknown operation refused',
+          'error' in ag.run_tool('edit_design', {'operation': 'sparkle'}, se))
+
+    before = ag.run_tool('describe_result', {}, se)['thread_drift_pct']
+    ag.run_tool('edit_design', {'operation': 'thin', 'amount': 1}, se)
+    check('undo restores the previous state',
+          ag.run_tool('undo_edit', {}, se)['thread_drift_pct'] == before)
+    while ag.get_session(te)['undo']:
+        ag.run_tool('undo_edit', {}, se)
+    check('undo past the start is refused', 'error' in ag.run_tool('undo_edit', {}, se))
+
+    shape = np.asarray(_working_of(se)).shape
+    ag.run_tool('edit_design', {'operation': 'rotate_90'}, se)
+    check('rotate transposes the design',
+          np.asarray(_working_of(se)).shape == (shape[1], shape[0]))
+    ag.run_tool('undo_edit', {}, se)
+
+    print('\nEdits reach the generated files')
+    ag.run_tool('generate_files', {'shuttle_count': 2}, se)
+    plain = dict(ag.get_session(te)['files'])
+    ag.run_tool('edit_design', {'operation': 'thicken', 'amount': 3}, se)
+    check('editing invalidates stale files', ag.get_session(te)['files'] is None)
+    ag.run_tool('generate_files', {'shuttle_count': 2}, se)
+    edited = ag.get_session(te)['files']
+    check('regenerated files differ after an edit',
+          any(plain[k] != edited[k] for k in plain if k in edited), 'files identical')
+
+    print('\nShuttles and weave')
+    r = ag.run_tool('set_shuttles', {'shuttle_count': 1,
+                                     'assignments': {'0': 'background', '1': 'zari', '2': 'meena1'}}, se)
+    check('over-budget shuttle assignment refused', 'error' in r, r)
+    r = ag.run_tool('set_shuttles', {'shuttle_count': 2,
+                                     'assignments': {'0': 'background', '1': 'zari'}}, se)
+    check('valid assignment accepted', r.get('assignments'), r)
+    r = ag.run_tool('set_shuttles', {'shuttle_count': 2,
+                                     'assignments': {'0': 'zari', '1': 'meena1'}}, se)
+    check('assignment with no background refused', 'error' in r, r)
+
+    check('unknown shuttle refused',
+          'error' in ag.run_tool('set_weave', {'shuttle': 'silk'}, se))
+    check('unknown weave refused',
+          'error' in ag.run_tool('set_weave', {'shuttle': 'zari', 'pattern': 'velvet'}, se))
+    r = ag.run_tool('set_weave', {'shuttle': 'zari', 'pattern': 'twill22', 'n': 6}, se)
+    check('valid weave accepted', r.get('pattern') == 'twill22', r)
+    r = ag.run_tool('set_weave', {'shuttle': 'zari', 'n': 99}, se)
+    check('satin count clamped to 16', r.get('n') == 16, r)
+    check('long float earns a warning', 'warning' in r, r)
+
+    print('\nStatus reporting')
+    r = ag.run_tool('describe_result', {}, se)
+    for f in ('pins', 'verdict', 'shuttles', 'weave', 'edits_applied', 'physical_size_in'):
+        check(f'describe_result reports {f}', f in r, r)
 
     print('\nFailure handling')
     t3 = ag.new_session(design(), 'y.png')

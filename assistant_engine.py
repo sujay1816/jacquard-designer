@@ -34,6 +34,21 @@ API_TIMEOUT = 60
 DEFAULT_MODEL = "claude-sonnet-5"
 
 
+def _http_detail(e):
+    """Extract the API's own error message from an HTTPError body."""
+    detail = f'HTTP {e.code}'
+    try:
+        payload = json.loads(e.read().decode())
+        msg = (payload.get('error') or {}).get('message')
+        if msg:
+            detail = msg
+    except Exception:
+        pass
+    if e.code in (401, 403):
+        detail = f'{detail} — check the API key'
+    return detail
+
+
 def _config():
     """Read config.json next to this file, or {} if absent/unreadable."""
     try:
@@ -351,8 +366,16 @@ def ask(message: str, state: dict, history=None) -> dict:
                     f"Weaver says: {message}"),
     })
 
+    # Thinking is disabled explicitly. Sonnet 5 turns adaptive thinking on by
+    # default, which has two costs here: thinking tokens count against
+    # max_tokens (so a cap tuned without it can truncate the visible answer),
+    # and thinking blocks enter the assistant turns that this loop feeds back
+    # as history, which is extra state to preserve correctly for no benefit.
+    # The work in this agent is tool dispatch and short explanations, not
+    # reasoning the model needs scratch space for.
     body = json.dumps({
         "model": model_id(),
+        "thinking": {"type": "disabled"},
         "max_tokens": 1024,
         "system": SYSTEM_PROMPT,
         "tools": [UPDATE_SETTINGS_TOOL],
@@ -369,9 +392,8 @@ def ask(message: str, state: dict, history=None) -> dict:
         with urllib.request.urlopen(req, timeout=API_TIMEOUT) as resp:
             data = json.loads(resp.read().decode())
     except urllib.error.HTTPError as e:
-        detail = 'check that the API key is valid' if e.code in (401, 403) \
-            else f'HTTP {e.code}'
-        return {'ok': False, 'reply': f'Assistant unavailable ({detail}).',
+        detail = _http_detail(e)
+        return {'ok': False, 'reply': f'Assistant unavailable: {detail}',
                 'patch': {}, 'rejected': [], 'advisories': []}
     except Exception:
         return {'ok': False,
@@ -503,8 +525,16 @@ def analyze_design(image_b64, colors, counts, shuttle_count, media_type='image/p
         f"{100.0 * (counts[i] if i < len(counts) else 0) / total:.1f}% of the design"
         for i, c in enumerate(colors or []))
 
+    # Thinking is disabled explicitly. Sonnet 5 turns adaptive thinking on by
+    # default, which has two costs here: thinking tokens count against
+    # max_tokens (so a cap tuned without it can truncate the visible answer),
+    # and thinking blocks enter the assistant turns that this loop feeds back
+    # as history, which is extra state to preserve correctly for no benefit.
+    # The work in this agent is tool dispatch and short explanations, not
+    # reasoning the model needs scratch space for.
     body = json.dumps({
         "model": model_id(),
+        "thinking": {"type": "disabled"},
         "max_tokens": 1024,
         "system": ANALYSIS_PROMPT,
         "tools": [GROUP_COLOURS_TOOL],
@@ -533,8 +563,8 @@ def analyze_design(image_b64, colors, counts, shuttle_count, media_type='image/p
         with urllib.request.urlopen(req, timeout=API_TIMEOUT) as resp:
             data = json.loads(resp.read().decode())
     except urllib.error.HTTPError as e:
-        detail = 'check the API key' if e.code in (401, 403) else f'HTTP {e.code}'
-        return {'ok': False, 'reply': f'Analysis unavailable ({detail}).',
+        detail = _http_detail(e)
+        return {'ok': False, 'reply': f'Analysis unavailable: {detail}',
                 'assignments': {}, 'groups': [], 'confidence': None, 'rejected': []}
     except Exception:
         return {'ok': False, 'reply': 'Analysis unreachable.',

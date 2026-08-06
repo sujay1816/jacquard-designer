@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Header layouts — pick one</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Cormorant+Garamond:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#14100e;--surface:#1d1815;--surface2:#241d19;--text:#e8e0d4;
+        --muted:#9a8f80;--gold:#c8a96e;--gold2:#a98a52;--border:#33291f;--border2:#463829;}
+  *{box-sizing:border-box}
+  body{margin:0;background:#0d0a09;color:var(--text);
+       font-family:'DM Mono',ui-monospace,monospace;font-size:13px;padding:26px 20px 60px}
+  .wrap{max-width:1340px;margin:0 auto}
+  h1{font-family:'Cormorant Garamond',serif;color:var(--gold);font-weight:500;
+     font-size:26px;margin:0 0 6px}
+  .lede{color:var(--muted);line-height:1.7;margin:0 0 26px;max-width:760px}
+  .opt{margin-bottom:30px}
+  .tag{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
+  .tag b{color:var(--gold);font-size:13px}
+  .tag span{color:var(--muted);font-size:11.5px}
+  .frame{border:1px solid #2a221c;border-radius:8px;overflow:hidden}
+
+  /* shared bits */
+  header{background:var(--surface);border-bottom:1px solid var(--border);
+         padding:18px 26px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;row-gap:10px}
+  .mark{width:34px;height:34px;border-radius:7px;flex:none;
+        background:linear-gradient(135deg,var(--gold),var(--gold2));color:#1a1510;
+        display:flex;align-items:center;justify-content:center;
+        font-family:'Cormorant Garamond',serif;font-size:19px;font-weight:600}
+  .ttl h2{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;
+          color:var(--gold2);margin:0;letter-spacing:.02em;white-space:nowrap}
+  .ttl p{margin:2px 0 0;font-size:9.5px;color:var(--muted);letter-spacing:.09em}
+  .steps{display:flex;align-items:center;gap:3px;flex-wrap:wrap}
+  .step{display:flex;align-items:center;gap:7px;padding:6px 12px;border-radius:4px;
+        font-size:10.5px;color:var(--muted);letter-spacing:.04em;white-space:nowrap}
+  .step.on{color:var(--gold);background:rgba(200,169,110,.09)}
+  .num{width:17px;height:17px;border-radius:50%;border:1px solid currentColor;
+       display:flex;align-items:center;justify-content:center;font-size:9px}
+  .arw{color:var(--border2);font-size:12px}
+  .nav{display:flex;align-items:center;gap:2px;flex-wrap:wrap}
+  .nav a{padding:6px 11px;border-radius:5px;text-decoration:none;color:inherit;
+         opacity:.55;font-size:12.5px;white-space:nowrap}
+  .nav a:hover{opacity:1;background:rgba(128,128,128,.16)}
+  .nav a.on{opacity:1;font-weight:500;background:rgba(128,128,128,.16);
+            box-shadow:inset 0 -2px 0 currentColor}
+  .body{background:#14100e;padding:22px 26px;color:var(--muted);font-size:11.5px}
+
+  /* A — current */
+  .a .nav{margin-left:auto;padding-left:14px;border-left:1px solid rgba(128,128,128,.28)}
+
+  /* B — nav on its own row */
+  .b .row2{width:100%;display:flex;align-items:center;
+           border-top:1px solid var(--border);margin:6px -26px -18px;padding:4px 26px}
+  .b .steps{margin-left:auto}
+
+  /* C — nav first, steps below in the workspace */
+  .c .nav{margin-left:auto}
+  .c-steps{background:#191411;border-bottom:1px solid var(--border);
+           padding:9px 26px;display:flex;align-items:center;gap:3px}
+
+  /* D — nav as tabs joined to the page */
+  .d .nav{margin-left:auto;gap:0}
+  .d .nav a{border-radius:6px 6px 0 0;padding:9px 13px;margin-bottom:-19px;
+            border:1px solid transparent;border-bottom:0}
+  .d .nav a.on{background:#14100e;border-color:var(--border);box-shadow:none;color:var(--gold)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Header layouts</h1>
+<p class="lede">Four ways to arrange the same header. Nothing here is connected to the
+app — it is a static file so you can judge them instantly instead of deploying between
+each attempt. Tell me the letter and I will apply it.</p>
+
+<!-- A -->
+<div class="opt a">
+  <div class="tag"><b>A</b><span>what you have now — divider between workflow and pages</span></div>
+  <div class="frame">
+    <header>
+      <div class="mark">J</div>
+      <div class="ttl"><h2>Jacquard Designer</h2><p>BMP GENERATION TOOL FOR JACQUARD LOOM</p></div>
+      <div class="steps">
+        <div class="step on"><span class="num">1</span>Upload</div><span class="arw">›</span>
+        <div class="step"><span class="num">2</span>Assign</div><span class="arw">›</span>
+        <div class="step"><span class="num">3</span>Generate</div><span class="arw">›</span>
+        <div class="step"><span class="num">4</span>Download</div>
+      </div>
+      <nav class="nav">
+        <a class="on" href="#">◈ Generator</a><a href="#">❁ Butta</a><a href="#">⬡ Border</a>
+        <a href="#">✏ BMP Editor</a><a href="#">✦ Assistant</a><a href="#">◎ Tracing Guide</a>
+      </nav>
+    </header>
+    <div class="body">workspace</div>
+  </div>
+</div>
+
+<!-- B -->
+<div class="opt b">
+  <div class="tag"><b>B</b><span>pages on their own row — clearest separation, taller header</span></div>
+  <div class="frame">
+    <header>
+      <div class="mark">J</div>
+      <div class="ttl"><h2>Jacquard Designer</h2><p>BMP GENERATION TOOL FOR JACQUARD LOOM</p></div>
+      <nav class="nav" style="margin-left:auto">
+        <a class="on" href="#">◈ Generator</a><a href="#">❁ Butta</a><a href="#">⬡ Border</a>
+        <a href="#">✏ BMP Editor</a><a href="#">✦ Assistant</a><a href="#">◎ Tracing Guide</a>
+      </nav>
+      <div class="row2">
+        <div class="steps">
+          <div class="step on"><span class="num">1</span>Upload</div><span class="arw">›</span>
+          <div class="step"><span class="num">2</span>Assign</div><span class="arw">›</span>
+          <div class="step"><span class="num">3</span>Generate</div><span class="arw">›</span>
+          <div class="step"><span class="num">4</span>Download</div>
+        </div>
+      </div>
+    </header>
+    <div class="body">workspace</div>
+  </div>
+</div>
+
+<!-- C -->
+<div class="opt c">
+  <div class="tag"><b>C</b><span>steps become a progress strip above the workspace, where the work happens</span></div>
+  <div class="frame">
+    <header>
+      <div class="mark">J</div>
+      <div class="ttl"><h2>Jacquard Designer</h2><p>BMP GENERATION TOOL FOR JACQUARD LOOM</p></div>
+      <nav class="nav">
+        <a class="on" href="#">◈ Generator</a><a href="#">❁ Butta</a><a href="#">⬡ Border</a>
+        <a href="#">✏ BMP Editor</a><a href="#">✦ Assistant</a><a href="#">◎ Tracing Guide</a>
+      </nav>
+    </header>
+    <div class="c-steps">
+      <div class="step on"><span class="num">1</span>Upload</div><span class="arw">›</span>
+      <div class="step"><span class="num">2</span>Assign</div><span class="arw">›</span>
+      <div class="step"><span class="num">3</span>Generate</div><span class="arw">›</span>
+      <div class="step"><span class="num">4</span>Download</div>
+    </div>
+    <div class="body">workspace</div>
+  </div>
+</div>
+
+<!-- D -->
+<div class="opt d">
+  <div class="tag"><b>D</b><span>pages as tabs attached to the workspace — reads unmistakably as navigation</span></div>
+  <div class="frame">
+    <header>
+      <div class="mark">J</div>
+      <div class="ttl"><h2>Jacquard Designer</h2><p>BMP GENERATION TOOL FOR JACQUARD LOOM</p></div>
+      <div class="steps" style="margin-left:26px">
+        <div class="step on"><span class="num">1</span>Upload</div><span class="arw">›</span>
+        <div class="step"><span class="num">2</span>Assign</div><span class="arw">›</span>
+        <div class="step"><span class="num">3</span>Generate</div><span class="arw">›</span>
+        <div class="step"><span class="num">4</span>Download</div>
+      </div>
+      <nav class="nav">
+        <a class="on" href="#">◈ Generator</a><a href="#">❁ Butta</a><a href="#">⬡ Border</a>
+        <a href="#">✏ BMP Editor</a><a href="#">✦ Assistant</a><a href="#">◎ Tracing Guide</a>
+      </nav>
+    </header>
+    <div class="body">workspace</div>
+  </div>
+</div>
+
+</div>
+</body>
+</html>

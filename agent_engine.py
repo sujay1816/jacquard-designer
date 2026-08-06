@@ -34,7 +34,7 @@ from PIL import Image
 
 from assistant_engine import API_URL, API_VERSION, API_TIMEOUT, _key, model_id
 
-MAX_TOOL_ROUNDS = 6          # tool calls per user turn before we stop
+MAX_TOOL_ROUNDS = 8          # tool calls per user turn before we stop
 MAX_HISTORY = 24             # messages retained per session
 SESSION_TTL = 3600           # seconds
 MAX_SESSIONS = 40
@@ -65,6 +65,11 @@ def new_session(image, filename='design'):
         'filename': os.path.splitext(os.path.basename(filename))[0] or 'design',
         'history': [],
         'conversion': None,
+        'working': None,        # label map currently being edited
+        'undo': [],             # previous working states, most recent last
+        'shuttles': None,       # colour index -> shuttle name
+        'shuttle_count': 2,
+        'weave': {},            # shuttle -> {'pattern', 'n'}
         'files': None,
     }
     return token
@@ -123,32 +128,134 @@ TOOLS = [
             },
         },
     },
+    {
+        "name": "edit_design",
+        "description": (
+            "Change the converted design: thicken or thin the lines, clean up "
+            "specks, close small gaps, rotate, flip, or invert. Applies to the "
+            "current working design and reports how the change affected "
+            "fidelity against the original, so a change that ruins the motif "
+            "is visible immediately. Use undo_edit to reverse it."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "operation": {
+                    "type": "string",
+                    "enum": ["thicken", "thin", "clean_specks", "close_gaps",
+                             "remove_isolated", "smooth", "invert",
+                             "rotate_90", "rotate_180", "rotate_270",
+                             "flip_horizontal", "flip_vertical"],
+                    "description": (
+                        "thicken/thin change stroke weight; clean_specks and "
+                        "remove_isolated drop unweavable fragments; close_gaps "
+                        "joins broken lines; smooth removes rough edges."),
+                },
+                "amount": {
+                    "type": "integer",
+                    "description": "Strength 1-5 for thicken, thin, close_gaps and smooth. Default 1.",
+                },
+            },
+            "required": ["operation"],
+        },
+    },
+    {
+        "name": "undo_edit",
+        "description": "Reverse the last edit. Use when a change made the design worse.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "set_shuttles",
+        "description": (
+            "Assign detected colours to loom shuttles. Colours that are tonal "
+            "shades of one thread should share a shuttle. Exactly one colour "
+            "is the background (the cloth ground). Never assign more distinct "
+            "threads than the loom carries."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "shuttle_count": {"type": "integer", "description": "Threads the loom carries, 1-4."},
+                "assignments": {
+                    "type": "object",
+                    "description": ("Colour index (as a string) to shuttle name: "
+                                    "zari, meena1, meena2 or background."),
+                },
+            },
+        },
+    },
+    {
+        "name": "set_weave",
+        "description": (
+            "Set the weave for a shuttle. Higher satin count gives a longer, "
+            "glossier float that snags more easily; above about 12 warn the "
+            "weaver."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "shuttle": {"type": "string", "description": "zari, meena1 or meena2."},
+                "pattern": {"type": "string",
+                            "description": "satin, twill22, plain_weave, basket, herringbone, dots, diamond, crepe or rib."},
+                "n": {"type": "integer", "description": "Satin count 4-16."},
+                "flip": {"type": "boolean"},
+            },
+            "required": ["shuttle"],
+        },
+    },
+    {
+        "name": "describe_result",
+        "description": (
+            "Report the current state of the working design: size, thread "
+            "coverage against the original, how many design gaps survive, "
+            "stray pixels, longest float, physical size, shuttle assignment "
+            "and edits applied. Call this when the weaver asks how it looks or "
+            "what has changed."),
+        "input_schema": {"type": "object", "properties": {}},
+    },
 ]
 
 SYSTEM_PROMPT = """You convert saree and brocade designs into loom-ready BMP \
-files, one per shuttle. You are talking to a weaver or a mill operator.
+files, one per shuttle. You are talking to a weaver or a mill operator, and you \
+can carry out the work they ask for — not just describe it.
 
-How to work:
-1. Call inspect_design first. Never ask a question you could have answered by \
+The usual path:
+1. Call inspect_design first. Never ask something you could have found out by \
 looking.
-2. Report what you found in one or two short sentences, then ask how many pins \
-the job needs. Suggest the count the image can actually support.
-3. When they answer, call convert with that pin count.
-4. Report the verdict honestly. If detail will be lost, say WHAT will be lost \
-in craft terms — "the fine scrollwork inside the small motifs" beats "12% ink \
-drift". Mention a better pin count only if one genuinely exists.
-5. When they confirm, call generate_files.
+2. Say what you found in one or two short sentences, then ask how many pins the \
+job needs. Suggest the count the image can actually support.
+3. Call convert with their pin count.
+4. Report the verdict honestly. If detail is lost, say WHAT is lost in craft \
+terms — "the fine scrollwork inside the small motifs" beats "12% ink drift". \
+Mention a better pin count only if one genuinely exists.
+5. Do whatever they ask next: edit_design to change the linework, set_shuttles \
+to assign colours to threads, set_weave to change the weave.
+6. Call generate_files when they are happy, then tell them the files are ready.
+
+Working with edits:
+- edit_design reports fidelity after every change. If it comes back with a \
+warning that the change made things worse, SAY SO and offer undo_edit. Never \
+report an edit as a success when the tool told you it damaged the design.
+- Weavers describe things in their own words. "Lines are too thin" means \
+thicken. "Too many specks" means clean_specks. "The motif is breaking up" \
+means close_gaps. Map what they say onto the operations rather than asking \
+them to learn tool names.
+- Prefer amount 1 first and check the result. Small steps are recoverable.
+- Use describe_result when they ask how it looks or what has changed.
+- Edits invalidate generated files, so regenerate after editing.
 
 What matters:
 - Black lifts the thread, white leaves it down. A BMP is an instruction sheet.
-- Shuttles are hardware. A loom weaves exactly shuttle_count threads and no \
-more.
+- Shuttles are hardware. The loom weaves exactly shuttle_count threads. If \
+someone asks for a colour there is no thread for, say so and offer the real \
+options: replace one, or raise the count if the loom has a spare shuttle.
+- Colours that are tonal shades of one thread — cream, mid pink, deep pink of \
+the same yarn — belong on ONE shuttle, not three.
 - Never claim a conversion is good when the tools reported WARN or FAIL. If \
-the source is too small to carry the design, say so plainly — a rescan is the \
-only fix and the weaver needs to hear it before the cloth is woven, not after.
+the source is too small to carry the design, say so plainly; a rescan is the \
+only fix and the weaver needs to hear it before the cloth is woven.
+- If they ask for something you have no tool for, say what you cannot do \
+rather than pretending. Pixel-level drawing belongs in the BMP Editor.
 
 Be brief and concrete. Talk like a colleague on the mill floor. Do not explain \
-your tools or narrate what you are about to do."""
+your tools or narrate what you are about to do — just do it and report."""
 
 
 def _tool_inspect(session, args):
@@ -228,64 +335,305 @@ def _tool_convert(session, args):
 
 
 def _tool_generate(session, args):
-    import bmp_engine as be
+    """
+    Produce the BMPs from the CURRENT working design, honouring any edits,
+    shuttle assignment and weave the weaver has asked for.
 
-    conv = session.get('conversion')
-    if not conv or not conv.get('best'):
+    Regenerating from the original conversion here would silently discard
+    every edit, which is the worst possible failure: the weaver sees a
+    confirmation and downloads a file that ignores what they asked for.
+    """
+    import bmp_engine as be
+    from loom_utils import count_long_floats, physical_size
+
+    lm = _working(session)
+    if lm is None:
         return {'error': 'Run convert first.'}
 
+    conv = session['conversion']['best']
     try:
-        shuttles = max(1, min(4, int(args.get('shuttle_count', 2) or 2)))
+        shuttles = max(1, min(4, int(args.get('shuttle_count',
+                                              session['shuttle_count']) or 2)))
     except (TypeError, ValueError):
-        shuttles = 2
+        shuttles = session['shuttle_count']
+    session['shuttle_count'] = shuttles
 
-    best = conv['best']
-    label_map = np.asarray(best['label_map'])
-    n_labels = int(label_map.max()) + 1
+    lm = np.asarray(lm)
+    n_labels = int(lm.max()) + 1
 
-    # Background is the largest region; remaining labels take shuttles in
-    # order. The model does not choose this — an unvalidated mapping could
-    # assign more threads than the loom carries.
-    names = ['zari', 'meena1', 'meena2']
-    counts = np.bincount(label_map.ravel(), minlength=n_labels)
-    order = list(np.argsort(-counts))
-    assignments = {int(order[0]): 'background'}
-    for i, idx in enumerate(order[1:]):
-        if i < min(shuttles, len(names)):
-            assignments[int(idx)] = names[i]
-        else:
-            assignments[int(idx)] = 'background'
+    if session.get('shuttles'):
+        assignments = {int(k): v for k, v in session['shuttles'].items()}
+    else:
+        # Default: largest region is the ground, the rest take shuttles in
+        # descending area order. Chosen here rather than by the model so the
+        # loom's thread budget cannot be exceeded.
+        names = ['zari', 'meena1', 'meena2']
+        counts = np.bincount(lm.ravel(), minlength=n_labels)
+        order = list(np.argsort(-counts))
+        assignments = {int(order[0]): 'background'}
+        for i, idx in enumerate(order[1:]):
+            assignments[int(idx)] = names[i] if i < min(shuttles, len(names)) else 'background'
 
-    satin = {n: {'n': 8, 'flip': False} for n in names}
+    default = {'n': 8, 'flip': False}
+    satin = {n: dict(session['weave'].get(n, default)) for n in
+             ('zari', 'meena1', 'meena2')}
     name = str(args.get('design_name') or session['filename'])[:40]
 
     files = be.generate_bmps(
-        image=session['image'], pins=best['pins'], cards=best['cards'],
+        image=session['image'], pins=conv['pins'], cards=conv['cards'],
         shuttle_count=shuttles, color_assignments=assignments,
         satin_settings=satin, design_name=name,
-        label_map=best['label_map'], stroke_mode=False, reed=60)
+        label_map=lm, stroke_mode=False, reed=60)
 
-    from loom_utils import count_long_floats, physical_size
-    summary, worst_float = [], 0
+    summary, worst = [], 0
     for fn, data in sorted(files.items()):
         info = be.verify_bmp(data)
         mask = np.array(Image.open(io.BytesIO(data)).convert('L')) < 128
         _, longest = count_long_floats(mask, 12)
-        worst_float = max(worst_float, longest)
+        worst = max(worst, longest)
         summary.append({'file': fn, 'bytes': len(data),
                         'clean_1bit': info['is_clean'],
                         'threads_up': info['pure_black'],
                         'longest_float': longest})
 
     session['files'] = files
-    size = physical_size(best['pins'], best['cards'], 60)
+    size = physical_size(conv['pins'], conv['cards'], 60)
+    rep = _rescore(session)
     return {
         'ready': True, 'files': summary,
+        'pins': conv['pins'], 'cards': conv['cards'],
         'physical_size_in': f"{size['width_in']} x {size['height_in']} at 60 reed",
-        'longest_float': worst_float,
+        'edits_applied': len(session['undo']),
+        'fidelity_verdict': rep['verdict'],
+        'longest_float': worst,
         'float_warning': (
-            f"Longest float is {worst_float} picks — check with the loom "
-            f"operator before running." if worst_float > 30 else None),
+            f"Longest float is {worst} picks — check with the loom operator "
+            f"before running." if worst > 30 else None),
+    }
+
+
+def _working(session):
+    """Current design being edited, falling back to the conversion result."""
+    if session.get('working') is None:
+        conv = session.get('conversion')
+        if not conv or not conv.get('best'):
+            return None
+        session['working'] = np.asarray(conv['best']['label_map']).copy()
+    return session['working']
+
+
+def _rescore(session):
+    """Fidelity of the working design against the uploaded image."""
+    from fidelity import fidelity_report
+    lm = _working(session)
+    if lm is None:
+        return None
+    return fidelity_report(session['image'], lm > 0)
+
+
+def _tool_edit(session, args):
+    from scipy import ndimage
+
+    lm = _working(session)
+    if lm is None:
+        return {'error': 'Convert the design first.'}
+
+    op = str(args.get('operation', '')).strip()
+    try:
+        amount = max(1, min(5, int(args.get('amount', 1) or 1)))
+    except (TypeError, ValueError):
+        amount = 1
+
+    before = _rescore(session)
+    prev = lm.copy()
+    design = lm > 0
+    bg = 0
+    # Preserve which label each design cell had, so multi-colour designs keep
+    # their shuttle separation through a shape edit.
+    labels = lm.copy()
+
+    def disk(r):
+        yy, xx = np.mgrid[-r:r + 1, -r:r + 1]
+        return (yy * yy + xx * xx) <= r * r
+
+    if op == 'thicken':
+        grown = ndimage.binary_dilation(design, structure=disk(amount))
+        # New cells take the label of the nearest existing design cell.
+        idx = ndimage.distance_transform_edt(~design, return_distances=False,
+                                             return_indices=True)
+        new = labels[tuple(idx)]
+        lm = np.where(grown, new, bg).astype(np.uint8)
+    elif op == 'thin':
+        kept = ndimage.binary_erosion(design, structure=disk(amount))
+        lm = np.where(kept, labels, bg).astype(np.uint8)
+    elif op in ('clean_specks', 'remove_isolated'):
+        min_size = 2 if op == 'remove_isolated' else max(2, amount * 3)
+        keep = np.zeros_like(design)
+        for c in np.unique(labels):
+            if c == bg:
+                continue
+            m = labels == c
+            l2, n = ndimage.label(m, structure=np.ones((3, 3)))
+            if n == 0:
+                continue
+            sizes = np.bincount(l2.ravel())
+            sizes[0] = 0
+            big = np.isin(l2, np.where(sizes >= min_size)[0])
+            keep |= big
+        lm = np.where(keep, labels, bg).astype(np.uint8)
+    elif op == 'close_gaps':
+        closed = ndimage.binary_closing(design, structure=disk(amount))
+        idx = ndimage.distance_transform_edt(~design, return_distances=False,
+                                             return_indices=True)
+        lm = np.where(closed, labels[tuple(idx)], bg).astype(np.uint8)
+    elif op == 'smooth':
+        opened = ndimage.binary_opening(design, structure=disk(amount))
+        lm = np.where(opened, labels, bg).astype(np.uint8)
+    elif op == 'invert':
+        # Swap design and ground: the largest class becomes design and vice
+        # versa. Only meaningful on two-class designs.
+        lm = np.where(design, bg, 1).astype(np.uint8)
+    elif op == 'rotate_90':
+        lm = np.rot90(lm, 1).astype(np.uint8)
+    elif op == 'rotate_180':
+        lm = np.rot90(lm, 2).astype(np.uint8)
+    elif op == 'rotate_270':
+        lm = np.rot90(lm, 3).astype(np.uint8)
+    elif op == 'flip_horizontal':
+        lm = np.fliplr(lm).astype(np.uint8)
+    elif op == 'flip_vertical':
+        lm = np.flipud(lm).astype(np.uint8)
+    else:
+        return {'error': f'No such operation: {op}'}
+
+    session['undo'].append(prev)
+    session['undo'] = session['undo'][-10:]
+    session['working'] = lm
+    session['files'] = None            # generated files are now stale
+    after = _rescore(session)
+
+    result = {'applied': op, 'amount': amount,
+              'thread_drift_pct': after['ink_drift_pct'],
+              'design_gaps': after['output_white_regions'],
+              'design_gaps_source': after['source_white_regions'],
+              'isolated_cells': after['isolated_cells'],
+              'verdict': after['verdict'],
+              'notes': after['messages']}
+    # Say plainly when an edit made things worse, so the model does not report
+    # success on a change that damaged the design.
+    if before:
+        worse = (abs(after['ink_drift_pct']) > abs(before['ink_drift_pct']) + 8
+                 or after['verdict'] == 'fail' and before['verdict'] != 'fail')
+        if worse:
+            result['warning'] = (
+                f"This made fidelity worse (thread drift "
+                f"{before['ink_drift_pct']:+.0f}% -> {after['ink_drift_pct']:+.0f}%). "
+                f"Tell the weaver and offer undo_edit.")
+    return result
+
+
+def _tool_undo(session, args):
+    if not session.get('undo'):
+        return {'error': 'Nothing to undo.'}
+    session['working'] = session['undo'].pop()
+    session['files'] = None
+    rep = _rescore(session)
+    return {'undone': True, 'verdict': rep['verdict'],
+            'thread_drift_pct': rep['ink_drift_pct'],
+            'design_gaps': rep['output_white_regions'],
+            'edits_remaining': len(session['undo'])}
+
+
+def _tool_set_shuttles(session, args):
+    lm = _working(session)
+    if lm is None:
+        return {'error': 'Convert the design first.'}
+
+    from assistant_engine import validate_patch
+
+    try:
+        count = max(1, min(4, int(args.get('shuttle_count', session['shuttle_count']))))
+    except (TypeError, ValueError):
+        count = session['shuttle_count']
+
+    raw = args.get('assignments')
+    n_labels = int(np.asarray(lm).max()) + 1
+    if not raw:
+        session['shuttle_count'] = count
+        return {'shuttle_count': count, 'assignments': session.get('shuttles'),
+                'colours_detected': n_labels}
+
+    # Same validator the settings assistant uses: shuttle budget, valid names,
+    # and colour indices that actually exist.
+    checked = validate_patch({'color_assignments': raw},
+                             {'shuttle_count': count, 'detected_colors': n_labels})
+    if checked['rejected'] or not checked['patch'].get('color_assignments'):
+        return {'error': ' '.join(checked['rejected']) or 'Invalid assignment.'}
+
+    assigned = checked['patch']['color_assignments']
+    if sum(1 for v in assigned.values() if v == 'background') != 1:
+        return {'error': 'Exactly one colour must be the background.'}
+
+    session['shuttles'] = {int(k): v for k, v in assigned.items()}
+    session['shuttle_count'] = count
+    session['files'] = None
+    return {'shuttle_count': count, 'assignments': assigned,
+            'colours_detected': n_labels}
+
+
+def _tool_set_weave(session, args):
+    from bmp_engine import FILL_PATTERNS
+
+    shuttle = str(args.get('shuttle', '')).strip()
+    if shuttle not in ('zari', 'meena1', 'meena2'):
+        return {'error': "Shuttle must be zari, meena1 or meena2."}
+
+    entry = dict(session['weave'].get(shuttle, {'pattern': 'satin', 'n': 8, 'flip': False}))
+    if 'pattern' in args:
+        pat = str(args['pattern']).strip()
+        if pat not in FILL_PATTERNS:
+            return {'error': f"Unknown weave '{pat}'. Available: {', '.join(sorted(FILL_PATTERNS))}"}
+        entry['pattern'] = pat
+    if 'n' in args:
+        try:
+            entry['n'] = max(4, min(16, int(args['n'])))
+        except (TypeError, ValueError):
+            return {'error': 'Satin count must be a whole number.'}
+    if 'flip' in args:
+        entry['flip'] = bool(args['flip'])
+
+    session['weave'][shuttle] = entry
+    session['files'] = None
+    out = {'shuttle': shuttle, **entry}
+    if entry['n'] > 12:
+        out['warning'] = (f"Satin {entry['n']} leaves long floats — glossy, but "
+                          f"they snag more easily.")
+    return out
+
+
+def _tool_describe(session, args):
+    from loom_utils import physical_size
+
+    lm = _working(session)
+    if lm is None:
+        return {'error': 'Nothing converted yet.'}
+    rep = _rescore(session)
+    conv = session['conversion']['best']
+    size = physical_size(conv['pins'], conv['cards'], 60)
+    return {
+        'pins': conv['pins'], 'cards': conv['cards'],
+        'physical_size_in': f"{size['width_in']} x {size['height_in']} at 60 reed",
+        'verdict': rep['verdict'],
+        'thread_drift_pct': rep['ink_drift_pct'],
+        'design_gaps': rep['output_white_regions'],
+        'design_gaps_source': rep['source_white_regions'],
+        'isolated_cells': rep['isolated_cells'],
+        'shuttle_count': session['shuttle_count'],
+        'shuttles': session.get('shuttles'),
+        'weave': session.get('weave') or 'satin 8 (default)',
+        'edits_applied': len(session['undo']),
+        'files_ready': bool(session.get('files')),
+        'notes': rep['messages'],
     }
 
 
@@ -293,6 +641,11 @@ _DISPATCH = {
     'inspect_design': _tool_inspect,
     'convert': _tool_convert,
     'generate_files': _tool_generate,
+    'edit_design': _tool_edit,
+    'undo_edit': _tool_undo,
+    'set_shuttles': _tool_set_shuttles,
+    'set_weave': _tool_set_weave,
+    'describe_result': _tool_describe,
 }
 
 
@@ -315,8 +668,16 @@ def _call_api(messages):
     key = _key()
     if not key:
         return None, 'No API key configured. Set ANTHROPIC_API_KEY or add it to config.json.'
+    # Thinking is disabled explicitly. Sonnet 5 turns adaptive thinking on by
+    # default, which has two costs here: thinking tokens count against
+    # max_tokens (so a cap tuned without it can truncate the visible answer),
+    # and thinking blocks enter the assistant turns that this loop feeds back
+    # as history, which is extra state to preserve correctly for no benefit.
+    # The work in this agent is tool dispatch and short explanations, not
+    # reasoning the model needs scratch space for.
     body = json.dumps({
         "model": model_id(),
+        "thinking": {"type": "disabled"},
         "max_tokens": 1400,
         "system": SYSTEM_PROMPT,
         "tools": TOOLS,
@@ -331,8 +692,20 @@ def _call_api(messages):
         with urllib.request.urlopen(req, timeout=API_TIMEOUT) as resp:
             return json.loads(resp.read().decode()), None
     except urllib.error.HTTPError as e:
-        detail = 'check the API key' if e.code in (401, 403) else f'HTTP {e.code}'
-        return None, f'Assistant unavailable ({detail}).'
+        # Read the body. The API explains exactly what it rejected — an unknown
+        # model, a malformed tool schema, a bad message shape — and discarding
+        # that in favour of a bare status code makes the failure undiagnosable.
+        detail = f'HTTP {e.code}'
+        try:
+            payload = json.loads(e.read().decode())
+            msg = (payload.get('error') or {}).get('message')
+            if msg:
+                detail = msg
+        except Exception:
+            pass
+        if e.code in (401, 403):
+            detail = f'{detail} — check the API key'
+        return None, f'Assistant unavailable: {detail}'
     except Exception:
         return None, 'Assistant unreachable. Check the network connection.'
 
