@@ -21,9 +21,50 @@ app.secret_key = os.environ.get('JQ_SECRET_KEY', 'jq-designer-2024')
 _bmp_store = {}  # token → {bmp_b64, filename, preview}
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024   # 50 MB upload cap
 
-# Bumped whenever the shared navigation changes, so a stale build is easy to
-# spot: compare /api/build against the marker in any page's HTML source.
-NAV_BUILD = '2026.08.04-nav-unified'
+# Build identifier derived from the actual content of the templates and the
+# core modules.
+#
+# This was previously a hand-written string, and it went stale immediately: it
+# still read "2026.08.04-nav-unified" three navigation changes later, so the
+# one signal meant to distinguish a fresh deployment from an old one reported
+# the same value for both. A hash cannot be forgotten — change any file below
+# and the build id changes with it.
+def _compute_build():
+    import hashlib
+    here = os.path.dirname(os.path.abspath(__file__))
+    h = hashlib.sha256()
+    targets = []
+    tdir = os.path.join(here, 'templates')
+    if os.path.isdir(tdir):
+        targets += [os.path.join(tdir, f) for f in sorted(os.listdir(tdir))
+                    if f.endswith('.html')]
+    targets += [os.path.join(here, f) for f in (
+        'app.py', 'bmp_engine.py', 'vision_engine.py', 'butta_engine.py',
+        'fidelity.py', 'auto_convert.py', 'agent_engine.py', 'loom_utils.py')]
+    for path in targets:
+        try:
+            with open(path, 'rb') as fh:
+                h.update(os.path.basename(path).encode())
+                h.update(fh.read())
+        except OSError:
+            h.update(b'missing:' + os.path.basename(path).encode())
+    return h.hexdigest()[:12]
+
+
+NAV_BUILD = _compute_build()
+
+# Pages the app is expected to serve. Used by the startup self-check and by
+# /api/build, so a partial file copy shows up immediately instead of as a
+# confusing 500 later.
+EXPECTED_TEMPLATES = ('_nav.html', '404.html', 'index.html', 'edit.html',
+                      'trace.html', 'border.html', 'butta.html', 'agent.html')
+
+
+def missing_templates():
+    """Template files that should be present but are not."""
+    tdir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
+    return [t for t in EXPECTED_TEMPLATES
+            if not os.path.exists(os.path.join(tdir, t))]
 
 
 @app.context_processor
@@ -33,9 +74,20 @@ def _inject_nav_build():
 
 @app.route('/api/build', methods=['GET'])
 def api_build():
-    """Report the running build so a stale copy can be identified quickly."""
-    return jsonify({'success': True, 'nav_build': NAV_BUILD,
-                    'pages': ['/', '/butta', '/border', '/edit', '/trace']})
+    """
+    Report the running build so a stale or partial copy is easy to identify.
+
+    nav_build is a hash of the templates and core modules, so it changes
+    whenever any of them do.
+    """
+    missing = missing_templates()
+    return jsonify({
+        'success': True,
+        'nav_build': NAV_BUILD,
+        'pages': ['/', '/butta', '/border', '/edit', '/agent', '/trace'],
+        'missing_templates': missing,
+        'complete': not missing,
+    })
 
 
 ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.webp', '.heic', '.heif'}

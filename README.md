@@ -156,6 +156,31 @@ detection, and BMP generation all stay on your machine.
 
 ---
 
+## Verifying your install
+
+Running `python run.py` prints the build id and the pages it can serve:
+
+```
+==========================================================
+ JACQUARD DESIGNER
+ build 110639784178
+==========================================================
+ 8 templates present · 6 pages:
+   /  /agent  /border  /butta  /edit  /trace
+==========================================================
+```
+
+If it reports **INCOMPLETE INSTALL**, template files are missing — copy the
+whole project folder rather than individual changed files. New releases add new
+modules and templates, so a file-by-file copy silently leaves the old interface
+in place.
+
+`GET /api/build` reports the same information as JSON, including
+`missing_templates`. The build id is a hash of the templates and core modules,
+so it changes whenever any of them do.
+
+---
+
 ## Installation
 
 Works on Windows, macOS, and Linux.

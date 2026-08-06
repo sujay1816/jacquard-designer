@@ -14,10 +14,37 @@ if __name__ == '__main__':
     os.environ['LOKY_MAX_CPU_COUNT'] = '1'
     os.environ['OMP_NUM_THREADS']    = '1'
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
-    print("="*50)
+    from app import app, NAV_BUILD, EXPECTED_TEMPLATES, missing_templates
+
+    # Startup self-check.
+    #
+    # The commonest deployment mistake is copying only the files that changed,
+    # which leaves new templates and modules behind. The app then either serves
+    # the old interface or fails with an unrelated-looking error much later.
+    # Printing the build and the page list here makes a partial copy obvious in
+    # the first two seconds instead of after an hour of confusion.
+    missing = missing_templates()
+    pages = [str(r) for r in app.url_map.iter_rules()
+             if not str(r).startswith('/api') and 'static' not in str(r)
+             and str(r) != '/static/<path:filename>']
+
+    print("=" * 58)
     print(" JACQUARD DESIGNER")
+    print(f" build {NAV_BUILD}")
+    print("=" * 58)
+    if missing:
+        print(" INCOMPLETE INSTALL — these template files are missing:")
+        for t in missing:
+            print(f"   - templates/{t}")
+        print()
+        print(" Copy the WHOLE project folder, not just changed files.")
+        print("=" * 58)
+    else:
+        print(f" {len(EXPECTED_TEMPLATES)} templates present · "
+              f"{len(pages)} pages:")
+        print("   " + "  ".join(sorted(pages)))
+        print("=" * 58)
     print(" Starting... please wait")
-    print("="*50)
+
     threading.Thread(target=open_browser, daemon=True).start()
-    from app import app
     app.run(host='127.0.0.1', port=5000, debug=False, use_reloader=False, threaded=True)

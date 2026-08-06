@@ -17,8 +17,10 @@
   was merged into Border Studio, and only its API endpoint survives, which
   Border Studio calls for fine-detail mode.
 #}
-<!-- jq-nav build {{ nav_build }} : if this comment is absent, the browser is
-     serving an old cached page or the app is running from a stale copy -->
+<!-- jq-nav build {{ nav_build }} : a content hash of the templates and core
+     modules. Compare against /api/build. If they differ, the browser is
+     serving a cached page; if /api/build 404s or reports missing_templates,
+     the app itself is running from an incomplete copy. -->
 <nav class="jq-nav" aria-label="Main">
   <a href="/"       class="jq-nav-link{% if request.path == '/' %} is-active{% endif %}"{% if request.path == '/' %} aria-current="page"{% endif %} title="BMP Generator">◈ Generator</a>
   <a href="/butta"  class="jq-nav-link{% if request.path == '/butta' %} is-active{% endif %}"{% if request.path == '/butta' %} aria-current="page"{% endif %} title="Butta Studio">❁ Butta</a>
