@@ -129,6 +129,43 @@ TOOLS = [
         },
     },
     {
+        "name": "generate_design",
+        "description": (
+            "Create a design from scratch instead of converting an upload. "
+            "Renders as vector at the exact pin count, so stroke weight is "
+            "chosen to be weavable and no detail is ever lost to resolution. "
+            "Good for grounds, borders, fills and simple buttas. These are "
+            "original geometric and stylised constructions, NOT traditional "
+            "motifs — say so if the weaver asks for a named regional style, "
+            "and offer the closest geometric equivalent."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "motif": {
+                    "type": "string",
+                    "enum": ["paisley", "lotus", "vine_border", "diamond_jaal",
+                             "check_ground", "chevron_border", "dotted_field"],
+                },
+                "pins": {"type": "integer", "description": "Loom pin count."},
+                "cards": {"type": "integer", "description": "Optional height; defaults to the motif ratio."},
+                "complexity": {"type": "integer", "description": "paisley: nested outlines, 1-4."},
+                "petals": {"type": "integer", "description": "lotus: 5-16."},
+                "rings": {"type": "integer", "description": "lotus: 1-3."},
+                "repeats": {"type": "integer", "description": "borders: repeats across the width."},
+                "cells": {"type": "integer", "description": "grounds: lattice or check divisions."},
+                "cols": {"type": "integer", "description": "dotted_field columns."},
+                "rows": {"type": "integer", "description": "dotted_field rows."},
+                "height": {"type": "integer", "description": "borders: band height in design units."},
+            },
+            "required": ["motif", "pins"],
+        },
+    },
+    {
+        "name": "list_motifs",
+        "description": "List the motifs that can be generated, with what each is for.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
         "name": "edit_design",
         "description": (
             "Change the converted design: thicken or thin the lines, clean up "
@@ -216,7 +253,20 @@ SYSTEM_PROMPT = """You convert saree and brocade designs into loom-ready BMP \
 files, one per shuttle. You are talking to a weaver or a mill operator, and you \
 can carry out the work they ask for — not just describe it.
 
-The usual path:
+You can either CONVERT a design the weaver uploads, or GENERATE one from the
+motif library. If they ask for a design without uploading anything, use
+generate_design; list_motifs shows what is available.
+
+About generated designs: they are original geometric and stylised
+constructions, built as vector at the loom's own pin count so the stroke weight
+is weavable by construction. They are NOT traditional regional motifs. If
+someone asks for a named tradition — Chola, Banarasi, Kanjivaram — say plainly
+that you can build a geometric butta or border in that spirit but not an
+authentic period motif, and that a designer is the right answer for anything a
+customer will recognise. Do not quietly pass off a generic paisley as Chola
+work.
+
+The usual path when converting an upload:
 1. Call inspect_design first. Never ask something you could have found out by \
 looking.
 2. Say what you found in one or two short sentences, then ask how many pins the \
@@ -637,6 +687,81 @@ def _tool_describe(session, args):
     }
 
 
+def _tool_list_motifs(session, args):
+    import motif_library as ml
+    return {'motifs': [{'name': k, 'description': v[1]} for k, v in sorted(ml.MOTIFS.items())],
+            'note': ('These are original parametric constructions, not traditional '
+                     'regional motifs. They suit grounds, borders, fills and simple '
+                     'buttas.')}
+
+
+def _tool_generate_design(session, args):
+    """
+    Build a design from the motif library and make it the working design.
+
+    Rendered from vector at the loom's own resolution, so the stroke weight is
+    chosen FOR the pin count rather than inherited from whatever a scan
+    happened to contain. Every resolution failure this app handles elsewhere —
+    thickening, closed gaps, lost interiors — cannot arise here.
+    """
+    import motif_library as ml
+    from auto_convert import auto_convert
+
+    motif = str(args.get('motif', '')).strip()
+    if motif not in ml.MOTIFS:
+        return {'error': f"Unknown motif '{motif}'. Available: "
+                         f"{', '.join(sorted(ml.MOTIFS))}"}
+    try:
+        pins = int(args.get('pins', 0))
+    except (TypeError, ValueError):
+        return {'error': 'Pins must be a whole number.'}
+    if not (10 <= pins <= 2640):
+        return {'error': 'Pins must be between 10 and 2640.'}
+
+    cards = args.get('cards')
+    try:
+        cards = int(cards) if cards else None
+    except (TypeError, ValueError):
+        cards = None
+    if cards is not None and not (10 <= cards <= 6000):
+        return {'error': 'Cards must be between 10 and 6000.'}
+
+    try:
+        svg = ml.build_svg(motif, pins, **{k: v for k, v in args.items()
+                                           if k not in ('motif', 'pins', 'cards')})
+        img = ml.render(svg, pins, cards)
+    except Exception as e:
+        return {'error': f'Could not build that design: {e}'}
+
+    # The generated image becomes the design under discussion, so every
+    # existing tool — edit, shuttles, weave, generate_files — works on it
+    # unchanged.
+    session['image'] = img
+    session['filename'] = f'{motif}_{pins}'
+    session['working'] = None
+    session['undo'] = []
+    session['shuttles'] = None
+    session['weave'] = {}
+    session['files'] = None
+
+    result = auto_convert(img, pins=pins, n_colors=2)
+    if not result.get('best'):
+        return {'error': result.get('summary', 'Generated design would not convert.')}
+    session['conversion'] = result
+    best, rep = result['best'], result['best']['report']
+
+    return {
+        'created': motif, 'pins': best['pins'], 'cards': best['cards'],
+        'verdict': result['verdict'],
+        'thread_drift_pct': rep['ink_drift_pct'],
+        'design_gaps': rep['output_white_regions'],
+        'note': ('Built as vector at the loom resolution, so stroke weight is '
+                 'weavable by construction. It can now be edited like any '
+                 'uploaded design.'),
+    }
+
+
+
 _DISPATCH = {
     'inspect_design': _tool_inspect,
     'convert': _tool_convert,
@@ -646,6 +771,8 @@ _DISPATCH = {
     'set_shuttles': _tool_set_shuttles,
     'set_weave': _tool_set_weave,
     'describe_result': _tool_describe,
+    'generate_design': _tool_generate_design,
+    'list_motifs': _tool_list_motifs,
 }
 
 

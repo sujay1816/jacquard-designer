@@ -189,6 +189,39 @@ def main():
     for f in ('pins', 'verdict', 'shuttles', 'weave', 'edits_applied', 'physical_size_in'):
         check(f'describe_result reports {f}', f in r, r)
 
+    print('\nGenerating designs')
+    tg = ag.new_session(Image.new('RGB', (10, 10), 'white'), 'g.png')
+    sg = ag.get_session(tg)
+
+    r = ag.run_tool('list_motifs', {}, sg)
+    check('motifs can be listed', len(r.get('motifs', [])) >= 5, r)
+    check('listing is honest about tradition', 'not traditional' in r.get('note', ''), r)
+
+    r = ag.run_tool('generate_design', {'motif': 'paisley', 'pins': 480}, sg)
+    check('design is generated', r.get('created') == 'paisley', r)
+    check('generated design converts cleanly', r.get('verdict') == 'ok', r)
+
+    check('unknown motif refused',
+          'error' in ag.run_tool('generate_design', {'motif': 'chola', 'pins': 480}, sg))
+    check('out-of-range pins refused',
+          'error' in ag.run_tool('generate_design', {'motif': 'lotus', 'pins': 99999}, sg))
+    check('missing pins refused',
+          'error' in ag.run_tool('generate_design', {'motif': 'lotus'}, sg))
+
+    # Stroke weight is chosen for the loom, which is the whole point.
+    import motif_library as ml
+    from loom_utils import source_resolution_check
+    for pins in (240, 480, 960):
+        img = ml.render(ml.build_svg('lotus', pins), pins)
+        tps = source_resolution_check(img, pins).get('threads_per_stroke') or 0
+        check(f'lotus at {pins} pins is weavable by construction', tps >= 2.0, tps)
+
+    r = ag.run_tool('edit_design', {'operation': 'thicken'}, sg)
+    check('generated designs can then be edited', r.get('applied') == 'thicken', r)
+    r = ag.run_tool('generate_files', {'shuttle_count': 2}, sg)
+    check('generated designs produce clean files',
+          r.get('ready') and all(f['clean_1bit'] for f in r['files']), r)
+
     print('\nFailure handling')
     t3 = ag.new_session(design(), 'y.png')
     s3 = ag.get_session(t3)

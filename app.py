@@ -448,9 +448,10 @@ def api_agent_start():
         import agent_engine
         token = agent_engine.new_session(img, f.filename or 'design')
         session = agent_engine.get_session(token)
-        result = agent_engine.converse(
-            session, 'I have uploaded a design. Please look at it and tell me '
-                     'what you see, then ask what I need.')
+        opening = str(request.form.get('opening', '')).strip()[:400] or (
+            'I have uploaded a design. Please look at it and tell me what you '
+            'see, then ask what I need.')
+        result = agent_engine.converse(session, opening)
         return jsonify({'success': result['ok'], 'token': token,
                         'reply': result['reply'],
                         'tools_used': result['tools_used'],

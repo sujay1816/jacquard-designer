@@ -6,3 +6,5 @@ scipy>=1.11.0
 scikit-image>=0.21.0
 # Optional — needed for HEIC/HEIF uploads (iPhone photos on macOS):
 # pillow-heif>=0.15.0
+
+cairosvg>=2.7          # renders generated vector motifs at loom resolution

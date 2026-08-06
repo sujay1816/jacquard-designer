@@ -122,6 +122,10 @@
         <h2>Drop a design here</h2>
         <p>JPG, PNG, BMP, WebP or TIFF · or click to browse</p>
       </div>
+      <p class="intro" style="margin-top:12px;text-align:center">
+        No design to hand? <a href="#" onclick="startBlank();return false"
+        style="color:var(--gold)">Ask it to build one</a> — borders, grounds,
+        lattices and simple buttas, drawn as vector at your exact pin count.</p>
       <input type="file" id="file" accept="image/*" style="display:none" onchange="start(this.files[0])">
     </div>
 
@@ -173,7 +177,17 @@ function busy(on) {
   document.getElementById('msg').disabled = on;
 }
 
-async function start(file) {
+// Start with no upload, so the assistant can build a design instead.
+async function startBlank() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 8;
+  const x = c.getContext('2d');
+  x.fillStyle = '#fff'; x.fillRect(0, 0, 8, 8);
+  c.toBlob(b => start(new File([b], 'new-design.png', { type: 'image/png' }),
+                      'Build me a design — tell me what you can make.'));
+}
+
+async function start(file, opening) {
   if (!file || BUSY) return;
   document.getElementById('ready').style.display = 'none';
   document.getElementById('chat').style.display = 'flex';
