@@ -6,7 +6,7 @@ from flask import (Flask, request, jsonify, render_template, send_file,
                    Response, stream_with_context)
 from PIL import Image, ImageOps, UnidentifiedImageError
 import numpy as np
-import io, os, zipfile, base64
+import io, os, re, zipfile, base64
 from bmp_engine import (detect_colors, generate_bmps, verify_bmp, enhance_image,
                         assess_image_quality,
                         generate_fill_pattern, FILL_PATTERNS, write_1bit_bmp)
@@ -123,9 +123,59 @@ def _bounds_error(pins, cards=None):
     return None
 
 
+_MODULE_ERR = re.compile(r"No module named ['\"]([\w.]+)['\"]")
+
+
 def _json_error(msg: str, status: int = 400):
     """Return a JSON error response (never HTML)."""
-    return jsonify({'success': False, 'error': msg}), status
+    return jsonify({'success': False, 'error': _dep_message(msg)}), status
+
+
+def _dep_message(msg):
+    """Rewrite a missing-module error as an install instruction."""
+    hit = _MODULE_ERR.search(str(msg))
+    if not hit:
+        return str(msg)
+    mod = hit.group(1).split('.')[0]
+    try:
+        import deps
+        entry = next((r for r in deps.REQUIRED + deps.OPTIONAL if r[0] == mod), None)
+    except Exception:
+        entry = None
+    pip_name, purpose = (entry[1], entry[2]) if entry else (mod, 'this feature')
+    prefix = str(msg).split('No module named')[0].strip().rstrip(':').strip()
+    lead = f'{prefix}: ' if prefix else ''
+    return (f'{lead}a required package is not installed. '
+            f'{mod} is needed for {purpose}. '
+            f'Run:  pip install "{pip_name}"  '
+            f'(or: pip install -r requirements.txt), then restart the app.')
+
+
+@app.errorhandler(ImportError)
+def _import_error(e):
+    """Catch a missing package that no route wrapped in a try block."""
+    return jsonify({'success': False, 'error': _dep_message(e)}), 500
+
+
+@app.route('/api/health', methods=['GET'])
+def api_health():
+    """
+    Whether this install is actually complete.
+
+    Pages call it on load so a missing package is reported before the weaver
+    does ten minutes of work and loses it at the last step.
+    """
+    try:
+        import deps
+        result = deps.check()
+        return jsonify({'success': True, 'ok': result['ok'],
+                        'missing': result['missing'],
+                        'missing_optional': result['missing_optional'],
+                        'install_command': (deps.install_command(result['missing'])
+                                            if result['missing'] else None),
+                        'templates_missing': missing_templates()})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.errorhandler(404)

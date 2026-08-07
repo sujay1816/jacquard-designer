@@ -23,6 +23,14 @@ if __name__ == '__main__':
     # the old interface or fails with an unrelated-looking error much later.
     # Printing the build and the page list here makes a partial copy obvious in
     # the first two seconds instead of after an hour of confusion.
+    # Dependency check BEFORE the template check. A missing package is the
+    # commoner failure and the more confusing one: the app starts, every page
+    # loads, and then one button fails with a Python module name. Reporting it
+    # once at startup costs nothing and saves that entire discovery.
+    import deps
+    dep_result = deps.check()
+    dep_report = deps.report(dep_result)
+
     missing = missing_templates()
     pages = [str(r) for r in app.url_map.iter_rules()
              if not str(r).startswith('/api') and 'static' not in str(r)
@@ -32,6 +40,9 @@ if __name__ == '__main__':
     print(" JACQUARD DESIGNER")
     print(f" build {NAV_BUILD}")
     print("=" * 58)
+    if dep_report:
+        print(dep_report)
+        print("=" * 58)
     if missing:
         print(" INCOMPLETE INSTALL — these template files are missing:")
         for t in missing:

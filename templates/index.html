@@ -2260,9 +2260,15 @@ async function detectColors() {
     const detectTimer = setTimeout(() => detectCtrl.abort(), 30000);
     const res = await fetch('/api/detect-colors', { method: 'POST', body: formData, signal: detectCtrl.signal });
     clearTimeout(detectTimer);
+    // Read the body before deciding. The server answers a 4xx with a real
+    // explanation — "that file is not a readable image", or the pip line that
+    // fixes a missing package — and discarding it for "Server error 400: BAD
+    // REQUEST" throws away the only part the person can act on.
+    let data = null;
+    try { data = await res.json(); } catch (e) { data = null; }
+    if (data && data.error) throw new Error(data.error);
     if (!res.ok) throw new Error('Server error ' + res.status + ': ' + res.statusText);
-    const data = await res.json();
-    if (!data.success) throw new Error(data.error);
+    if (!data || !data.success) throw new Error((data && data.error) || 'Detection failed.');
 
     state.detectedColors = data.colors;
     state.pins = data.pins;
