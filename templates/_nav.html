@@ -112,41 +112,57 @@
   Lives in the shared nav so every page gets it from one place — a per-page
   copy is how border.html ends up with the check and butta.html without it.
 
-  It exists because a missing package used to surface only at the moment of
-  use: upload a motif, set the pins, press preview, and get "No module named
-  'skimage'" after the work was already done. Reporting it on load costs one
-  request and saves that.
+  Severity is not cosmetic. The first version said "This install is incomplete"
+  in red on the Generator page because cairosvg could not load — but cairosvg
+  only draws generated motifs, and uploading a saree photo, converting it and
+  downloading BMPs works perfectly without it. A warning that overstates the
+  damage gets dismissed, and then the one that matters is dismissed with it.
 -->
 <div id="jqDepBanner" style="display:none"></div>
 <script>
 (function () {
   fetch('/api/health').then(r => r.json()).then(d => {
     if (!d.success) return;
-    const problems = (d.missing || []).length + (d.templates_missing || []).length;
-    if (!problems) return;
+    const core = (d.missing_core || []).length + (d.templates_missing || []).length;
+    const feat = (d.missing_features || []).length;
+    if (!core && !feat) return;
 
     const bar = document.getElementById('jqDepBanner');
+    const red = 'rgba(180,60,50,';
+    const amber = 'rgba(200,169,110,';
+    const tone = core ? red : amber;
     bar.style.cssText =
-      'display:block;margin:0 0 14px;padding:12px 16px;border-radius:6px;' +
-      'background:rgba(180,60,50,.10);border:1px solid rgba(180,60,50,.45);' +
-      'color:#e8ddd0;font-size:12.5px;line-height:1.65;';
+      'display:block;margin:0 0 14px;padding:11px 16px;border-radius:6px;' +
+      'background:' + tone + '.09);border:1px solid ' + tone + '.42);' +
+      'color:#e8ddd0;font-size:12.5px;line-height:1.7;';
 
-    let html = '<b>This install is incomplete.</b><br>';
-    if (d.missing && d.missing.length) {
-      html += 'Missing: ' + d.missing.map(m =>
-        '<b>' + m.module + '</b> (' + m.purpose + ')').join(', ') + '.<br>' +
-        'Run <code style="background:rgba(200,169,110,.14);padding:1px 6px;' +
-        'border-radius:3px">' + d.install_command + '</code> and restart.';
-    }
+    const code = t => '<code style="background:rgba(200,169,110,.14);' +
+      'padding:1px 6px;border-radius:3px">' + t + '</code>';
+
+    let html = core
+      ? '<b>This install is incomplete.</b><br>'
+      : '<b>One feature is unavailable.</b> Everything else on this page works.<br>';
+
+    (d.missing_core || []).concat(d.missing_features || []).forEach(m => {
+      html += '<br><b>' + m.module + '</b> — ' + m.purpose + '.<br>';
+      if (m.kind === 'broken') {
+        // Otherwise the person runs pip, is told the requirement is already
+        // satisfied, and has nothing to explain why the app disagrees.
+        html += '<i>Installed, but it cannot load its native library. '
+             +  'pip will not fix this.</i><br>';
+      }
+      html += (m.fix || []).filter(Boolean)
+        .map(line => /^(pip|conda|sudo|brew) /.test(line) ? code(line) : line)
+        .join('<br>');
+      html += '<br>';
+    });
+
     if (d.templates_missing && d.templates_missing.length) {
-      html += (d.missing && d.missing.length ? '<br>' : '') +
-        'Missing page files: ' + d.templates_missing.join(', ') +
-        '. Copy the whole project folder, not only changed files.';
+      html += '<br>Missing page files: ' + d.templates_missing.join(', ') +
+              '. Copy the whole project folder, not only changed files.';
     }
     bar.innerHTML = html;
 
-    // Put it at the top of the main content where it cannot be scrolled past
-    // before the work starts.
     const host = document.querySelector('main') || document.body;
     host.insertBefore(bar, host.firstChild);
   }).catch(() => {});

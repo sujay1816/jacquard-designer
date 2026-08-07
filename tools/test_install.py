@@ -39,12 +39,21 @@ def check(name, cond, detail=''):
         print(f'  FAIL  {name}  {detail}')
 
 
+def _result(*entries):
+    """Wrap entries into the shape check() returns."""
+    core = [e for e in entries if e['tier'] == 'core']
+    return {'ok': False, 'core_ok': not core, 'missing': list(entries),
+            'missing_core': core,
+            'missing_features': [e for e in entries if e['tier'] != 'core'],
+            'missing_optional': []}
+
+
 def main():
     c = flask_app.app.test_client()
 
     print('\nThe dependency list matches what the code imports')
     reqs = open(os.path.join(ROOT, 'requirements.txt'), encoding='utf-8').read().lower()
-    for mod, pip_name, _ in deps.REQUIRED:
+    for mod, pip_name, _, _tier in deps.REQUIRED:
         base = re.split(r'[><=]', pip_name)[0].strip().lower()
         check(f'{mod} is declared in requirements.txt', base in reqs, pip_name)
 
@@ -52,19 +61,28 @@ def main():
     # and the install name differ, which is exactly why "No module named
     # 'skimage'" is not an instruction anyone can follow.
     check('the table maps import names to install names',
-          dict((m, p) for m, p, _ in deps.REQUIRED)['skimage'].startswith('scikit-image'))
+          dict((m, p) for m, p, _, _t in deps.REQUIRED)['skimage'].startswith('scikit-image'))
     check('every required package has a stated purpose',
-          all(purpose for _, _, purpose in deps.REQUIRED))
+          all(purpose for _, _, purpose, _t in deps.REQUIRED))
+    check('every package is tiered core or feature',
+          all(t in ('core', 'feature') for _, _, _, t in deps.REQUIRED))
+    # cairosvg draws generated motifs and nothing else. Marking it core made
+    # the Generator shout "This install is incomplete" on a page that worked.
+    check('cairosvg is a feature, not core',
+          dict((m, t) for m, _, _, t in deps.REQUIRED)['cairosvg'] == 'feature')
+    check('skimage is core',
+          dict((m, t) for m, _, _, t in deps.REQUIRED)['skimage'] == 'core')
 
     print('\nEvery module the app imports is covered')
-    declared = {m for m, _, _ in deps.REQUIRED} | {m for m, _, _ in deps.OPTIONAL}
+    declared = {m for m, _, _, _ in deps.REQUIRED} | {m for m, _, _, _ in deps.OPTIONAL}
     stdlib_ok = {'io', 'os', 're', 'sys', 'json', 'math', 'time', 'uuid', 'zlib',
                  'base64', 'struct', 'pickle', 'queue', 'zipfile', 'hashlib',
                  'inspect', 'colorsys', 'threading', 'urllib', 'importlib',
                  'abc', 'dataclasses', 'typing', 'functools', 'collections',
                  'itertools', 'random', 'shutil', 'tempfile', 'traceback',
                  'warnings', 'webbrowser', 'subprocess', 'datetime', 'copy',
-                 'string', 'glob', 'textwrap', 'unicodedata', 'secrets'}
+                 'string', 'glob', 'textwrap', 'unicodedata', 'secrets',
+                 'platform', 'ast', 'logging', 'signal', 'socket'}
     local = {f[:-3] for f in os.listdir(ROOT) if f.endswith('.py')} | {'llm', 'templates'}
     import ast
     found, uncovered = set(), set()
@@ -91,25 +109,54 @@ def main():
           not uncovered, sorted(uncovered))
 
     print('\nA missing package is reported, not discovered')
-    absent = {'ok': False,
-              'missing': [{'module': 'skimage', 'install': 'scikit-image>=0.21.0',
-                           'purpose': 'Butta Studio'}],
-              'missing_optional': []}
+    absent = _result(deps._entry('skimage', 'scikit-image>=0.21.0', 'Butta Studio',
+                                 'core', 'not_installed',
+                                 ImportError("No module named 'skimage'")))
     text = deps.report(absent, colour=False)
     check('the startup report names the package', 'skimage' in text, text)
     check('and the command that installs it',
           'pip install "scikit-image>=0.21.0"' in text, text)
     check('and what stops working without it', 'Butta Studio' in text, text)
-    healthy = {'ok': True, 'missing': [], 'missing_optional': []}
+    healthy = {'ok': True, 'core_ok': True, 'missing': [], 'missing_core': [],
+               'missing_features': [], 'missing_optional': []}
     check('a complete install prints nothing at startup',
           deps.report(healthy) is None, deps.report(healthy))
     # An optional package missing is worth one line, not a warning block.
-    opt = {'ok': True, 'missing': [],
-           'missing_optional': [{'module': 'pillow_heif', 'install': 'pillow-heif',
-                                 'purpose': 'HEIC uploads'}]}
-    check('a missing optional package is mentioned, not alarming about',
-          'Optional' in deps.report(opt, colour=False)
-          and 'required packages are missing' not in deps.report(opt, colour=False))
+    opt = {'ok': True, 'core_ok': True, 'missing': [], 'missing_core': [],
+           'missing_features': [],
+           'missing_optional': [deps._entry('pillow_heif', 'pillow-heif',
+                                            'HEIC uploads', 'feature',
+                                            'not_installed', ImportError('x'))]}
+    check('a missing optional package does not claim the app is broken',
+          'cannot run properly' not in deps.report(opt, colour=False),
+          deps.report(opt, colour=False))
+
+    print('\nAn installed-but-broken package is diagnosed correctly')
+    # The failure the weaver hit: pip says "Requirement already satisfied" and
+    # the app says the package is missing, with nothing to explain the
+    # contradiction.
+    broken = _result(deps._entry(
+        'cairosvg', 'cairosvg>=2.7', 'drawing generated motifs', 'feature',
+        'broken', OSError('no library called "cairo-2" was found')))
+    rep = deps.report(broken, colour=False)
+    check('it says installed, not missing', 'cannot load' in rep, rep)
+    check('it says pip will not fix it', 'pip will NOT fix' in rep, rep)
+    check('and it does not offer a pip command',
+          deps.install_command(broken['missing']) is None)
+    check('a feature failure does not claim the app cannot run',
+          'cannot run properly' not in rep, rep)
+    check('but a core failure does',
+          'cannot run properly' in deps.report(_result(deps._entry(
+              'skimage', 'scikit-image', 'Butta', 'core', 'not_installed',
+              ImportError('x'))), colour=False))
+
+    print('\nNative-library errors are recognised, not just missing modules')
+    for text in ('no library called "cairo-2" was found',
+                 'OSError: dll load failed while importing cairosvg',
+                 'cannot load library libcairo.so.2'):
+        out = flask_app._dep_message(text)
+        check(f'{text[:38]!r} is diagnosed',
+              'not a pip problem' in out and 'cairosvg' in out, out[:110])
 
     print('\nWhen it does surface, it is an instruction')
     # The message the weaver actually saw. It is true and useless: the thing to

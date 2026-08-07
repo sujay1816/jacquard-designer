@@ -132,23 +132,61 @@ def _json_error(msg: str, status: int = 400):
 
 
 def _dep_message(msg):
-    """Rewrite a missing-module error as an install instruction."""
-    hit = _MODULE_ERR.search(str(msg))
-    if not hit:
-        return str(msg)
-    mod = hit.group(1).split('.')[0]
+    """
+    Rewrite an install failure as an instruction.
+
+    Handles both shapes, because they read nothing alike and have different
+    fixes:
+
+      "No module named 'skimage'"           -> the package is absent, pip fixes it
+      "no library called 'cairo-2' was found" -> the package is present and its
+                                                 native library is not, and pip
+                                                 does NOT fix it
+
+    Telling someone to run pip for the second one sends them in a circle: pip
+    reports the requirement already satisfied while the app keeps insisting the
+    package is missing, and nothing explains the contradiction.
+    """
+    text = str(msg)
     try:
         import deps
-        entry = next((r for r in deps.REQUIRED + deps.OPTIONAL if r[0] == mod), None)
     except Exception:
-        entry = None
-    pip_name, purpose = (entry[1], entry[2]) if entry else (mod, 'this feature')
-    prefix = str(msg).split('No module named')[0].strip().rstrip(':').strip()
-    lead = f'{prefix}: ' if prefix else ''
-    return (f'{lead}a required package is not installed. '
-            f'{mod} is needed for {purpose}. '
-            f'Run:  pip install "{pip_name}"  '
-            f'(or: pip install -r requirements.txt), then restart the app.')
+        return text
+
+    mod = None
+    hit = _MODULE_ERR.search(text)
+    if hit:
+        mod = hit.group(1).split('.')[0]
+    else:
+        # A native-binding failure names the LIBRARY, not the python module, so
+        # it has to be matched back to whichever package wraps it.
+        low = text.lower()
+        if not any(w in low for w in ('no library called', 'cannot load library',
+                                      'cannot open shared object',
+                                      'dll load failed', 'symbol not found')):
+            return text
+        mod = next((m for m in deps.NATIVE if m in low or
+                    m.replace('svg', '') in low), None)
+        if mod is None:
+            return text
+
+    entry = next((r for r in deps.REQUIRED + deps.OPTIONAL if r[0] == mod), None)
+    pip_name = entry[1] if entry else mod
+    purpose = entry[2] if entry else 'this feature'
+    kind = 'not_installed' if hit and mod not in deps.NATIVE else (
+        'not_installed' if hit and 'no module named' in text.lower()
+        and mod not in deps.NATIVE else 'broken')
+    if hit and mod not in deps.NATIVE:
+        kind = 'not_installed'
+    fix = ' '.join(x for x in deps._fix_lines(mod, pip_name, kind) if x)
+
+    prefix = _MODULE_ERR.split(text)[0].strip().rstrip(':').strip() if hit else ''
+    lead = f'{prefix}: ' if prefix and len(prefix) < 60 else ''
+    if kind == 'broken':
+        return (f'{lead}{mod} is installed but could not load, so {purpose} '
+                f'is unavailable. This is not a pip problem — the package is '
+                f'there; the native library it needs is not. {fix}')
+    return (f'{lead}{mod} is not installed, so {purpose} is unavailable. {fix}')
 
 
 @app.errorhandler(ImportError)
@@ -168,11 +206,18 @@ def api_health():
     try:
         import deps
         result = deps.check()
-        return jsonify({'success': True, 'ok': result['ok'],
+        return jsonify({'success': True,
+                        'ok': result['ok'],
+                        # Whether the app is usable, as distinct from perfect.
+                        # A missing feature package is not an emergency and
+                        # must not be dressed as one.
+                        'core_ok': result['core_ok'],
                         'missing': result['missing'],
+                        'missing_core': result['missing_core'],
+                        'missing_features': result['missing_features'],
                         'missing_optional': result['missing_optional'],
-                        'install_command': (deps.install_command(result['missing'])
-                                            if result['missing'] else None),
+                        'install_command': deps.install_command(result['missing']),
+                        'platform': result['platform'],
                         'templates_missing': missing_templates()})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500

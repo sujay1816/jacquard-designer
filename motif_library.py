@@ -276,10 +276,34 @@ def build_svg(motif: str, pins: int, **params) -> str:
 
 
 def render(svg: str, pins: int, cards: int = None):
-    """Rasterise SVG at the loom's resolution. Returns a PIL RGB image."""
-    import cairosvg
+    """
+    Rasterise SVG at the loom's resolution. Returns a PIL RGB image.
+
+    This is the ONLY place cairosvg is used in the whole product, which is why
+    a Cairo problem takes out generated motifs and nothing else — uploading,
+    converting and writing BMPs never come near it.
+
+    The import is guarded because cairosvg fails in two quite different ways
+    and the raw exception explains neither. On Windows it is usually installed
+    correctly and still cannot load, because cairocffi wants libcairo-2.dll and
+    pip does not ship it; the error then reads `no library called "cairo-2" was
+    found`, which sends people to pip, which reports the requirement already
+    satisfied.
+    """
     from PIL import Image
     import re
+
+    try:
+        import cairosvg
+    except Exception as e:
+        try:
+            import deps
+            deps.guard('cairosvg', 'Generating motifs')
+        except RuntimeError:
+            raise
+        except Exception:
+            pass
+        raise RuntimeError(f'Generating motifs is unavailable: {e}')
 
     m = re.search(r'viewBox="0 0 (\d+) (\d+)"', svg)
     vw, vh = (int(m.group(1)), int(m.group(2))) if m else (_VIEW, _VIEW)
