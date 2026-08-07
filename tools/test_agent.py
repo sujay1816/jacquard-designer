@@ -222,6 +222,111 @@ def main():
     check('generated designs produce clean files',
           r.get('ready') and all(f['clean_1bit'] for f in r['files']), r)
 
+    print('\nAll-over brocade fields')
+    ta = ag.new_session(Image.new('RGB', (10, 10), 'white'), 'a.png')
+    sa = ag.get_session(ta)
+
+    import motif_library as ml
+    from loom_utils import source_resolution_check
+
+    for layout in ml.ALLOVER_LAYOUTS:
+        r = ag.run_tool('generate_allover',
+                        {'pins': 480, 'layout': layout, 'motif': 'paisley',
+                         'cols': 5, 'rows': 5}, sa)
+        check(f'{layout} field builds', r.get('verdict') in ('ok', 'warn'), r)
+
+    check('unknown layout refused',
+          'error' in ag.run_tool('generate_allover', {'pins': 480, 'layout': 'spiral'}, sa))
+    check('unknown motif refused',
+          'error' in ag.run_tool('generate_allover',
+                                 {'pins': 480, 'layout': 'jaal', 'motif': 'chola'}, sa))
+    check('out-of-range pins refused',
+          'error' in ag.run_tool('generate_allover', {'pins': 99999, 'layout': 'jaal'}, sa))
+
+    # The point of rebuilding motifs at tile size: linework survives the repeat.
+    for cols in (3, 6, 10):
+        img = ml.render(ml.allover(480, layout='half_drop', motif='paisley',
+                                   cols=cols, rows=4), 480)
+        tps = source_resolution_check(img, 480).get('threads_per_stroke') or 0
+        check(f'{cols} motifs across stays weavable', tps >= 2.0, tps)
+
+    r = ag.run_tool('generate_allover',
+                    {'pins': 480, 'layout': 'banded', 'motif': 'lotus',
+                     'band_motif': 'chevron_border', 'cols': 4, 'rows': 4}, sa)
+    check('banded field accepts a band motif', r.get('verdict') in ('ok', 'warn'), r)
+    r = ag.run_tool('edit_design', {'operation': 'thicken'}, sa)
+    check('all-over fields can be edited', r.get('applied') == 'thicken', r)
+    r = ag.run_tool('generate_files', {'shuttle_count': 2}, sa)
+    check('all-over fields produce clean files',
+          r.get('ready') and all(f['clean_1bit'] for f in r['files']), r)
+
+    print('\nDesigning to a pin count')
+    td = ag.new_session(Image.new('RGB', (10, 10), 'white'), 'd2.png')
+    sd = ag.get_session(td)
+
+    r = ag.run_tool('design_options', {'pins': 480}, sd)
+    check('reports what fits', r.get('motifs'), r)
+    check('gives usable guidance', r.get('notes'), r)
+    paisley = next(m for m in r['motifs'] if m['motif'] == 'paisley')
+    check('max across is derived from the pin count',
+          paisley['max_across'] == 10, paisley)
+    check('comfortable count is lower than the maximum',
+          paisley['comfortable_across'] < paisley['max_across'], paisley)
+
+    wide = ag.run_tool('design_options', {'pins': 960}, sd)
+    narrow = ag.run_tool('design_options', {'pins': 240}, sd)
+    wp = next(m for m in wide['motifs'] if m['motif'] == 'paisley')['max_across']
+    np_ = next(m for m in narrow['motifs'] if m['motif'] == 'paisley')['max_across']
+    check('a wider loom fits more', wp > np_, (wp, np_))
+
+    tiny = ag.run_tool('design_options', {'pins': 150}, sd)
+    check('narrow looms are steered to geometric grounds',
+          any('geometric' in n for n in tiny['notes']), tiny['notes'])
+
+    check('out-of-range pins refused',
+          'error' in ag.run_tool('design_options', {'pins': 5}, sd))
+
+    # The recommendation must actually hold up when built.
+    cols = paisley['comfortable_across']
+    r = ag.run_tool('generate_allover',
+                    {'pins': 480, 'layout': 'half_drop', 'motif': 'paisley',
+                     'cols': cols, 'rows': 5}, sd)
+    check('the recommended count converts cleanly', r.get('verdict') == 'ok', r)
+
+    print('\nMulti-thread designs')
+    tc = ag.new_session(Image.new('RGB', (10, 10), 'white'), 'c.png')
+    sc = ag.get_session(tc)
+
+    import motif_library as ml
+    from vision_engine import detect_colors_smart
+
+    for motif in ('paisley', 'lotus', 'vine_border', 'diamond_jaal'):
+        img = ml.render(ml.build_svg(motif, 480, colours=3), 480)
+        _, _, lm, _ = detect_colors_smart(img, 3, 480, img.size[1])
+        check(f'{motif} separates into three thread classes',
+              len(np.unique(np.asarray(lm))) == 3, np.unique(np.asarray(lm)))
+
+    r = ag.run_tool('generate_allover',
+                    {'pins': 480, 'layout': 'half_drop', 'motif': 'paisley',
+                     'cols': 5, 'rows': 4, 'colours': 3}, sc)
+    check('a two-thread field builds', r.get('threads') == 2, r)
+
+    # shuttle_count includes the rani ground, so two design threads need 3.
+    g = ag.run_tool('generate_files', {'shuttle_count': 3}, sc)
+    names = {f['file'].rsplit('_', 1)[-1] for f in g['files']}
+    check('a second thread produces a meena file', 'meena1.bmp' in names, names)
+
+    g2 = ag.run_tool('generate_files', {'shuttle_count': 2}, sc)
+    check('a loom with too few shuttles says so, not silently drops a thread',
+          g2.get('thread_warning'), g2)
+    check('every thread file is clean 1-bit',
+          all(f['clean_1bit'] for f in g['files']), g['files'])
+
+    r = ag.run_tool('generate_allover',
+                    {'pins': 480, 'layout': 'jaal', 'motif': 'lotus',
+                     'cols': 5, 'rows': 4, 'colours': 2}, sc)
+    check('single-thread fields still work', r.get('threads') == 1, r)
+
     print('\nFailure handling')
     t3 = ag.new_session(design(), 'y.png')
     s3 = ag.get_session(t3)

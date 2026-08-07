@@ -157,7 +157,67 @@ TOOLS = [
                 "rows": {"type": "integer", "description": "dotted_field rows."},
                 "height": {"type": "integer", "description": "borders: band height in design units."},
             },
-            "required": ["motif", "pins"],
+            "colours": {"type": "integer", "description": "Threads in the design: 2 for a single thread on the ground, 3 for two threads (zari plus meena). Default 2."},
+                "required": ["motif", "pins"],
+        },
+    },
+    {
+        "name": "generate_allover",
+        "description": (
+            "Build an ALL-OVER brocade field — a full body of repeating motifs, "
+            "not a single motif. This is what most saree and brocade work "
+            "actually is. Layouts: half_drop (the usual body), straight, brick, "
+            "banded (motif rows separated by border rules, as on a real "
+            "brocade), jaal (diamond lattice with a motif in each cell), and "
+            "stripe. Motifs are rebuilt at tile size so the linework stays "
+            "weavable however many repeats are asked for."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "pins": {"type": "integer", "description": "Loom pin count."},
+                "cards": {"type": "integer", "description": "Optional height in cards."},
+                "layout": {
+                    "type": "string",
+                    "enum": ["half_drop", "straight", "brick", "banded", "jaal", "stripe"],
+                },
+                "motif": {
+                    "type": "string",
+                    "enum": ["paisley", "lotus", "vine_border", "diamond_jaal",
+                             "check_ground", "chevron_border", "dotted_field"],
+                    "description": "The repeating unit. paisley or lotus for a butta field.",
+                },
+                "cols": {"type": "integer", "description": "Motifs across the width, 1-24."},
+                "rows": {"type": "integer", "description": "Motif rows down the length, 1-40."},
+                "spacing": {"type": "number", "description": "Gap between motifs as a fraction, 0-1.5. Default 0.25."},
+                "band_motif": {
+                    "type": "string",
+                    "enum": ["vine_border", "chevron_border"],
+                    "description": "banded layout: which rule separates the motif rows.",
+                },
+                "band_every": {"type": "integer", "description": "banded layout: rule after every N motif rows."},
+                "mirror": {"type": "boolean", "description": "Alternate motifs mirrored."},
+            },
+            "colours": {"type": "integer", "description": "Threads in the design: 2 for a single thread on the ground, 3 for two threads (zari plus meena). Default 2."},
+                "required": ["pins", "layout"],
+        },
+    },
+    {
+        "name": "design_options",
+        "description": (
+            "Given a pin count, report what can actually be designed at that "
+            "width: how many of each motif fit across before the internal "
+            "detail stops reading, a comfortable count with room to breathe, "
+            "and which layouts suit. Call this BEFORE generating when the "
+            "weaver has given a pin count but not said what they want — it is "
+            "how you design within the loom's real limits instead of guessing "
+            "and being corrected."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "pins": {"type": "integer"},
+                "cards": {"type": "integer"},
+            },
+            "required": ["pins"],
         },
     },
     {
@@ -254,8 +314,21 @@ files, one per shuttle. You are talking to a weaver or a mill operator, and you 
 can carry out the work they ask for — not just describe it.
 
 You can either CONVERT a design the weaver uploads, or GENERATE one from the
-motif library. If they ask for a design without uploading anything, use
-generate_design; list_motifs shows what is available.
+motif library. If they ask for a design without uploading anything, use generate_design for a
+single motif or generate_allover for a full body — an all-over field of
+repeating motifs, which is what most saree and brocade work actually is. Reach
+for generate_allover whenever they describe a body, a field, a jaal, an
+all-over, or a repeat; use generate_design only when they clearly want one
+motif on its own. list_motifs shows both.
+
+When they give a pin count but leave the design to you, call design_options
+first. It reports how many of each motif fit across before the detail stops
+reading at that width, so you can propose something that works instead of
+guessing and being corrected. Then say what you are proposing and why the width
+led you there — "480 pins gives room for six paisleys across with space to
+breathe; ten would fit but each motif would only get 48 threads and the
+interiors would close" — and build it. Design decisions belong to you; just
+show your reasoning so the weaver can overrule it.
 
 About generated designs: they are original geometric and stylised
 constructions, built as vector at the loom's own pin count so the stroke weight
@@ -293,6 +366,10 @@ them to learn tool names.
 
 What matters:
 - Black lifts the thread, white leaves it down. A BMP is an instruction sheet.
+- Shuttle count includes the rani ground: 1 is zari alone, 2 is zari plus \
+rani, 3 adds meena1, 4 adds meena2. So a design with two colours needs \
+shuttle_count 3. If generate_files warns that threads were dropped, tell the \
+weaver — do not hand over a file with a colour silently missing.
 - Shuttles are hardware. The loom weaves exactly shuttle_count threads. If \
 someone asks for a colour there is no thread for, say so and offer the real \
 options: replace one, or raise the count if the loom has a spare shuttle.
@@ -417,13 +494,23 @@ def _tool_generate(session, args):
         # Default: largest region is the ground, the rest take shuttles in
         # descending area order. Chosen here rather than by the model so the
         # loom's thread budget cannot be exceeded.
+        #
+        # shuttle_count follows the app's own convention, in which the rani
+        # ground occupies a slot: 1 = zari alone, 2 = zari + rani, 3 = zari +
+        # rani + meena1, 4 adds meena2. So the number of DESIGN threads is one
+        # fewer than the shuttle count above 2. Treating every slot as a design
+        # thread silently dropped the second colour of a two-thread design onto
+        # the background, producing a file with the meena simply missing.
         names = ['zari', 'meena1', 'meena2']
+        design_slots = 1 if shuttles <= 2 else min(shuttles - 1, len(names))
         counts = np.bincount(lm.ravel(), minlength=n_labels)
         order = list(np.argsort(-counts))
         assignments = {int(order[0]): 'background'}
         for i, idx in enumerate(order[1:]):
-            assignments[int(idx)] = names[i] if i < min(shuttles, len(names)) else 'background'
+            assignments[int(idx)] = names[i] if i < design_slots else 'background'
+        dropped = max(0, (n_labels - 1) - design_slots)
 
+    dropped = locals().get('dropped', 0)
     default = {'n': 8, 'flip': False}
     satin = {n: dict(session['weave'].get(n, default)) for n in
              ('zari', 'meena1', 'meena2')}
@@ -459,6 +546,13 @@ def _tool_generate(session, args):
         'float_warning': (
             f"Longest float is {worst} picks — check with the loom operator "
             f"before running." if worst > 30 else None),
+        'threads_dropped': dropped or None,
+        'thread_warning': (
+            f"The design has {dropped} more thread"
+            f"{'s' if dropped != 1 else ''} than this loom carries, so "
+            f"{'they were' if dropped != 1 else 'it was'} folded into the "
+            f"ground. Raise shuttle_count to keep "
+            f"{'them' if dropped != 1 else 'it'}." if dropped else None),
     }
 
 
@@ -687,9 +781,104 @@ def _tool_describe(session, args):
     }
 
 
+def _tool_generate_allover(session, args):
+    """
+    Build a full all-over brocade field and make it the working design.
+
+    Distinct from generate_design, which makes one motif. Real saree and
+    brocade work is a field: motif rows with band rules, a jaal lattice, a
+    half-drop repeat across the whole body.
+    """
+    import motif_library as ml
+    from auto_convert import auto_convert
+
+    try:
+        pins = int(args.get('pins', 0))
+    except (TypeError, ValueError):
+        return {'error': 'Pins must be a whole number.'}
+    if not (10 <= pins <= 2640):
+        return {'error': 'Pins must be between 10 and 2640.'}
+
+    layout = str(args.get('layout', 'half_drop')).strip()
+    if layout not in ml.ALLOVER_LAYOUTS:
+        return {'error': f"Unknown layout '{layout}'. Available: "
+                         f"{', '.join(sorted(ml.ALLOVER_LAYOUTS))}"}
+
+    motif = str(args.get('motif', 'paisley')).strip()
+    if motif not in ml.MOTIFS:
+        return {'error': f"Unknown motif '{motif}'."}
+
+    cards = args.get('cards')
+    try:
+        cards = int(cards) if cards else None
+    except (TypeError, ValueError):
+        cards = None
+    if cards is not None and not (10 <= cards <= 6000):
+        return {'error': 'Cards must be between 10 and 6000.'}
+
+    kw = {k: v for k, v in args.items()
+          if k in ('cols', 'rows', 'spacing', 'band_motif', 'band_every',
+                   'mirror', 'colours')
+          and v is not None}
+    try:
+        svg = ml.allover(pins, layout=layout, motif=motif, cards=cards, **kw)
+        img = ml.render(svg, pins)
+    except Exception as e:
+        return {'error': f'Could not build that field: {e}'}
+
+    if img.size[1] > 6000:
+        return {'error': f'That would be {img.size[1]} cards, over the 6000 limit. '
+                         f'Reduce rows.'}
+
+    session['image'] = img
+    session['filename'] = f'{layout}_{motif}_{pins}'
+    session['working'] = None
+    session['undo'] = []
+    session['shuttles'] = None
+    session['weave'] = {}
+    session['files'] = None
+
+    n_colors = max(2, min(4, int(args.get('colours', 2) or 2)))
+    result = auto_convert(img, pins=pins, n_colors=n_colors)
+    if not result.get('best'):
+        return {'error': result.get('summary', 'That field would not convert.')}
+    session['conversion'] = result
+    best, rep = result['best'], result['best']['report']
+
+    return {
+        'created': f'{layout} field of {motif}',
+        'threads': n_colors - 1,
+        'pins': best['pins'], 'cards': best['cards'],
+        'cols': kw.get('cols', 5), 'rows': kw.get('rows', 6),
+        'verdict': result['verdict'],
+        'thread_drift_pct': rep['ink_drift_pct'],
+        'design_gaps': rep['output_white_regions'],
+        'note': ('Motifs were rebuilt at tile size, so the linework is weavable '
+                 'at this repeat count. Editable like any design.'),
+    }
+
+
+def _tool_design_options(session, args):
+    import motif_library as ml
+    try:
+        pins = int(args.get('pins', 0))
+    except (TypeError, ValueError):
+        return {'error': 'Pins must be a whole number.'}
+    if not (10 <= pins <= 2640):
+        return {'error': 'Pins must be between 10 and 2640.'}
+    cards = args.get('cards')
+    try:
+        cards = int(cards) if cards else None
+    except (TypeError, ValueError):
+        cards = None
+    return ml.design_options(pins, cards)
+
+
 def _tool_list_motifs(session, args):
     import motif_library as ml
     return {'motifs': [{'name': k, 'description': v[1]} for k, v in sorted(ml.MOTIFS.items())],
+            'allover_layouts': [{'name': k, 'description': v}
+                                for k, v in sorted(ml.ALLOVER_LAYOUTS.items())],
             'note': ('These are original parametric constructions, not traditional '
                      'regional motifs. They suit grounds, borders, fills and simple '
                      'buttas.')}
@@ -744,7 +933,8 @@ def _tool_generate_design(session, args):
     session['weave'] = {}
     session['files'] = None
 
-    result = auto_convert(img, pins=pins, n_colors=2)
+    n_colors = max(2, min(4, int(args.get('colours', 2) or 2)))
+    result = auto_convert(img, pins=pins, n_colors=n_colors)
     if not result.get('best'):
         return {'error': result.get('summary', 'Generated design would not convert.')}
     session['conversion'] = result
@@ -752,6 +942,7 @@ def _tool_generate_design(session, args):
 
     return {
         'created': motif, 'pins': best['pins'], 'cards': best['cards'],
+        'threads': n_colors - 1,
         'verdict': result['verdict'],
         'thread_drift_pct': rep['ink_drift_pct'],
         'design_gaps': rep['output_white_regions'],
@@ -773,6 +964,8 @@ _DISPATCH = {
     'describe_result': _tool_describe,
     'generate_design': _tool_generate_design,
     'list_motifs': _tool_list_motifs,
+    'generate_allover': _tool_generate_allover,
+    'design_options': _tool_design_options,
 }
 
 
