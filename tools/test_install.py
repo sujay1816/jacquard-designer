@@ -66,12 +66,32 @@ def main():
           all(purpose for _, _, purpose, _t in deps.REQUIRED))
     check('every package is tiered core or feature',
           all(t in ('core', 'feature') for _, _, _, t in deps.REQUIRED))
-    # cairosvg draws generated motifs and nothing else. Marking it core made
-    # the Generator shout "This install is incomplete" on a page that worked.
-    check('cairosvg is a feature, not core',
-          dict((m, t) for m, _, _, t in deps.REQUIRED)['cairosvg'] == 'feature')
     check('skimage is core',
           dict((m, t) for m, _, _, t in deps.REQUIRED)['skimage'] == 'core')
+
+    # cairosvg is no longer required at all: motif_library falls back to
+    # svg_raster, which needs only PIL. Requiring it meant requiring Cairo — a
+    # C library pip cannot install — for SVG this project writes itself.
+    required_names = {m for m, _, _, _ in deps.REQUIRED}
+    check('cairosvg is not a required package', 'cairosvg' not in required_names)
+    check('and it is listed as optional',
+          'cairosvg' in {m for m, _, _, _ in deps.OPTIONAL})
+
+    import motif_library as ml
+    check('there is a renderer either way', ml.renderer_name() in ('cairosvg', 'builtin'))
+    saved = ml._RENDERER
+    try:
+        ml._RENDERER = 'builtin'
+        img = ml.render(ml.build_svg('paisley', 200), 200)
+        check('motifs render with cairo unavailable', img.size == (200, 200), img.size)
+    finally:
+        ml._RENDERER = saved
+
+    check('the health endpoint names the active renderer',
+          c.get('/api/health').get_json().get('renderer') in ('cairosvg', 'builtin'))
+    # Nothing is broken when Cairo is absent, so nothing should shout about it.
+    check('a machine without Cairo reports a healthy core',
+          c.get('/api/health').get_json()['core_ok'])
 
     print('\nEvery module the app imports is covered')
     declared = {m for m, _, _, _ in deps.REQUIRED} | {m for m, _, _, _ in deps.OPTIONAL}
@@ -82,7 +102,7 @@ def main():
                  'itertools', 'random', 'shutil', 'tempfile', 'traceback',
                  'warnings', 'webbrowser', 'subprocess', 'datetime', 'copy',
                  'string', 'glob', 'textwrap', 'unicodedata', 'secrets',
-                 'platform', 'ast', 'logging', 'signal', 'socket'}
+                 'platform', 'ast', 'logging', 'signal', 'socket', 'xml'}
     local = {f[:-3] for f in os.listdir(ROOT) if f.endswith('.py')} | {'llm', 'templates'}
     import ast
     found, uncovered = set(), set()

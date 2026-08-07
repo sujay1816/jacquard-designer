@@ -44,7 +44,11 @@ import loom_utils
 # Motifs that read as a running band rather than a standalone butta. Used for
 # borders and for the rules between motif rows.
 BAND_MOTIFS = ('vine_border', 'chevron_border')
-BUTTA_MOTIFS = ('paisley', 'lotus')
+# Fillers occupy the gaps between buttas in an interlock layout. They are
+# not standalone body motifs — a field of nothing but sprigs reads as
+# undergrowth, not as cloth.
+FILLER_MOTIFS = ('leaf_sprig', 'vine_border')
+BUTTA_MOTIFS = ('paisley', 'lotus', 'diamond_medallion', 'daisy')
 GROUND_MOTIFS = ('diamond_jaal', 'check_ground', 'dotted_field')
 
 # A side border narrower than this cannot carry a running motif — it becomes a
@@ -77,6 +81,9 @@ class LayoutSpec:
     rows: int = 8
     spacing: float = 0.25
     mirror: bool = False
+
+    filler: str = 'leaf_sprig'          # used by the interlock layout
+    filler_scale: float = 0.78
 
     border: bool = True
     border_motif: str = 'vine_border'
@@ -115,6 +122,13 @@ FEEL = {
     'minimal':    {'spacing': 0.70, 'density': 0.45, 'layout': 'straight'},
     'geometric':  {'spacing': 0.20, 'density': 1.10, 'layout': 'straight'},
     'formal':     {'spacing': 0.20, 'density': 1.00, 'layout': 'banded'},
+    # Layouts that carry a second, rotated motif between the buttas. These are
+    # what a weaver means by a design that "flows" rather than repeating: the
+    # period is identical, the grid is simply harder to see.
+    'flowing':    {'spacing': 0.10, 'density': 1.15, 'layout': 'interlock'},
+    'ornate':     {'spacing': 0.08, 'density': 1.20, 'layout': 'interlock'},
+    'floral':     {'spacing': 0.12, 'density': 1.10, 'layout': 'interlock'},
+    'brocade':    {'spacing': 0.10, 'density': 1.25, 'layout': 'interlock'},
 }
 
 
@@ -158,7 +172,13 @@ def plan(pins=None, reed=None, picks=None, cards=None, feel=None, threads=2,
         max_across = max(1, body_pins // need)
         if max_across < 1:
             continue
-        cols = max(1, int(round(max_across * 0.62 * prefs['density'])))
+        density = prefs['density']
+        if prefs['layout'] == 'interlock':
+            # A filler sits in every gap, so the field is roughly twice as busy
+            # at the same column count. Traditional cloth of this kind carries
+            # four or five medallions across a body, not ten.
+            density *= 0.55
+        cols = max(1, int(round(max_across * 0.62 * density)))
         cols = max(1, min(cols, max_across))
         threads_each = body_pins // cols
         options.append({
@@ -182,8 +202,15 @@ def plan(pins=None, reed=None, picks=None, cards=None, feel=None, threads=2,
     # meant paisley. Grounds are the fallback for cloth too narrow to hold a
     # butta, not the default answer.
     def rank(o):
+        # In an interlock field the butta is the anchor and a filler flows
+        # around it, which is the medallion-and-sprig look a weaver means by
+        # "ornate" or "flowing". Ranking on headroom alone hands them a paisley
+        # instead — technically fine, and not the cloth they asked for.
+        signature = (prefs['layout'] == 'interlock'
+                     and o['motif'] in ('diamond_medallion', 'daisy'))
         return (not o['reads_well'],
                 0 if o['kind'] == 'butta' else 1,
+                0 if signature else 1,
                 abs(o['headroom'] - 1.4))
 
     options.sort(key=rank)
@@ -266,7 +293,7 @@ def _rows_to_fill(motif, cols, spacing, body_pins, body_cards, threads=2,
     """
     cols = max(1, int(cols))
     tile_pins = body_pins / cols
-    if layout == 'jaal':
+    if layout in ('jaal', 'interlock'):
         row_pins = tile_pins                 # lattice cell, not tile height
     else:
         try:
@@ -362,6 +389,7 @@ def compose(spec: LayoutSpec) -> str:
         max(24, body_pins), layout=spec.body_layout, motif=spec.body_motif,
         cols=spec.cols, rows=rows, spacing=spec.spacing,
         mirror=spec.mirror, colours=spec.threads + 1,
+        filler=spec.filler, filler_scale=spec.filler_scale,
         cards=int(round(body_pins * body_h / max(body_view, 1))))
     inner, bw, bh = ml._inner(body_svg)
     s = body_view / bw
@@ -551,6 +579,8 @@ def refine(spec: LayoutSpec, instruction: str):
 def describe(spec: LayoutSpec) -> str:
     """The design in a sentence, for the assistant to read back."""
     bits = [f'{spec.cols} {spec.body_motif} across in a {spec.body_layout} repeat']
+    if spec.body_layout == 'interlock' and spec.filler:
+        bits.append(f'{spec.filler} between them')
     if spec.border and spec.border_pins() >= MIN_BORDER_THREADS:
         bits.append(f'{spec.border_motif} borders {spec.border_pins()} threads wide')
     if spec.cross_border:

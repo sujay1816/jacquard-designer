@@ -37,12 +37,16 @@ REQUIRED = [
     ('scipy',    'scipy>=1.11.0',        'linework cleaning and float checks', 'core'),
     ('skimage',  'scikit-image>=0.21.0',
      'Butta Studio, Border Studio and thread reduction', 'core'),
-    ('cairosvg', 'cairosvg>=2.7',
-     'drawing generated motifs (Assistant designs and the motif library)',
-     'feature'),
 ]
 
 OPTIONAL = [
+    # cairosvg is now genuinely optional: motif_library falls back to the
+    # built-in rasteriser in svg_raster.py, which needs nothing but PIL. It was
+    # required when it was the only way to draw a motif, and requiring it meant
+    # requiring a C library pip cannot install — a GTK runtime on Windows, brew
+    # plus a DYLD path variable on Apple Silicon. Nothing breaks without it now.
+    ('cairosvg', 'cairosvg>=2.7',
+     'slightly finer motif linework (there is a built-in fallback)', 'feature'),
     ('pillow_heif', 'pillow-heif>=0.15.0', 'HEIC/HEIF uploads from iPhones', 'feature'),
 ]
 

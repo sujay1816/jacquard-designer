@@ -310,7 +310,10 @@ TOOLS = [
                 "cards": {"type": "integer"},
                 "length_in": {"type": "number"},
                 "feel": {"type": "string",
-                         "description": "rich, dense, traditional, open, light, minimal, geometric, formal."},
+                         "description": ("rich, dense, traditional, open, light, minimal, "
+                                         "geometric, formal, or — for a field where a second "
+                                         "motif flows between the buttas rather than sitting "
+                                         "in a grid — flowing, ornate, floral, brocade.")},
                 "threads": {"type": "integer", "description": "Ink threads, 1-3."},
                 "motif": {"type": "string", "description": "Force one. Omit to let it choose."},
                 "borders": {"type": "boolean"},

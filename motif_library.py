@@ -250,6 +250,170 @@ def dotted_field(pins, cols=10, rows=10, half_drop=True):
     return _svg(''.join(parts), w, h)
 
 
+
+def diamond_medallion(pins, bands=3, centre='rosette', colours=3):
+    """
+    Layered diamond medallion — concentric bands around a filled centre.
+
+    The dominant unit of a great deal of block-print and brocade work: a lozenge
+    whose bands alternate thread and ground, holding a small ornament in the
+    middle. It reads at a distance as a solid tile, and up close as detail,
+    which is what makes it survive a wide range of pin counts.
+
+    Bands alternate ink and ground deliberately. A stack of same-thread outlines
+    would merge into one thick lozenge the moment the pin count dropped; giving
+    every other band the ground colour keeps a separation the weave can hold,
+    because ground is thread-down and cannot bleed into its neighbour.
+    """
+    s = _stroke_for(pins)
+    t = _tones(colours)
+    c_edge, c_fill = TONE[t[0]], TONE[t[-1]]
+    cx = cy = _VIEW / 2
+    bands = max(1, min(4, int(bands)))
+    parts = []
+
+    # Outermost first so later bands paint over: fills are opaque and drawing
+    # small-to-large would bury the centre under the outer band.
+    for i in range(bands):
+        k = 1.0 - i * (0.62 / bands)
+        rx, ry = 430 * k, 470 * k
+        # The innermost band is always ground, whatever the band count, so the
+        # centre ornament has cloth behind it. Letting the alternation decide
+        # meant an even band count drew a dark rosette on a dark field, where
+        # it disappears entirely.
+        if i == bands - 1:
+            colour = TONE['ground']
+        else:
+            colour = c_edge if i % 2 == 0 else TONE['ground']
+        parts.append(f'<path d="M{cx} {cy-ry:.0f} L{cx+rx:.0f} {cy} '
+                     f'L{cx} {cy+ry:.0f} L{cx-rx:.0f} {cy} Z" '
+                     f'fill="{colour}" stroke="{c_edge}" '
+                     f'stroke-width="{s:.1f}" stroke-linejoin="round"/>')
+
+    # Centre ornament, sized to the innermost band.
+    k = 1.0 - (bands - 1) * (0.62 / bands)
+    inner = 300 * k
+    if centre == 'rosette':
+        # An eight-point rosette of teardrops, the small dark flower that sits
+        # inside the lozenge in traditional layouts.
+        parts.append(f'<g fill="{c_fill}">')
+        for i in range(8):
+            a = math.radians(i * 45)
+            px, py = cx + math.cos(a) * inner * 0.46, cy + math.sin(a) * inner * 0.46
+            r = max(s * 1.1, inner * 0.13)
+            parts.append(f'<ellipse cx="{px:.0f}" cy="{py:.0f}" '
+                         f'rx="{r:.0f}" ry="{r*0.62:.0f}" '
+                         f'transform="rotate({i*45} {px:.0f} {py:.0f})"/>')
+        parts.append(f'<circle cx="{cx}" cy="{cy}" r="{max(s*1.2, inner*0.16):.0f}"/>')
+        parts.append('</g>')
+    elif centre == 'star':
+        pts = []
+        for i in range(16):
+            a = math.radians(i * 22.5 - 90)
+            rr = inner * (0.52 if i % 2 == 0 else 0.22)
+            pts.append(f'{cx + math.cos(a)*rr:.0f},{cy + math.sin(a)*rr:.0f}')
+        parts.append(f'<polygon points="{" ".join(pts)}" fill="{c_fill}"/>')
+    else:
+        parts.append(f'<circle cx="{cx}" cy="{cy}" r="{inner*0.4:.0f}" fill="{c_fill}"/>')
+    return _svg(''.join(parts), _VIEW, _VIEW)
+
+
+def daisy(pins, petals=8, centre_ring=True, colours=3):
+    """
+    Petal rosette — a ring of teardrop petals around a contrasting eye.
+
+    Distinct from `lotus`, which is a layered radial bloom several rings deep.
+    This is the small scattered flower that fills the space between larger
+    medallions, and it is drawn as separate outlined petals rather than one
+    solid disc so it still reads as a flower when it comes out small.
+    """
+    s = _stroke_for(pins)
+    t = _tones(colours)
+    c_petal, c_eye = TONE[t[0]], TONE[t[-1]]
+    cx = cy = _VIEW / 2
+    n = max(5, min(12, int(petals)))
+    parts = [f'<g fill="{TONE["ground"]}" stroke="{c_petal}" '
+             f'stroke-width="{s*1.4:.1f}" stroke-linejoin="round">']
+    for i in range(n):
+        a = math.radians(i * 360.0 / n - 90)
+        # Petals reach out from a gap, not from the centre, so the eye is not
+        # crowded out at low pin counts.
+        r0, r1 = 150.0, 430.0
+        bx, by = cx + math.cos(a) * r0, cy + math.sin(a) * r0
+        tx, ty = cx + math.cos(a) * r1, cy + math.sin(a) * r1
+        wx, wy = -math.sin(a) * 120, math.cos(a) * 120
+        parts.append(f'<path d="M{bx:.0f} {by:.0f} '
+                     f'Q {bx+wx:.0f} {(by+ty)/2+wy:.0f}, {tx:.0f} {ty:.0f} '
+                     f'Q {bx-wx:.0f} {(by+ty)/2-wy:.0f}, {bx:.0f} {by:.0f} Z"/>')
+    parts.append('</g>')
+    parts.append(f'<circle cx="{cx}" cy="{cy}" r="{max(s*1.8, 120):.0f}" fill="{c_eye}"/>')
+    if centre_ring:
+        parts.append(f'<circle cx="{cx}" cy="{cy}" r="{max(s*2.6, 175):.0f}" '
+                     f'fill="none" stroke="{c_petal}" stroke-width="{s:.1f}"/>')
+    return _svg(''.join(parts), _VIEW, _VIEW)
+
+
+def leaf_sprig(pins, leaves=7, curve=0.5, colours=2):
+    """
+    Curved stem carrying paired leaves — the filler that makes a field flow.
+
+    This is the piece that turns a grid of stamped tiles into cloth. A field of
+    medallions alone reads as wallpaper because every unit is upright and
+    identical; a sprig is directional, so rotating it per tile breaks the grid
+    up without changing the repeat.
+
+    Leaves are drawn as closed outlines rather than filled blades so they hold
+    at small sizes: a filled leaf under about six threads becomes a blob, while
+    an outline keeps a readable edge and interior.
+    """
+    s = _stroke_for(pins)
+    t = _tones(colours)
+    c_leaf = TONE[t[0]]
+    n = max(3, min(12, int(leaves)))
+    bend = 380 * max(0.0, min(1.0, float(curve)))
+    parts = [f'<g fill="none" stroke="{c_leaf}" stroke-width="{s*1.3:.1f}" '
+             f'stroke-linecap="round" stroke-linejoin="round">']
+    # The stem: one long arc from bottom-left to top-right.
+    x0, y0, x1, y1 = 120, 900, 880, 140
+    parts.append(f'<path d="M{x0} {y0} Q {x0+bend:.0f} {y0-bend*0.7:.0f}, '
+                 f'{(x0+x1)/2:.0f} {(y0+y1)/2:.0f} '
+                 f'Q {x1-bend*0.4:.0f} {y1+bend*0.6:.0f}, {x1} {y1}"/>')
+
+    def _stem(u):
+        """Point and tangent on the stem at parameter u in [0, 1]."""
+        # Two quadratics joined at the midpoint. Evaluating them as one
+        # expression with an inline conditional got the branches wrong and
+        # bunched every leaf into the first third of the stem.
+        if u < 0.5:
+            v = u * 2
+            p0, p1, p2 = (x0, y0), (x0 + bend, y0 - bend * 0.7), ((x0+x1)/2, (y0+y1)/2)
+        else:
+            v = (u - 0.5) * 2
+            p0, p1, p2 = ((x0+x1)/2, (y0+y1)/2), (x1 - bend*0.4, y1 + bend*0.6), (x1, y1)
+        w = 1 - v
+        px = w*w*p0[0] + 2*w*v*p1[0] + v*v*p2[0]
+        py = w*w*p0[1] + 2*w*v*p1[1] + v*v*p2[1]
+        dx = 2*w*(p1[0]-p0[0]) + 2*v*(p2[0]-p1[0])
+        dy = 2*w*(p1[1]-p0[1]) + 2*v*(p2[1]-p1[1])
+        return px, py, math.atan2(dy, dx)
+
+    for i in range(n):
+        u = (i + 0.6) / (n + 0.2)
+        px, py, tangent = _stem(u)
+        leaf_len = 210 * (1.0 - 0.35 * abs(u - 0.5) * 2)
+        for side in (-1, 1):
+            # Leaves lean along the stem's own direction at that point, so they
+            # follow the curve instead of all pointing the same way.
+            a = tangent + side * math.radians(58)
+            tx, ty = px + math.cos(a) * leaf_len, py + math.sin(a) * leaf_len
+            wx, wy = -math.sin(a) * leaf_len * 0.42, math.cos(a) * leaf_len * 0.42
+            parts.append(f'<path d="M{px:.0f} {py:.0f} '
+                         f'Q {px+wx+ (tx-px)*0.4:.0f} {py+wy+(ty-py)*0.4:.0f}, {tx:.0f} {ty:.0f} '
+                         f'Q {px-wx+(tx-px)*0.4:.0f} {py-wy+(ty-py)*0.4:.0f}, {px:.0f} {py:.0f} Z"/>')
+    parts.append('</g>')
+    return _svg(''.join(parts), _VIEW, _VIEW)
+
+
 MOTIFS = {
     'paisley':       (paisley,        'Teardrop butta with nested outlines and seed detail'),
     'lotus':         (lotus,          'Radial lotus rosette, a centre motif'),
@@ -258,6 +422,10 @@ MOTIFS = {
     'check_ground':  (check_ground,   'Square check ground for body fills'),
     'chevron_border':(chevron_border, 'Zig-zag separator band'),
     'dotted_field':  (dotted_field,   'Scattered dot ground, lightest body fill'),
+    'diamond_medallion': (diamond_medallion,
+                          'Layered diamond medallion with a rosette centre'),
+    'daisy':         (daisy,          'Petal rosette, a scattered filler flower'),
+    'leaf_sprig':    (leaf_sprig,     'Curved stem with paired leaves, a flowing filler'),
 }
 
 
@@ -275,43 +443,73 @@ def build_svg(motif: str, pins: int, **params) -> str:
     return fn(int(pins), **clean)
 
 
+# Which renderer is in use. Resolved once, because the answer cannot change
+# without restarting the process and probing per call would cost an import
+# attempt on every motif drawn.
+_RENDERER = None
+
+
+def _pick_renderer():
+    """
+    Prefer cairosvg, fall back to the built-in rasteriser.
+
+    cairosvg is a touch more accurate on very fine linework, so it is used when
+    it works. But it needs Cairo — a C library pip cannot install — and that is
+    a GTK runtime on Windows and a brew package plus a DYLD path variable on
+    Apple Silicon. Making the whole motif system depend on that was the wrong
+    trade for SVG this project generates itself, out of six element types.
+
+    The fallback needs nothing but PIL, which is already required, and agrees
+    with cairosvg to within a few percent of ink across every motif and layout
+    (tools/test_svg_raster.py holds them to that).
+    """
+    global _RENDERER
+    if _RENDERER is not None:
+        return _RENDERER
+    try:
+        import cairosvg                                      # noqa: F401
+        _RENDERER = 'cairosvg'
+    except Exception:
+        _RENDERER = 'builtin'
+    return _RENDERER
+
+
+def renderer_name():
+    """Which backend is drawing motifs — for the health endpoint and support."""
+    return _pick_renderer()
+
+
 def render(svg: str, pins: int, cards: int = None):
     """
     Rasterise SVG at the loom's resolution. Returns a PIL RGB image.
 
-    This is the ONLY place cairosvg is used in the whole product, which is why
-    a Cairo problem takes out generated motifs and nothing else — uploading,
-    converting and writing BMPs never come near it.
-
-    The import is guarded because cairosvg fails in two quite different ways
-    and the raw exception explains neither. On Windows it is usually installed
-    correctly and still cannot load, because cairocffi wants libcairo-2.dll and
-    pip does not ship it; the error then reads `no library called "cairo-2" was
-    found`, which sends people to pip, which reports the requirement already
-    satisfied.
+    Never fails for want of a native library: if cairosvg is missing or cannot
+    load, the built-in rasteriser draws it instead.
     """
     from PIL import Image
     import re
-
-    try:
-        import cairosvg
-    except Exception as e:
-        try:
-            import deps
-            deps.guard('cairosvg', 'Generating motifs')
-        except RuntimeError:
-            raise
-        except Exception:
-            pass
-        raise RuntimeError(f'Generating motifs is unavailable: {e}')
 
     m = re.search(r'viewBox="0 0 (\d+) (\d+)"', svg)
     vw, vh = (int(m.group(1)), int(m.group(2))) if m else (_VIEW, _VIEW)
     if cards is None:
         cards = int(round(pins * vh / vw))
-    png = cairosvg.svg2png(bytestring=svg.encode(), output_width=int(pins),
-                           output_height=int(cards), background_color='white')
-    return Image.open(io.BytesIO(png)).convert('RGB')
+    pins, cards = int(pins), int(cards)
+
+    if _pick_renderer() == 'cairosvg':
+        try:
+            import cairosvg
+            png = cairosvg.svg2png(bytestring=svg.encode(), output_width=pins,
+                                   output_height=cards, background_color='white')
+            return Image.open(io.BytesIO(png)).convert('RGB')
+        except Exception:
+            # Installed but throwing — a broken Cairo binding raises at call
+            # time, not import time, on some Windows builds. Fall through
+            # rather than fail the design.
+            global _RENDERER
+            _RENDERER = 'builtin'
+
+    import svg_raster
+    return svg_raster.render(svg, pins, cards, background='white')
 
 
 # ── All-over composition ────────────────────────────────────────────────────
@@ -343,7 +541,8 @@ def _tile(motif, tile_pins, **params):
 
 def allover(pins, layout='half_drop', motif='paisley', cols=5, rows=6,
             cards=None, spacing=0.25, band_motif='vine_border',
-            band_every=1, mirror=False, colours=2, **params):
+            band_every=1, mirror=False, colours=2, filler='leaf_sprig',
+            filler_scale=0.78, **params):
     """
     Compose a motif into an all-over brocade field.
 
@@ -354,6 +553,9 @@ def allover(pins, layout='half_drop', motif='paisley', cols=5, rows=6,
       banded      — motif rows separated by border rules, as on a real brocade
       jaal        — diamond lattice with a motif in each cell
       stripe      — vertical bands of motif alternating with plain ground
+      interlock   — TWO motifs on offset lattices: medallions on one, a filler
+                    rotated per cell on the other, so the field flows instead
+                    of reading as stamped tiles
     """
     cols = max(1, min(24, int(cols)))
     rows = max(1, min(40, int(rows)))
@@ -369,10 +571,65 @@ def allover(pins, layout='half_drop', motif='paisley', cols=5, rows=6,
 
     parts, row_h = [], sh * (1.0 + gap)
 
+    def place_body(b, x, y, sc, rot=0):
+        """Place an arbitrary tile body, optionally rotated about its centre."""
+        if rot:
+            parts.append(f'<g transform="translate({x:.1f},{y:.1f}) '
+                         f'rotate({rot} {mw*sc/2:.1f} {mh*sc/2:.1f}) '
+                         f'scale({sc:.4f})">{b}</g>')
+        else:
+            parts.append(f'<g transform="translate({x:.1f},{y:.1f}) '
+                         f'scale({sc:.4f})">{b}</g>')
+
     def place(x, y, flip=False):
         t = (f'translate({x + sw:.1f},{y:.1f}) scale({-scale:.4f},{scale:.4f})'
              if flip else f'translate({x:.1f},{y:.1f}) scale({scale:.4f})')
         parts.append(f'<g transform="{t}">{body}</g>')
+
+    if layout == 'interlock':
+        # Two lattices, offset by half a cell in both directions. Medallions on
+        # one, a filler on the other, so the filler sits in the gaps the
+        # medallions leave rather than in a cell of its own.
+        #
+        # This is what separates a woven field from a sheet of stamps. A single
+        # lattice repeats one upright unit and the eye finds the grid
+        # immediately; interleaving a second, rotated element hides the grid
+        # while keeping the repeat exactly as regular as the loom needs.
+        fill_body = None
+        if filler and filler in MOTIFS:
+            try:
+                fill_body, fw, fh = _tile(filler, tile_pins * 0.8, **params)
+            except Exception:
+                fill_body = None
+
+        total_h = int(round(_VIEW * cards / pins)) if cards else int(rows * row_h)
+        n_rows = max(1, int(math.ceil(total_h / max(row_h, 1))))
+        fsc = scale * max(0.3, min(1.2, float(filler_scale)))
+        fh_dev = (fh * fsc) if fill_body is not None else 0
+
+        for r in range(n_rows):
+            y = r * row_h
+            # Nothing is placed that would hang past the bottom edge. The field
+            # is composed INTO a panel that has a pallu beneath it, and an
+            # overrun does not crop — it overlaps, so medallions print through
+            # the cross border.
+            if y + sh > total_h:
+                break
+            for c in range(cols):
+                place(c * tile_w + pad_x, y)
+            if fill_body is None or y + row_h / 2 + fh_dev > total_h:
+                continue
+            for c in range(cols + 1):
+                # Half a cell across and down: the centre of the diamond of
+                # four medallions.
+                fx = c * tile_w + pad_x - tile_w / 2 + (sw - fw * fsc) / 2
+                fy = y + row_h / 2
+                # Rotating by cell breaks the repeat's visual regularity
+                # without touching its actual period — the loom still sees the
+                # same card sequence.
+                rot = ((r + c) % 4) * 90
+                place_body(fill_body, fx, fy, fsc, rot)
+        return _svg(''.join(parts), _VIEW, total_h)
 
     if layout == 'banded':
         band_body, bw, bh = _tile(band_motif, pins, repeats=max(2, cols),
@@ -456,6 +713,9 @@ ALLOVER_LAYOUTS = {
 MIN_THREADS_PER_MOTIF = {
     'paisley': 48, 'lotus': 48, 'vine_border': 30, 'diamond_jaal': 24,
     'check_ground': 16, 'chevron_border': 20, 'dotted_field': 12,
+    # Medallions carry concentric bands, so they need more threads than a
+    # single-outline butta before the bands merge into each other.
+    'diamond_medallion': 56, 'daisy': 40, 'leaf_sprig': 44,
 }
 
 

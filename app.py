@@ -195,6 +195,15 @@ def _import_error(e):
     return jsonify({'success': False, 'error': _dep_message(e)}), 500
 
 
+def _renderer_name():
+    """Which motif renderer is active, for support questions."""
+    try:
+        import motif_library
+        return motif_library.renderer_name()
+    except Exception:
+        return 'unknown'
+
+
 @app.route('/api/health', methods=['GET'])
 def api_health():
     """
@@ -217,6 +226,7 @@ def api_health():
                         'missing_features': result['missing_features'],
                         'missing_optional': result['missing_optional'],
                         'install_command': deps.install_command(result['missing']),
+                        'renderer': _renderer_name(),
                         'platform': result['platform'],
                         'templates_missing': missing_templates()})
     except Exception as e:
