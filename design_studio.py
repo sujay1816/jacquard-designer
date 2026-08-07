@@ -118,8 +118,8 @@ FEEL = {
 }
 
 
-def plan(pins, reed=None, picks=None, cards=None, feel=None, threads=2,
-         motif=None, borders=True, pallu=False, length_in=None):
+def plan(pins=None, reed=None, picks=None, cards=None, feel=None, threads=2,
+         motif=None, borders=True, pallu=False, length_in=None, width_in=None):
     """
     Work out what can be designed at this width, and rank the options.
 
@@ -129,6 +129,10 @@ def plan(pins, reed=None, picks=None, cards=None, feel=None, threads=2,
     of difference — which changes how many motifs should go across before
     anyone picks one.
     """
+    # A brief may arrive as inches instead of threads. Resolving it here means
+    # every caller — plan, auto_design, the agent tool — accepts either.
+    if not pins and width_in:
+        pins = int(round(float(width_in) * float(reed or 60.0)))
     pins = _clamp_int(pins, 10, 2640, 480)
     feel_key = _match_feel(feel)
     prefs = FEEL[feel_key]
@@ -556,3 +560,191 @@ def describe(spec: LayoutSpec) -> str:
         g = geometry(spec.pins, spec.cards, spec.reed, spec.picks)
         bits.append(f"{g['width_in']}in wide at reed {int(spec.reed)}")
     return ', '.join(bits)
+
+
+# ── Autonomous search ───────────────────────────────────────────────────────
+#
+# The agentic part. Given a goal, this tries designs, measures each against the
+# loom, keeps what improved and reports the trail. It is a hill climb, not a
+# model guessing: every step is scored by fidelity, so the loop cannot talk
+# itself into a design that will not weave.
+#
+# Why a loop rather than one shot: the first plan is an estimate. Whether a
+# field actually converts depends on how the motif's strokes land on the
+# specific thread grid, which is only knowable by rendering it. One render
+# costs under a second, so trying six and keeping the best is cheap — and it
+# is exactly the work a person should not have to do by hand.
+
+# Directions the climb can move. Each is a spec edit whose effect on
+# convertibility is monotonic enough to hill-climb on.
+MOVES = (
+    ('more_open',    'spacing',     +0.12),
+    ('denser',       'spacing',     -0.08),
+    ('fewer_motifs', 'cols',        -1),
+    ('more_motifs',  'cols',        +1),
+    ('wider_border', 'border_frac', +0.02),
+)
+
+_LIMITS = {'spacing': (0.0, 1.2), 'cols': (1, 24), 'rows': (1, 40),
+           'border_frac': (0.0, 0.25)}
+
+_RANK = {'ok': 0, 'warn': 1, 'fail': 2}
+
+
+def score_spec(spec: LayoutSpec, n_colors=None, settings=None, full=False):
+    """
+    Render, convert and measure one spec. Returns a record or None.
+
+    `full=False` does ONE conversion at fixed settings rather than calling
+    auto_convert, which runs its own sixteen-candidate search internally. That
+    search is right when converting an unknown photograph — it does not know
+    which settings suit the image. It is wrong inside a hill climb: the search
+    was already done once for the starting spec, the settings do not change as
+    spacing and column count move, and paying for it at every step took a step
+    from under a second to nine.
+
+    The winner is re-scored with full=True at the end, so what is handed over
+    is a proper auto_convert record and nothing downstream can tell the
+    difference.
+    """
+    import numpy as np
+    from fidelity import fidelity_report
+    from vision_engine import detect_colors_smart
+
+    try:
+        img = render(spec)
+    except Exception:
+        return None
+    colours = max(2, min(4, n_colors or spec.threads + 1))
+
+    if full or settings is None:
+        from auto_convert import auto_convert
+        conv = auto_convert(img, pins=spec.pins, n_colors=colours)
+        best = conv.get('best')
+        if not best:
+            return None
+        rep = best['report']
+        return {'spec': spec, 'image': img, 'conversion': conv,
+                'settings': best.get('settings'),
+                'verdict': str(conv['verdict']).lower(),
+                'drift': rep['ink_drift_pct'],
+                'gaps': rep['output_white_regions']}
+
+    try:
+        _, _, lm, _ = detect_colors_smart(img, colours, spec.pins,
+                                          spec.cards, **settings)
+        rep = fidelity_report(img, np.asarray(lm) > 0)
+    except Exception:
+        return None
+    return {'spec': spec, 'image': img, 'conversion': None, 'settings': settings,
+            'verdict': str(rep.get('verdict', 'fail')).lower(),
+            'drift': rep['ink_drift_pct'],
+            'gaps': rep['output_white_regions']}
+
+
+def _quality(rec):
+    """
+    Lower is better. Verdict dominates, then how far thread coverage drifted.
+
+    Drift is the honest headline metric: it is how much of the design's ink
+    survived the reduction to threads, so a design that keeps its coverage kept
+    its motif. Gap count is deliberately NOT in the sort — a design can gain
+    gaps by breaking up, which is bad, or by opening out, which is good, and the
+    number alone cannot tell those apart.
+    """
+    return (_RANK.get(rec['verdict'], 2), rec['drift'])
+
+
+def auto_design(pins=None, reed=None, feel=None, threads=2, motif=None,
+                borders=True, pallu=False, cards=None, width_in=None,
+                length_in=None, rounds=4, on_step=None):
+    """
+    Work toward the best weavable design for a brief, and show the working.
+
+    Returns the winning record plus a trail of what was tried and why it was
+    kept or dropped. The trail matters as much as the result: a weaver who is
+    told "six paisleys across, drift 11%" has to trust it, while one who is
+    shown that eight across drifted 27% and five drifted 9% can see the shape
+    of the trade and argue with it.
+    """
+    p = plan(pins=pins, reed=reed, cards=cards, feel=feel, threads=threads,
+             motif=motif, borders=borders, pallu=pallu,
+             width_in=width_in, length_in=length_in)
+    current = score_spec(LayoutSpec(**p['spec']), full=True)
+    if current is None:
+        return {'error': 'That brief does not produce a design that converts.',
+                'plan': p}
+
+    trail = [{'step': 'start', 'design': describe(current['spec']),
+              'verdict': current['verdict'], 'drift': current['drift'],
+              'kept': True}]
+    if on_step:
+        on_step(trail[-1])
+
+    tried = set()
+    for _ in range(max(1, min(8, int(rounds)))):
+        best_move, best_rec = None, None
+        for name, field_name, delta in MOVES:
+            d = current['spec'].dict()
+            lo, hi = _LIMITS.get(field_name, (0, 10 ** 6))
+            new_val = max(lo, min(hi, d.get(field_name, 0) + delta))
+            if new_val == d.get(field_name):
+                continue
+            d[field_name] = new_val
+            key = (d['cols'], round(d['spacing'], 3), round(d['border_frac'], 3))
+            if key in tried:
+                continue
+            tried.add(key)
+            rec = score_spec(LayoutSpec(**d), settings=current.get('settings'))
+            if rec and (best_rec is None or _quality(rec) < _quality(best_rec)):
+                best_move, best_rec = name, rec
+
+        if best_rec is None or _quality(best_rec) >= _quality(current):
+            trail.append({'step': 'stop',
+                          'note': 'No further change improved it.', 'kept': False})
+            if on_step:
+                on_step(trail[-1])
+            break
+
+        improvement = current['drift'] - best_rec['drift']
+        current = best_rec
+        trail.append({'step': best_move, 'design': describe(current['spec']),
+                      'verdict': current['verdict'], 'drift': current['drift'],
+                      'improved_drift_by': round(improvement, 1), 'kept': True})
+        if on_step:
+            on_step(trail[-1])
+
+    # Re-score the winner properly. The climb used one fixed setting for
+    # speed; what gets handed over must be a full auto_convert record, or the
+    # shuttle assignment and file generation downstream have nothing to work
+    # from.
+    if current.get('conversion') is None:
+        final = score_spec(current['spec'], full=True)
+        if final is not None:
+            current = final
+
+    return {'best': current, 'trail': trail, 'plan': p,
+            'rounds_used': len([t for t in trail if t.get('kept')]) - 1}
+
+
+def thumbnail(img, max_px=640, fmt='PNG'):
+    """
+    Base64 image for a vision model, downscaled and greyscale.
+
+    Downscaled because the model is being asked about composition — whether the
+    borders balance, whether the field reads as cloth — and that survives at
+    640px while the token cost does not. Greyscale because the design is
+    already one bit per thread; colour would be three channels of the same
+    information.
+    """
+    import base64
+    import io as _io
+    im = img.convert('L')
+    if max(im.size) > max_px:
+        scale = max_px / max(im.size)
+        im = im.resize((max(1, int(im.size[0] * scale)),
+                        max(1, int(im.size[1] * scale))))
+    buf = _io.BytesIO()
+    im.save(buf, format=fmt)
+    return {'media_type': f'image/{fmt.lower()}',
+            'data': base64.b64encode(buf.getvalue()).decode()}

@@ -36,6 +36,7 @@ DEFAULT_MODEL = "claude-sonnet-5"
 class AnthropicProvider(LLMProvider):
 
     name = 'anthropic'
+    supports_vision = True
 
     def __init__(self, api_key=None, model=None, cache_prompt=True, timeout=API_TIMEOUT):
         self._key = (api_key or '').strip() or None
@@ -58,7 +59,17 @@ class AnthropicProvider(LLMProvider):
             role = m.get('role')
 
             if role == 'user':
-                out.append({'role': 'user', 'content': m.get('content', '')})
+                imgs = m.get('images')
+                if imgs:
+                    blocks = [{'type': 'image',
+                               'source': {'type': 'base64',
+                                          'media_type': i.get('media_type', 'image/png'),
+                                          'data': i['data']}}
+                              for i in imgs if i.get('data')]
+                    blocks.append({'type': 'text', 'text': m.get('content', '')})
+                    out.append({'role': 'user', 'content': blocks})
+                else:
+                    out.append({'role': 'user', 'content': m.get('content', '')})
 
             elif role == 'assistant':
                 blocks = []
@@ -73,9 +84,22 @@ class AnthropicProvider(LLMProvider):
                     out.append({'role': 'assistant', 'content': blocks})
 
             elif role == 'tool_results':
-                blocks = [{'type': 'tool_result', 'tool_use_id': r['id'],
-                           'content': r.get('content', '')}
-                          for r in m.get('results') or []]
+                blocks = []
+                for r in m.get('results') or []:
+                    imgs = r.get('images')
+                    if imgs:
+                        inner = [{'type': 'image',
+                                  'source': {'type': 'base64',
+                                             'media_type': i.get('media_type', 'image/png'),
+                                             'data': i['data']}}
+                                 for i in imgs if i.get('data')]
+                        inner.append({'type': 'text', 'text': r.get('content', '')})
+                        blocks.append({'type': 'tool_result',
+                                       'tool_use_id': r['id'], 'content': inner})
+                    else:
+                        blocks.append({'type': 'tool_result',
+                                       'tool_use_id': r['id'],
+                                       'content': r.get('content', '')})
                 if blocks:
                     out.append({'role': 'user', 'content': blocks})
         return out

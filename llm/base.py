@@ -74,8 +74,18 @@ class Reply:
 # History is a list of plain dicts so it stays JSON-serialisable: sessions may
 # outlive a process, and a dataclass history would need a custom encoder.
 
-def user_msg(text: str) -> Dict[str, Any]:
-    return {'role': 'user', 'content': text}
+def user_msg(text: str, images: Optional[List[Dict[str, str]]] = None) -> Dict[str, Any]:
+    """
+    A user turn, optionally carrying images.
+
+    Each image is {'media_type': 'image/png', 'data': '<base64>'}. Adapters
+    translate to their own shape — Anthropic wants a source block, OpenAI wants
+    a data URI — so callers never encode either.
+    """
+    msg: Dict[str, Any] = {'role': 'user', 'content': text}
+    if images:
+        msg['images'] = images
+    return msg
 
 
 def assistant_msg(reply: Reply) -> Dict[str, Any]:
@@ -87,8 +97,17 @@ def assistant_msg(reply: Reply) -> Dict[str, Any]:
     }
 
 
-def tool_results_msg(results: List[Dict[str, str]]) -> Dict[str, Any]:
-    """`results` entries are {'id', 'name', 'content'} with content as a string."""
+def tool_results_msg(results: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    `results` entries are {'id', 'name', 'content'}, content a string, plus an
+    optional 'images' list in the same shape user_msg takes.
+
+    Images on a tool result are how the agent looks at its own work: a tool
+    renders the design and hands the picture back, and the model reads it in
+    the same turn. The alternative — a tool that calls the model itself —
+    would nest one conversation inside another and put a second, unlogged
+    model turn outside the loop that counts rounds and tokens.
+    """
     return {'role': 'tool_results', 'results': results}
 
 
@@ -103,6 +122,11 @@ class LLMProvider(ABC):
     """
 
     name = 'provider'
+
+    # Whether this backend can read images. False makes the agent skip its
+    # self-critique step rather than send an image that will be ignored, which
+    # would burn a round and return a confident opinion about nothing.
+    supports_vision = False
 
     @abstractmethod
     def complete(self, system: str, messages: List[Dict[str, Any]],

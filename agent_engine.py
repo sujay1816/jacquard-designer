@@ -32,7 +32,7 @@ from PIL import Image
 
 import llm
 
-MAX_TOOL_ROUNDS = 8          # tool calls per user turn before we stop
+MAX_TOOL_ROUNDS = 14         # tool calls per user turn before we stop
 MAX_HISTORY = 24             # messages retained per session
 SESSION_TTL = 3600           # seconds
 MAX_SESSIONS = 40
@@ -52,8 +52,15 @@ def _prune():
         _sessions.pop(next(iter(_sessions)), None)
 
 
-def new_session(image, filename='design'):
-    """Register an uploaded image and return its session token."""
+def new_session(image=None, filename='design'):
+    """
+    Open a session, with or without an uploaded image.
+
+    image=None is a design-from-scratch session. It used to be faked with an
+    8x8 white PNG so that the upload path could be reused, which meant the
+    weaver was shown a white square as their design and inspect_design was
+    offered an image with nothing in it.
+    """
     import uuid
     _prune()
     token = str(uuid.uuid4())
@@ -65,6 +72,7 @@ def new_session(image, filename='design'):
         'conversion': None,
         'working': None,        # label map currently being edited
         'undo': [],             # previous working states, most recent last
+        'plan': None,           # visible step list for the current job
         'shuttles': None,       # colour index -> shuttle name
         'shuttle_count': 2,
         'weave': {},            # shuttle -> {'pattern', 'n'}
@@ -194,6 +202,78 @@ TOOLS = [
                           "description": "Cross border across the width at the foot."}
             },
         },
+    },
+    {
+        "name": "plan_work",
+        "description": (
+            "Write down what you are about to do, as 2-6 short steps, then "
+            "mark them done as you go. Call this FIRST on any job that will "
+            "take more than a couple of tool calls — designing from a brief, "
+            "converting and finishing an upload. The weaver can see the plan "
+            "while you work, so they know whether you are nearly there or have "
+            "lost the thread. Write steps in their language: 'work out the "
+            "finished width', not 'call loom_geometry'. Call again with `done` "
+            "to tick steps off."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "steps": {"type": "array", "items": {"type": "string"},
+                          "description": "The plan, 2-6 steps. Omit when ticking off."},
+                "done": {"type": "array", "items": {"type": "integer"},
+                         "description": "Zero-based step numbers now finished."},
+            },
+        },
+    },
+    {
+        "name": "auto_design",
+        "description": (
+            "Work out the best weavable design for a brief on your own. "
+            "Builds a candidate, measures it against the loom, tries the "
+            "changes that might improve it, keeps what worked, and repeats. "
+            "PREFER THIS over `design` whenever the weaver has given you a "
+            "brief and left the rest to you — it is the difference between "
+            "handing over a first attempt and handing over a worked answer. "
+            "Returns the trail of what it tried, which you should summarise in "
+            "plain terms."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "pins": {"type": "integer"},
+                "width_in": {"type": "number", "description": "Finished width in inches; needs reed."},
+                "reed": {"type": "number", "description": "Ends per inch — 60, 80, 100."},
+                "cards": {"type": "integer"},
+                "length_in": {"type": "number"},
+                "feel": {"type": "string",
+                         "description": "rich, dense, traditional, open, light, minimal, geometric, formal."},
+                "threads": {"type": "integer", "description": "Ink threads, 1-3."},
+                "motif": {"type": "string", "description": "Force one. Omit to let it choose."},
+                "borders": {"type": "boolean"},
+                "pallu": {"type": "boolean"},
+                "effort": {"type": "integer",
+                           "description": "Improvement rounds, 1-8. Default 4. Higher is slower."}
+            },
+        },
+    },
+    {
+        "name": "look_at_design",
+        "description": (
+            "Look at the current design yourself. Use it after building "
+            "something, before handing it over, and after any refinement you "
+            "are unsure about. Judge COMPOSITION — border balance, whether the "
+            "field reads as cloth, whether the repeat is obtrusive. Do not "
+            "judge line quality or resolution from it; the fidelity score "
+            "already measured those and is more reliable than a thumbnail. If "
+            "the backend has no vision this returns an error, which is not a "
+            "problem — carry on with the measurements."),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "compare_designs",
+        "description": (
+            "See the explored candidates side by side. Use after "
+            "explore_designs when the scores are close and the choice is "
+            "really about how the cloth looks."),
+        "input_schema": {"type": "object", "properties": {}},
     },
     {
         "name": "explore_designs",
@@ -354,75 +434,87 @@ TOOLS = [
     },
 ]
 
-SYSTEM_PROMPT = """You are the designer and converter for a jacquard weaving \
-mill. You are talking to a weaver or a mill operator, and you do the work — you \
-do not hand them a form to fill in.
+SYSTEM_PROMPT = """You are the designer for a jacquard weaving mill. You are \
+talking to a weaver or a mill operator, and you do the work — you do not hand \
+them a form to fill in.
 
-TWO JOBS: design cloth from scratch, or convert a design they upload.
+HOW YOU WORK
 
-DESIGNING — this is the main one.
-Use the `design` tool. Give it INTENT and let it work out the geometry. You
-decide the motif, the repeat, how many across, the border widths, the row
-count. Never ask a weaver for cols, rows, spacing or layout — those are design
-decisions, and asking for them makes the weaver do your job with less
-information than you have.
+Take a brief and run it to a finished answer before coming back. That means:
+work out the geometry, build the design, look at it, fix what is wrong, and
+present something finished with the reasoning attached. Do not narrate each
+step as you go and do not stop halfway to ask permission to continue.
 
-What you DO need, and should ask for if it is missing:
-  * how wide — pins, or inches plus the reed
-  * the reed count, if they gave inches or if the finished size matters
-  * how many threads the loom has
-  * how the cloth should feel, in their words
+The loop you should be running, most of the time:
 
-The reed is not optional detail. A pin count means nothing physical without
-it — 480 pins is 8 inches at reed 60 and 4.8 at reed 100 — so if a weaver
-mentions a size in inches, call `loom_geometry` before you propose anything.
+  1. `loom_geometry` if they mentioned a size in inches or the finished size
+     matters. A pin count means nothing physical without the reed — 480 pins
+     is 8 inches at reed 60 and 4.8 at reed 100.
+  2. `auto_design` with the brief. It builds a candidate, measures it against
+     the loom, tries improvements, keeps what worked, and repeats. Prefer it
+     over `design` whenever the weaver has left the design to you.
+  3. `look_at_design`. The score tells you the linework survived; it cannot
+     tell you the borders overpower the body or the repeat reads as wallpaper.
+     Look, and fix what you see with `refine_design`.
+  4. Present it: what you made, why that shape, what it will measure, and what
+     the conversion cost. Then the next question, or the files.
 
-Ask AT MOST one or two questions before building something. A weaver who says
-"I need a saree body, 800 pins, reed 80" has told you enough; build it and show
-them. If they are vague — "something traditional" — pick sensible defaults,
-build it, say what you chose and why, and offer to change it. A design on the
+Use `explore_designs` and `compare_designs` when the choice is genuinely a
+matter of taste rather than measurement — then let them pick.
+
+WHAT YOU DECIDE, AND WHAT YOU ASK
+
+Yours: motif, layout, how many across, border widths, row counts, spacing.
+Never ask a weaver for cols, rows, spacing or layout. Asking makes them do your
+job with less information than you have.
+
+Theirs, and worth asking for when missing: how wide, the reed, how many
+threads the loom has, how the cloth should feel in their words.
+
+Ask at most one or two questions before building something. "I need a saree
+body, 800 pins, reed 80" is enough — build it. If they are vague, pick sensible
+defaults, build it, say what you chose, and offer to change it. A design on the
 table beats a questionnaire.
 
-State your reasoning in craft terms, briefly: "800 pins at reed 80 is 10
-inches; two 72-thread borders leave 656 for the body, so ten paisleys across
-gives each one 65 threads — enough for the interior detail to read." Then let
-them overrule you.
+REFINING
 
-When they are undecided or the first attempt missed, `explore_designs` builds
-alternatives and scores them. Describe what makes each one different in words a
-weaver uses — heavier, more open, a lattice ground instead of scattered
-buttas — not by their numbers. Then `choose_design`.
+`refine_design` for anything you generated — it rebuilds from the vector at
+full quality. `edit_design` is for uploaded images and pushes pixels around;
+do not reach for it on a generated design. Translate what they say: "too busy"
+is more_open, "looks empty" is denser, "motifs are too small" is fewer_motifs.
+Change one thing, look at it, then report.
 
-REFINING.
-`refine_design` for anything you generated: it rebuilds from the vector at full
-quality. `edit_design` is for uploaded images and pushes pixels around — do not
-reach for it on a generated design. Translate what they say: "too busy" is
-more_open, "looks empty" is denser, "motifs are too small" is fewer_motifs.
-Make one change, show the result, ask if that is the direction.
+CONVERTING AN UPLOAD
 
-CONVERTING AN UPLOAD.
-`inspect_design` first — never ask something you could have looked at. Say what
-you found in a sentence or two, suggest the pin count the image can support,
-`convert`, then report honestly. If detail is lost say WHAT is lost — "the fine
-scrollwork inside the small motifs" beats "12% ink drift". Then `set_shuttles`,
+`inspect_design` first — never ask what you could have looked at. Say what you
+found in a sentence, suggest a pin count the image can support, `convert`, then
+report honestly. If detail is lost say WHAT is lost: "the fine scrollwork
+inside the small motifs" beats "12% ink drift". Then `set_shuttles`,
 `set_weave`, `generate_files`.
 
-HONESTY — this is the part that matters most.
+HONESTY — the part that matters most
+
   * Never call a conversion good when a tool reported warn or fail. If the
     source is too small to carry the design, say so plainly: a rescan is the
     only fix, and the weaver needs to hear it before the cloth is on the loom.
-  * If a tool returns a warning, lead with it. A refinement that made the
-    design worse gets said out loud and an offer to go back — not buried under
-    a description of the new version.
+  * If a tool returns a warning, lead with it. A refinement that made things
+    worse gets said out loud with an offer to go back — not buried under a
+    description of the new version.
+  * Report what the trail actually shows. If auto_design improved drift from
+    26% to 20%, that is an improvement and still a warn; say both.
   * Generated motifs are original geometric constructions, not traditional
     regional work. Asked for Chola, Banarasi or Kanjivaram: say you can build
     something in that spirit but not an authentic period motif, and that a
     designer is the right answer for anything a customer will recognise. Never
     pass off a generic paisley as Chola work.
-  * If you have no tool for what they want, say what you cannot do and what
-    you can. Do not improvise around it.
+  * When you looked at a design, say what you saw — including when it looked
+    fine. Do not invent a flaw to seem thorough, and do not claim to have
+    looked when the backend had no vision.
+  * If you have no tool for what they want, say what you cannot do and what you
+    can. Do not improvise around it.
 
-THE LOOM.
+THE LOOM
+
 Black lifts the thread, white leaves it down; a BMP is an instruction sheet.
 Shuttle count includes the rani ground: 1 is zari alone, 2 adds rani, 3 adds
 meena1, 4 adds meena2 — so a two-colour design needs shuttle_count 3. Shuttles
@@ -430,10 +522,11 @@ are hardware: if they ask for a colour there is no thread for, say so and give
 the real options rather than silently dropping it. Tonal shades of one yarn —
 cream, mid pink, deep pink — belong on ONE shuttle.
 
-TONE.
+TONE
+
 Talk like a colleague who knows looms. Short sentences. No parameter dumps, no
-bulleted settings lists, no restating the tool arguments back at them. One or
-two sentences about what you made and why, then the next question or the files.
+bulleted settings lists, no restating tool arguments back at them. Two or three
+sentences about what you made and why, then the next question or the files.
 """
 
 
@@ -1072,6 +1165,190 @@ def ml_motifs():
     return ml.MOTIFS
 
 
+
+
+def _tool_plan(session, args):
+    """
+    Write down the job as steps, and tick them off as they are done.
+
+    Not bookkeeping for its own sake. A weaver watching an agent work for a
+    minute has no idea whether it is nearly finished or has lost the thread,
+    and a visible plan is the difference between waiting and worrying. It also
+    keeps the model honest: a plan stated up front is one it can be held to,
+    where a plan kept in its head can quietly become a different job.
+
+    Steps are free text — this deliberately does not constrain them to tool
+    names, because the useful unit is "size the loom and check it fits", not
+    "call loom_geometry".
+    """
+    steps = args.get('steps')
+    if isinstance(steps, str):
+        steps = [s.strip() for s in steps.split('\n') if s.strip()]
+    if steps is not None:
+        if not isinstance(steps, list) or not steps:
+            return {'error': 'Give me a list of steps.'}
+        session['plan'] = [{'step': str(s)[:120], 'done': False}
+                           for s in steps[:8]]
+        return {'plan': session['plan'],
+                'note': 'Now work through it. Mark steps done as you finish them.'}
+
+    plan = session.get('plan')
+    if not plan:
+        return {'error': 'No plan yet — call plan_work with steps first.'}
+
+    done = args.get('done')
+    if done is not None:
+        try:
+            idx = [int(done)] if not isinstance(done, list) else [int(i) for i in done]
+        except (TypeError, ValueError):
+            return {'error': 'done must be a step number or a list of them.'}
+        for i in idx:
+            if 0 <= i < len(plan):
+                plan[i]['done'] = True
+    return {'plan': plan,
+            'remaining': [p['step'] for p in plan if not p['done']]}
+
+
+def _tool_auto_design(session, args):
+    """
+    Work toward the best weavable design for a brief, iterating unaided.
+
+    This is the difference between an assistant and an agent. `design` builds
+    one candidate from an estimate; this builds one, measures it, tries the
+    changes that might improve it, keeps what did, and repeats until nothing
+    helps. Every step is scored by fidelity against the render, so the loop
+    cannot climb toward a design that will not weave.
+
+    The trail comes back with the result. A weaver told only "six across,
+    drift 11%" has to take it on trust; one shown that eight across drifted
+    27% and five drifted 9% can see the shape of the trade and argue with it.
+    """
+    import design_studio as ds
+
+    if not any(args.get(k) for k in ('pins', 'width_in')):
+        return {'error': 'I need a width first — pins, or inches with the reed.'}
+
+    motif = args.get('motif')
+    if motif and motif not in ml_motifs():
+        return {'error': f"Unknown motif '{motif}'."}
+
+    try:
+        out = ds.auto_design(
+            pins=args.get('pins'), width_in=args.get('width_in'),
+            reed=args.get('reed'), cards=args.get('cards'),
+            length_in=args.get('length_in'), feel=args.get('feel'),
+            threads=int(args.get('threads', 2) or 2), motif=motif,
+            borders=args.get('borders', True) is not False,
+            pallu=bool(args.get('pallu')),
+            rounds=int(args.get('effort', 4) or 4))
+    except Exception as e:
+        return {'error': f'Could not work that through: {e}'}
+    if 'error' in out:
+        return out
+
+    best = out['best']
+    _adopt(session, best['spec'], best['conversion'], best['image'])
+    p = out['plan']
+    return {
+        'design': ds.describe(best['spec']),
+        'why_this': p['why'],
+        'geometry': {k: v for k, v in p['geometry'].items() if k != 'raw'},
+        'verdict': best['verdict'],
+        'thread_drift_pct': best['drift'],
+        'design_gaps': best['gaps'],
+        'steps_taken': out['rounds_used'],
+        'trail': [{k: v for k, v in t.items() if k != 'design'} for t in out['trail']],
+        'note': ('Each step was rendered and measured, not guessed. Tell the '
+                 'weaver what improved and by how much, in plain terms.'),
+    }
+
+
+def _tool_look(session, args):
+    """
+    Render the current design and hand the picture back so the model sees it.
+
+    This widens the trust boundary deliberately and by exactly one step: the
+    model may now LOOK at a design, but it still cannot MAKE one. Every pixel
+    is produced by deterministic code, and anything the model concludes from
+    the image has to come back as a named tool call that is range-checked like
+    any other. A misread image yields a bad suggestion, never a bad BMP.
+
+    Worth it because composition is the one judgement the fidelity score cannot
+    make. Drift and gap counts say whether the linework survived the thread
+    grid; they say nothing about whether the borders overpower the body, or
+    whether the field reads as cloth or as wallpaper.
+    """
+    import design_studio as ds
+
+    img = session.get('image')
+    if img is None:
+        return {'error': 'There is no design to look at yet.'}
+    if not llm.provider().supports_vision:
+        return {'error': ('This model backend cannot read images, so I cannot '
+                          'look at the design. The measurements from convert '
+                          'and auto_design still apply — use those.'),
+                'measurements_only': True}
+
+    spec = _spec_of(session)
+    conv = session.get('conversion') or {}
+    rep = ((conv.get('best') or {}).get('report')) or {}
+    try:
+        thumb = ds.thumbnail(img)
+    except Exception as e:
+        return {'error': f'Could not render a view: {e}'}
+
+    return {
+        'showing': ds.describe(spec) if spec else 'the uploaded design',
+        'verdict': str(conv.get('verdict', 'unknown')).lower(),
+        'thread_drift_pct': rep.get('ink_drift_pct'),
+        'guidance': ('Judge the COMPOSITION, which the numbers cannot: do the '
+                     'borders balance the body or overpower it, does the field '
+                     'read as cloth, is the repeat obvious in a bad way, does '
+                     'the pallu sit right. If something is wrong, fix it with '
+                     'refine_design and look again. Do not comment on line '
+                     'quality or resolution — that is what the fidelity score '
+                     'already measured, and it is more reliable than your eye '
+                     'on a thumbnail.'),
+        '_images': [thumb],
+    }
+
+
+def _tool_compare(session, args):
+    """Show the explored candidates side by side for a composition judgement."""
+    import design_studio as ds
+    from PIL import Image
+
+    ranked = [r for r in (session.get('variants') or []) if 'error' not in r]
+    if len(ranked) < 2:
+        return {'error': 'Run explore_designs first — I need at least two to compare.'}
+    if not llm.provider().supports_vision:
+        return {'error': 'This model backend cannot read images.',
+                'measurements_only': True}
+
+    ranked = ranked[:3]
+    thumbs = []
+    for r in ranked:
+        im = r['_image'].convert('L')
+        scale = 300 / max(im.size)
+        thumbs.append(im.resize((max(1, int(im.size[0] * scale)),
+                                 max(1, int(im.size[1] * scale)))))
+    h = max(t.size[1] for t in thumbs)
+    sheet = Image.new('L', (sum(t.size[0] for t in thumbs) + 20 * len(thumbs), h), 255)
+    x = 0
+    for t in thumbs:
+        sheet.paste(t, (x, 0))
+        x += t.size[0] + 20
+
+    return {
+        'candidates': [{'index': i, 'design': r['summary'],
+                        'verdict': r['verdict'], 'thread_drift_pct': r['thread_drift_pct']}
+                       for i, r in enumerate(ranked)],
+        'guidance': ('Left to right, in the order listed. Say which reads best '
+                     'as cloth and why, then call choose_design.'),
+        '_images': [ds.thumbnail(sheet, max_px=960)],
+    }
+
+
 def _tool_generate_allover(session, args):
     """
     Build a full all-over brocade field and make it the working design.
@@ -1265,7 +1542,48 @@ _DISPATCH = {
     'choose_design': _tool_choose,
     'refine_design': _tool_refine,
     'loom_geometry': _tool_loom_geometry,
+    'auto_design': _tool_auto_design,
+    'look_at_design': _tool_look,
+    'compare_designs': _tool_compare,
+    'plan_work': _tool_plan,
 }
+
+
+# What each tool is doing, in words a weaver would use. Streaming
+# 'auto_design · look_at_design' at someone is a stack trace; streaming
+# "working out the best design for this width" is progress.
+TOOL_NARRATION = {
+    'inspect_design': 'Looking at your design',
+    'convert': 'Converting it to threads',
+    'generate_files': 'Building the loom files',
+    'design': 'Designing the panel',
+    'auto_design': 'Working out the best design for this width',
+    'look_at_design': 'Looking at what I made',
+    'compare_designs': 'Putting the options side by side',
+    'explore_designs': 'Trying some alternatives',
+    'choose_design': 'Going with that one',
+    'refine_design': 'Adjusting the design',
+    'loom_geometry': 'Working out the finished size',
+    'list_motifs': 'Checking what I can build',
+    'edit_design': 'Editing the linework',
+    'undo_edit': 'Undoing that',
+    'set_shuttles': 'Assigning colours to shuttles',
+    'set_weave': 'Setting the weave',
+    'describe_result': 'Checking how it looks',
+    'plan_work': 'Planning the job',
+}
+
+
+def narrate(name):
+    return TOOL_NARRATION.get(name, f'Running {name}')
+
+
+# Tools that cannot run without a source image. On a design-from-scratch
+# session these would otherwise fail deep inside on a None, and hand the model
+# a Python traceback instead of a usable correction.
+NEEDS_IMAGE = ('inspect_design', 'convert', 'edit_design', 'undo_edit',
+               'set_shuttles', 'set_weave', 'describe_result',
+               'generate_files')
 
 
 def run_tool(name, args, session):
@@ -1275,6 +1593,10 @@ def run_tool(name, args, session):
     fn = _DISPATCH.get(name)
     if not fn:
         return {'error': f'No such tool: {name}'}
+    if name in NEEDS_IMAGE and session.get('image') is None:
+        return {'error': ('There is no design in this session yet. Build one '
+                          'first with auto_design, or ask the weaver to upload '
+                          'an image.')}
     try:
         return fn(session, args if isinstance(args, dict) else {})
     except Exception as e:
@@ -1319,12 +1641,25 @@ def _trim(history):
     return window
 
 
-def converse(session, user_message):
+def converse(session, user_message, on_event=None):
     """
     Run one user turn, executing tools until the model produces a reply.
 
+    on_event, if given, is called with dicts as the turn progresses:
+    {'type': 'tool', 'name', 'label'}, {'type': 'tool_done', ...},
+    {'type': 'plan', 'steps': [...]}. A full agentic turn can run a dozen
+    tools over a minute or more, and a silent spinner for that long is
+    indistinguishable from a hang — the caller needs to be able to show the
+    work as it happens.
+
     Returns {'ok', 'reply', 'tools_used', 'has_files'}.
     """
+    def emit(ev):
+        if on_event:
+            try:
+                on_event(ev)
+            except Exception:
+                pass          # a broken listener must not kill the turn
     history = session['history']
     mark = len(history)
     history.append(llm.user_msg(user_message))
@@ -1344,6 +1679,7 @@ def converse(session, user_message):
         session['usage'] = _add_usage(session.get('usage'), reply.usage)
 
         if not reply.wants_tools:
+            emit({'type': 'reply', 'text': reply.text or 'Done.'})
             return {'ok': True, 'reply': reply.text or 'Done.',
                     'tools_used': tools_used,
                     'has_files': bool(session.get('files'))}
@@ -1351,9 +1687,21 @@ def converse(session, user_message):
         results = []
         for call in reply.tool_calls:
             tools_used.append(call.name)
+            emit({'type': 'tool', 'name': call.name, 'label': narrate(call.name)})
             out = run_tool(call.name, call.args, session)
-            results.append({'id': call.id, 'name': call.name,
-                            'content': json.dumps(out, default=str)})
+            emit({'type': 'tool_done', 'name': call.name,
+                  'ok': not (isinstance(out, dict) and 'error' in out),
+                  'plan': session.get('plan')})
+            # A tool may hand back pictures as well as numbers. They travel
+            # under a private key so they are never serialised into the JSON
+            # the model reads as text — base64 in a text field would blow the
+            # context window and tell the model nothing.
+            images = out.pop('_images', None) if isinstance(out, dict) else None
+            entry = {'id': call.id, 'name': call.name,
+                     'content': json.dumps(out, default=str)}
+            if images and llm.provider().supports_vision:
+                entry['images'] = images
+            results.append(entry)
         history.append(llm.tool_results_msg(results))
 
     return {'ok': True,

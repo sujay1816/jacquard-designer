@@ -89,6 +89,58 @@
     background:rgba(200,169,110,.07); line-height:1.7; font-size:12.5px;
   }
   code { background:rgba(200,169,110,.12); color:var(--gold); padding:1px 5px; border-radius:3px; }
+
+  /* Two columns: conversation on the left, the design itself on the right.
+     A design tool in which you cannot see the design was the single biggest
+     gap on this page. */
+  .split { display:flex; gap:16px; align-items:flex-start; }
+  .col-chat { flex:1; min-width:0; display:flex; flex-direction:column; gap:12px; }
+  .col-view { width:290px; flex:none; position:sticky; top:16px; }
+  @media (max-width:900px) { .split { flex-direction:column; } .col-view { width:100%; position:static; } }
+
+  .panel {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:8px; padding:12px;
+  }
+  .panel h3 {
+    margin:0 0 9px; font-family:'Cormorant Garamond',Georgia,serif;
+    font-weight:500; font-size:15px; color:var(--gold);
+  }
+  #preview {
+    width:100%; display:block; border-radius:4px; background:#fff;
+    border:1px solid var(--border2); min-height:60px;
+  }
+  #previewMeta { color:var(--muted); font-size:10.5px; margin-top:8px; line-height:1.6; }
+  #previewEmpty { color:var(--muted); font-size:11.5px; line-height:1.7; }
+
+  /* The plan the agent wrote for itself, ticked off as it works. */
+  #planBox { margin-top:12px; }
+  .plan-step {
+    display:flex; gap:8px; align-items:flex-start; padding:3px 0;
+    font-size:11.5px; color:var(--muted); line-height:1.5;
+  }
+  .plan-step .tick { color:var(--border2); flex:none; }
+  .plan-step.done { color:var(--text); }
+  .plan-step.done .tick { color:var(--gold); }
+
+  /* Live progress: what the agent is doing right now, as it does it. */
+  .steps { display:flex; flex-direction:column; gap:5px; margin-top:8px; }
+  .step {
+    display:flex; gap:8px; align-items:center;
+    font-size:11.5px; color:var(--muted);
+  }
+  .step .dot { width:6px; height:6px; border-radius:50%; background:var(--gold); flex:none; }
+  .step.running .dot { animation:pulse 1.1s ease-in-out infinite; }
+  .step.failed .dot { background:var(--danger); }
+  @keyframes pulse { 0%,100% { opacity:.25 } 50% { opacity:1 } }
+
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .chip {
+    padding:6px 11px; border-radius:14px; font-size:11px; cursor:pointer;
+    border:1px solid var(--border2); background:var(--surface2); color:var(--muted);
+  }
+  .chip:hover { border-color:var(--gold); color:var(--gold); }
+  .backend { font-size:10px; color:var(--muted); opacity:.65; letter-spacing:.03em; }
 </style>
 </head>
 <body>
@@ -100,11 +152,14 @@
 <main>
   <div class="shell">
     <div id="offline" class="notice" style="display:none">
-      <b>The assistant needs an API key.</b><br>
-      Set <code>ANTHROPIC_API_KEY</code> in your environment, or create
-      <code>config.json</code> next to <code>app.py</code> containing
-      <code>{"anthropic_api_key": "sk-ant-..."}</code>, then reload.
-      Every other page works without it.
+      <b>The assistant needs a model backend.</b><br><br>
+      <b>Claude</b> — set <code>ANTHROPIC_API_KEY</code> in your environment, or
+      create <code>config.json</code> next to <code>app.py</code> containing
+      <code>{"anthropic_api_key": "sk-ant-..."}</code>.<br><br>
+      <b>A local model</b> — no key needed. Put this in <code>config.json</code>:
+      <code>{"llm_provider": "ollama", "llm_model": "llama3.3:70b"}</code>
+      and make sure the server is running.<br><br>
+      Reload after either. Every other page works without one.
     </div>
 
     <div id="ready" style="display:none">
@@ -130,26 +185,74 @@
     </div>
 
     <div id="chat">
-      <div class="thumb"><img id="thumb" alt="Uploaded design"><span id="fname"></span></div>
-      <div class="log" id="log"></div>
-      <div class="composer">
-        <input type="text" id="msg" placeholder="Reply…" autocomplete="off"
-               onkeydown="if(event.key==='Enter')send()">
-        <button id="sendBtn" onclick="send()">Send</button>
-        <button id="dl" class="gold" onclick="download()">↓ Download BMPs</button>
+      <div class="split">
+        <div class="col-chat">
+          <div class="thumb" id="srcThumb" style="display:none">
+            <img id="thumb" alt="Uploaded design"><span id="fname"></span>
+          </div>
+          <div class="log" id="log"></div>
+          <div class="chips" id="chips"></div>
+          <div class="composer">
+            <input type="text" id="msg" placeholder="Tell me what you need…" autocomplete="off"
+                   onkeydown="if(event.key==='Enter')send()">
+            <button id="sendBtn" onclick="send()">Send</button>
+            <button id="stopBtn" onclick="stopTurn()" style="display:none">Stop</button>
+            <button id="dl" class="gold" onclick="download()">↓ Download BMPs</button>
+          </div>
+        </div>
+
+        <div class="col-view">
+          <div class="panel">
+            <h3>The design</h3>
+            <img id="preview" alt="Current design" style="display:none">
+            <p id="previewEmpty">Nothing designed yet. Describe what you need —
+              a width and a reed is enough to start.</p>
+            <div id="previewMeta"></div>
+            <div class="chips" style="margin-top:10px">
+              <span class="chip" onclick="openEditor()" id="editChip" style="display:none">Open in BMP editor</span>
+            </div>
+          </div>
+          <div class="panel" id="planBox" style="display:none">
+            <h3>Plan</h3>
+            <div id="planSteps"></div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </main>
 
 <script>
-let TOKEN = null, BUSY = false;
+let TOKEN = null, BUSY = false, STREAM = null, VISION = false;
 
-// The panel is hidden entirely when no key is configured, rather than letting
-// someone start a conversation that cannot go anywhere.
+// Restore a session across a reload. Sessions live an hour server-side, so
+// keeping the token only in a JS variable threw away a working conversation
+// every time someone refreshed.
+const SAVED = 'jq_agent_token';
+
 fetch('/api/assistant-status').then(r => r.json()).then(d => {
   document.getElementById(d.available ? 'ready' : 'offline').style.display = 'block';
+  VISION = !!d.vision;
+  if (d.available && d.backend) {
+    const b = document.createElement('div');
+    b.className = 'backend';
+    b.textContent = d.backend + (d.vision ? ' · can see designs' : ' · text only');
+    document.getElementById('ready').prepend(b);
+  }
+  if (d.available) resume();
 }).catch(() => { document.getElementById('offline').style.display = 'block'; });
+
+async function resume() {
+  const t = sessionStorage.getItem(SAVED);
+  if (!t) return;
+  const r = await fetch('/api/agent/preview?token=' + encodeURIComponent(t));
+  if (!r.ok) { sessionStorage.removeItem(SAVED); return; }
+  TOKEN = t;
+  document.getElementById('ready').style.display = 'none';
+  document.getElementById('chat').style.display = 'flex';
+  add('Picking up where we left off. The design is on the right.', 'agent');
+  refreshPreview();
+}
 
 const drop = document.getElementById('drop');
 ['dragenter','dragover'].forEach(e => drop.addEventListener(e, ev => {
@@ -175,22 +278,93 @@ function busy(on) {
   BUSY = on;
   document.getElementById('sendBtn').disabled = on;
   document.getElementById('msg').disabled = on;
+  document.getElementById('stopBtn').style.display = on ? 'inline-block' : 'none';
 }
 
-// Start with no upload, so the assistant can build a design instead.
+// ── The design view ─────────────────────────────────────────────────────────
+
+function refreshPreview() {
+  if (!TOKEN) return;
+  const img = document.getElementById('preview');
+  // Cache-bust: the design changes every turn, and a cached preview would show
+  // the previous one and make a refinement look like it did nothing.
+  const url = '/api/agent/preview?token=' + encodeURIComponent(TOKEN) + '&t=' + Date.now();
+  fetch(url).then(r => {
+    if (!r.ok) throw 0;
+    return r.blob();
+  }).then(b => {
+    img.src = URL.createObjectURL(b);
+    img.style.display = 'block';
+    document.getElementById('previewEmpty').style.display = 'none';
+    document.getElementById('editChip').style.display = 'inline-block';
+  }).catch(() => { /* nothing designed yet — leave the placeholder */ });
+}
+
+function renderPlan(plan) {
+  const box = document.getElementById('planBox');
+  const list = document.getElementById('planSteps');
+  if (!plan || !plan.length) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  list.innerHTML = '';
+  plan.forEach(p => {
+    const d = document.createElement('div');
+    d.className = 'plan-step' + (p.done ? ' done' : '');
+    d.innerHTML = '<span class="tick">' + (p.done ? '✓' : '○') + '</span>';
+    d.appendChild(document.createTextNode(p.step));
+    list.appendChild(d);
+  });
+}
+
+// Follow-ups worth offering, so the weaver is never staring at a blank box
+// wondering what this thing can do.
+const OPENERS = [
+  'Design a saree body, 800 pins at reed 80',
+  'What can you build at 480 pins?',
+  'I need 45 inches finished — what reed should I use?',
+];
+const FOLLOWUPS = [
+  'Show me a couple of alternatives',
+  'Make it more open',
+  'Too plain — make it richer',
+  'Generate the BMP files',
+];
+
+function chips(list) {
+  const box = document.getElementById('chips');
+  box.innerHTML = '';
+  list.forEach(text => {
+    const c = document.createElement('span');
+    c.className = 'chip';
+    c.textContent = text;
+    c.onclick = () => { document.getElementById('msg').value = text; send(); };
+    box.appendChild(c);
+  });
+}
+
+// ── Starting ────────────────────────────────────────────────────────────────
+
 async function startBlank() {
-  const c = document.createElement('canvas');
-  c.width = c.height = 8;
-  const x = c.getContext('2d');
-  x.fillStyle = '#fff'; x.fillRect(0, 0, 8, 8);
-  c.toBlob(b => start(new File([b], 'new-design.png', { type: 'image/png' }),
-                      'Build me a design — tell me what you can make.'));
+  document.getElementById('ready').style.display = 'none';
+  document.getElementById('chat').style.display = 'flex';
+  busy(true);
+  try {
+    const d = await (await fetch('/api/agent/blank', { method: 'POST' })).json();
+    if (!d.success) { add(d.error || 'Could not start.', 'err'); return; }
+    TOKEN = d.token;
+    sessionStorage.setItem(SAVED, TOKEN);
+    add('Tell me the loom width and the reed, and roughly how the cloth should '
+      + 'feel. I will work out the rest and show you what I made.', 'agent');
+    chips(OPENERS);
+  } catch (e) {
+    add('Could not reach the server.', 'err');
+  } finally { busy(false); document.getElementById('msg').focus(); }
 }
 
-async function start(file, opening) {
+async function start(file) {
   if (!file || BUSY) return;
   document.getElementById('ready').style.display = 'none';
   document.getElementById('chat').style.display = 'flex';
+  document.getElementById('srcThumb').style.display = 'flex';
   document.getElementById('thumb').src = URL.createObjectURL(file);
   document.getElementById('fname').textContent = file.name;
 
@@ -204,49 +378,122 @@ async function start(file, opening) {
     wait.remove();
     if (!d.success) { add(d.error || d.reply || 'Could not start.', 'err'); return; }
     TOKEN = d.token;
-    render(d);
+    sessionStorage.setItem(SAVED, TOKEN);
+    finish(d);
   } catch (e) {
     wait.remove();
     add('Could not reach the server.', 'err');
   } finally { busy(false); document.getElementById('msg').focus(); }
 }
 
-async function send() {
+// ── A turn, streamed ────────────────────────────────────────────────────────
+
+function send() {
   const box = document.getElementById('msg');
   const text = box.value.trim();
   if (!text || BUSY || !TOKEN) return;
   box.value = '';
   add(text, 'you');
+  chips([]);
   busy(true);
-  const wait = add('Working…', 'agent');
-  wait.classList.add('thinking');
-  try {
-    const d = await (await fetch('/api/agent/message', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: TOKEN, message: text }),
-    })).json();
-    wait.remove();
-    if (!d.success) { add(d.error || d.reply || 'Something went wrong.', 'err'); return; }
-    render(d);
-  } catch (e) {
-    wait.remove();
-    add('Could not reach the server.', 'err');
-  } finally { busy(false); box.focus(); }
+
+  const holder = add('', 'agent');
+  holder.classList.add('thinking');
+  holder.textContent = 'Thinking…';
+  const steps = document.createElement('div');
+  steps.className = 'steps';
+  holder.appendChild(steps);
+  const rows = {};
+
+  const url = '/api/agent/stream?token=' + encodeURIComponent(TOKEN)
+            + '&message=' + encodeURIComponent(text);
+  STREAM = new EventSource(url);
+
+  STREAM.onmessage = ev => {
+    let d;
+    try { d = JSON.parse(ev.data); } catch (e) { return; }
+
+    if (d.type === 'tool') {
+      holder.firstChild.textContent = '';
+      const row = document.createElement('div');
+      row.className = 'step running';
+      row.innerHTML = '<span class="dot"></span>';
+      row.appendChild(document.createTextNode(d.label));
+      steps.appendChild(row);
+      rows[d.name] = row;
+      row.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+    } else if (d.type === 'tool_done') {
+      const row = rows[d.name];
+      if (row) row.className = 'step' + (d.ok ? '' : ' failed');
+      if (d.plan) renderPlan(d.plan);
+      // The design may have changed — show it as it happens rather than
+      // making the weaver wait for the whole turn to finish.
+      refreshPreview();
+
+    } else if (d.type === 'error') {
+      closeStream();
+      holder.remove();
+      add(d.error, 'err');
+      busy(false);
+
+    } else if (d.type === 'done') {
+      closeStream();
+      holder.remove();
+      finish(d);
+      busy(false);
+      document.getElementById('msg').focus();
+    }
+  };
+
+  STREAM.onerror = () => {
+    closeStream();
+    holder.remove();
+    add('Lost the connection to the assistant.', 'err');
+    busy(false);
+    // Give the message back rather than swallowing it.
+    box.value = text;
+  };
 }
 
-function render(d) {
-  const el = add(d.reply, 'agent');
-  if (d.tools_used && d.tools_used.length) {
-    const t = document.createElement('div');
-    t.className = 'tools';
-    t.textContent = d.tools_used.join(' · ');
-    el.appendChild(t);
+function closeStream() {
+  if (STREAM) { STREAM.close(); STREAM = null; }
+}
+
+function stopTurn() {
+  closeStream();
+  add('Stopped. The work already done is kept.', 'agent');
+  busy(false);
+  refreshPreview();
+}
+
+function finish(d) {
+  if (!d.ok && d.reply) { add(d.reply, 'err'); }
+  else if (d.reply) {
+    const el = add(d.reply, 'agent');
+    if (d.tools_used && d.tools_used.length) {
+      const t = document.createElement('div');
+      t.className = 'tools';
+      // Words, not function names — 'auto_design · look_at_design' is a stack
+      // trace, not something a weaver can read.
+      const seen = [];
+      d.tools_used.forEach(n => { if (!seen.includes(n)) seen.push(n); });
+      t.textContent = seen.length + (seen.length === 1 ? ' step' : ' steps');
+      el.appendChild(t);
+    }
   }
+  if (d.plan) renderPlan(d.plan);
   document.getElementById('dl').style.display = d.has_files ? 'inline-block' : 'none';
+  refreshPreview();
+  chips(FOLLOWUPS);
 }
 
 function download() {
   if (TOKEN) window.location.href = '/api/agent/download?token=' + encodeURIComponent(TOKEN);
+}
+
+function openEditor() {
+  window.open('/edit', '_blank');
 }
 </script>
 </body>

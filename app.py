@@ -2,7 +2,8 @@
 Jacquard Designer App — Flask Backend
 """
 
-from flask import Flask, request, jsonify, render_template, send_file
+from flask import (Flask, request, jsonify, render_template, send_file,
+                   Response, stream_with_context)
 from PIL import Image, ImageOps, UnidentifiedImageError
 import numpy as np
 import io, os, zipfile, base64
@@ -402,8 +403,21 @@ def api_check_trace():
 
 @app.route('/api/assistant-status', methods=['GET'])
 def api_assistant_status():
-    """Report whether an API key is configured, so the UI can hide the panel."""
-    return jsonify({'success': True, 'available': assistant_engine.is_available()})
+    """
+    Report whether a model backend is configured, so the UI can hide the panel.
+
+    Asks the provider layer, not for an Anthropic key specifically: a mill
+    running a local Llama has no key at all, and gating on one hid a working
+    assistant behind a notice telling them to go and get one.
+    """
+    try:
+        import llm
+        return jsonify({'success': True, 'available': llm.is_available(),
+                        'backend': llm.describe(),
+                        'vision': bool(llm.provider().supports_vision)})
+    except Exception:
+        return jsonify({'success': True, 'available': False,
+                        'backend': 'unavailable', 'vision': False})
 
 
 def _label_map_b64(label_map):
@@ -484,6 +498,146 @@ def api_agent_message():
                         'has_files': result['has_files']})
     except Exception as e:
         return _json_error(f'Assistant failed: {e}')
+
+
+@app.route('/api/agent/blank', methods=['POST'])
+def api_agent_blank():
+    """
+    Open a conversation with nothing uploaded, to design from scratch.
+
+    Previously the page faked this by posting an 8x8 white PNG, which meant a
+    generate-from-scratch job masqueraded as a conversion and the weaver was
+    shown a white square as their "design". A design session has no source
+    image, and saying so plainly is what lets the UI show the generated panel
+    instead.
+    """
+    try:
+        if not agent_engine_available():
+            return _json_error('No model backend configured.')
+        import agent_engine
+        token = agent_engine.new_session(None, 'new-design')
+        return jsonify({'success': True, 'token': token})
+    except Exception as e:
+        return _json_error(f'Could not start: {e}')
+
+
+@app.route('/api/agent/preview', methods=['GET'])
+def api_agent_preview():
+    """
+    The design as it currently stands, as a PNG.
+
+    The single largest gap in the assistant page: it is a design tool in which
+    the weaver could not see the design. The agent would build a panel, score
+    it, refine it twice, and the weaver read prose about all of it.
+    """
+    try:
+        import agent_engine
+        session = agent_engine.get_session(request.args.get('token', ''))
+        if not session:
+            return _json_error('That conversation has expired.')
+        img = session.get('image')
+        if img is None:
+            return _json_error('Nothing has been designed yet.')
+
+        # Prefer the converted view when there is one: that is what will
+        # actually be woven, not the artwork it came from.
+        working = session.get('working')
+        if working is not None:
+            import numpy as np
+            arr = np.asarray(working)
+            img = Image.fromarray(((arr == 0) * 255).astype('uint8'), 'L')
+
+        buf = io.BytesIO()
+        preview = img.convert('L')
+        if max(preview.size) > 1400:
+            scale = 1400 / max(preview.size)
+            preview = preview.resize((max(1, int(preview.size[0] * scale)),
+                                      max(1, int(preview.size[1] * scale))))
+        preview.save(buf, format='PNG')
+        buf.seek(0)
+        resp = send_file(buf, mimetype='image/png')
+        # The design changes every turn, so a cached preview would show the
+        # weaver the previous design and look like the refinement did nothing.
+        resp.headers['Cache-Control'] = 'no-store'
+        return resp
+    except Exception as e:
+        return _json_error(f'Preview failed: {e}')
+
+
+@app.route('/api/agent/stream', methods=['GET'])
+def api_agent_stream():
+    """
+    Run one turn, streaming progress as server-sent events.
+
+    A full agentic turn runs a dozen tools over a minute or more. Returning one
+    JSON blob at the end means a static spinner for that whole time, which is
+    indistinguishable from a hang — and it hides the work, which is the part
+    worth seeing.
+
+    GET rather than POST because EventSource only issues GETs. The message
+    rides in the query string, which caps it at a couple of thousand
+    characters — fine for a chat line.
+    """
+    import json as _json
+    import queue
+    import threading
+
+    import agent_engine
+
+    token = request.args.get('token', '')
+    message = str(request.args.get('message', '')).strip()[:2000]
+    session = agent_engine.get_session(token)
+
+    def run():
+        if not session:
+            yield f'data: {_json.dumps({"type": "error", "error": "That conversation has expired. Start again."})}\n\n'
+            return
+        if not message:
+            yield f'data: {_json.dumps({"type": "error", "error": "No message provided."})}\n\n'
+            return
+
+        events = queue.Queue()
+        result = {}
+
+        def worker():
+            try:
+                result['out'] = agent_engine.converse(
+                    session, message, on_event=events.put)
+            except Exception as e:
+                result['out'] = {'ok': False, 'reply': f'Assistant failed: {e}',
+                                 'tools_used': [], 'has_files': False}
+            finally:
+                events.put(None)
+
+        t = threading.Thread(target=worker, daemon=True)
+        t.start()
+
+        while True:
+            try:
+                ev = events.get(timeout=90)
+            except queue.Empty:
+                yield f'data: {_json.dumps({"type": "error", "error": "The assistant took too long."})}\n\n'
+                return
+            if ev is None:
+                break
+            # 'reply' is emitted mid-loop but the turn is not finished until
+            # the worker returns, so it is skipped here and sent as 'done'.
+            if ev.get('type') != 'reply':
+                yield f'data: {_json.dumps(ev)}\n\n'
+
+        out = result.get('out') or {}
+        yield 'data: ' + _json.dumps({
+            'type': 'done', 'ok': out.get('ok', False),
+            'reply': out.get('reply', ''),
+            'tools_used': out.get('tools_used', []),
+            'has_files': out.get('has_files', False),
+            'plan': session.get('plan') if session else None,
+            'has_design': bool(session and session.get('image') is not None),
+        }) + '\n\n'
+
+    return Response(stream_with_context(run()), mimetype='text/event-stream',
+                    headers={'Cache-Control': 'no-cache',
+                             'X-Accel-Buffering': 'no'})
 
 
 @app.route('/api/agent/download', methods=['GET'])

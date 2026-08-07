@@ -41,7 +41,7 @@ class OpenAICompatProvider(LLMProvider):
     name = 'openai_compat'
 
     def __init__(self, base_url=None, api_key=None, model=None,
-                 timeout=API_TIMEOUT, temperature=0.0):
+                 timeout=API_TIMEOUT, temperature=0.0, vision=None):
         self._base = (base_url or DEFAULT_BASE_URL).rstrip('/')
         self._key = (api_key or '').strip() or None
         self._model = (model or '').strip() or DEFAULT_MODEL
@@ -49,6 +49,10 @@ class OpenAICompatProvider(LLMProvider):
         # Deterministic by default. The pixels are already reproducible; the
         # explanations around them should not wobble between identical runs.
         self._temperature = temperature
+        # Vision varies by model, not by server: llava and qwen-vl read images,
+        # plain llama3.3 does not. Guessing wrong wastes a round on an image the
+        # model cannot see, so it is declared rather than assumed.
+        self.supports_vision = bool(vision) if vision is not None else _guesses_vision(self._model)
 
     def is_available(self):
         # A local server needs no key, so a base_url is the only hard
@@ -69,7 +73,18 @@ class OpenAICompatProvider(LLMProvider):
             role = m.get('role')
 
             if role == 'user':
-                out.append({'role': 'user', 'content': m.get('content', '')})
+                imgs = m.get('images')
+                if imgs:
+                    # Data URIs rather than hosted URLs: the whole point of
+                    # this app is that no design image leaves the machine, and
+                    # a hosted URL would mean uploading one somewhere first.
+                    parts = [{'type': 'image_url',
+                              'image_url': {'url': f"data:{i.get('media_type','image/png')};base64,{i['data']}"}}
+                             for i in imgs if i.get('data')]
+                    parts.append({'type': 'text', 'text': m.get('content', '')})
+                    out.append({'role': 'user', 'content': parts})
+                else:
+                    out.append({'role': 'user', 'content': m.get('content', '')})
 
             elif role == 'assistant':
                 msg = {'role': 'assistant', 'content': m.get('content') or None}
@@ -85,10 +100,24 @@ class OpenAICompatProvider(LLMProvider):
 
             elif role == 'tool_results':
                 # One message per result, unlike Anthropic's single user turn.
+                trailing_images = []
                 for r in m.get('results') or []:
                     out.append({'role': 'tool', 'tool_call_id': r['id'],
                                 'name': r.get('name', ''),
                                 'content': r.get('content', '')})
+                    trailing_images.extend(r.get('images') or [])
+                # A role="tool" message takes text only in this API, so images
+                # attached to a result follow as a user turn. Sending them
+                # inside the tool message instead is silently dropped by most
+                # servers, and the model then answers about an image it was
+                # never shown.
+                if trailing_images:
+                    parts = [{'type': 'image_url',
+                              'image_url': {'url': f"data:{i.get('media_type','image/png')};base64,{i['data']}"}}
+                             for i in trailing_images if i.get('data')]
+                    parts.append({'type': 'text',
+                                  'text': 'The image above is the result of that tool call.'})
+                    out.append({'role': 'user', 'content': parts})
         return out
 
     @staticmethod
@@ -258,8 +287,19 @@ def _http_detail(e):
     return detail
 
 
+_VISION_HINTS = ('llava', 'vl', 'vision', 'gemma3', 'pixtral', 'gpt-4o',
+                 'internvl', 'minicpm-v', 'molmo')
+
+
+def _guesses_vision(model):
+    m = (model or '').lower()
+    return any(h in m for h in _VISION_HINTS)
+
+
 def from_config(cfg, env=os.environ):
+    vision = cfg.get('llm_vision')
     return OpenAICompatProvider(
+        vision=vision if vision is not None else None,
         base_url=(env.get('JQ_LLM_BASE_URL', '').strip()
                   or str(cfg.get('llm_base_url', '') or '').strip()),
         api_key=(env.get('JQ_LLM_API_KEY', '').strip()
