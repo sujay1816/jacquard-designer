@@ -2407,4 +2407,9 @@ def files_zip(session):
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
         for fn, data in files.items():
             z.writestr(fn, data)
-    return buf.getvalue(), f"{session['filename']}_bmps.zip"
+    # Strip the source extension: 'saree.png_bmps.zip' looks like a mistake
+    # and, on Windows, an archive named for a PNG is one a weaver hesitates to
+    # open.
+    stem = os.path.splitext(str(session.get('filename') or 'design'))[0]
+    stem = ''.join(ch for ch in stem if ch not in '\\/:*?"<>|').strip() or 'design'
+    return buf.getvalue(), f'{stem}_bmps.zip'

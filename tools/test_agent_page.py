@@ -237,6 +237,101 @@ def main():
     check('files are listed individually', 'renderFiles' in html)
     check('views can be switched', 'setView' in html)
 
+    print('\nUploads')
+    import io as _io
+    import numpy as np
+    from PIL import Image, ImageDraw
+
+    llm.set_provider(Scripted())
+
+    def post(img, name='d.png', fmt='PNG'):
+        b = _io.BytesIO(); img.save(b, fmt); b.seek(0)
+        return c.post('/api/agent/start', data={'image': (b, name)},
+                      content_type='multipart/form-data').get_json()
+
+    plain = Image.new('RGB', (400, 300), 'white')
+    ImageDraw.Draw(plain).ellipse([80, 60, 320, 240], fill='black')
+    check('an ordinary png uploads', bool(post(plain).get('token')))
+    check('greyscale uploads', bool(post(plain.convert('L')).get('token')))
+    check('a palette image uploads', bool(post(plain.convert('P'), 'a.gif', 'GIF').get('token')))
+    check('no file is refused',
+          'error' in c.post('/api/agent/start', data={},
+                            content_type='multipart/form-data').get_json())
+    check('a file that is not an image is refused',
+          'error' in c.post('/api/agent/start',
+                            data={'image': (_io.BytesIO(b'nope'), 'x.png')},
+                            content_type='multipart/form-data').get_json())
+    check('an empty file is refused',
+          'error' in c.post('/api/agent/start',
+                            data={'image': (_io.BytesIO(b''), 'x.png')},
+                            content_type='multipart/form-data').get_json())
+
+    print('\nTransparency does not eat the design')
+    rgba = Image.new('RGBA', (400, 300), (0, 0, 0, 0))
+    ImageDraw.Draw(rgba).ellipse([80, 60, 320, 240], fill=(0, 0, 0, 255))
+    j = post(rgba, 'transparent.png')
+    st = ag.get_session(j['token'])
+    lum = float(np.asarray(st['image'].convert('L')).mean())
+    # PIL's convert('RGB') DISCARDS alpha and keeps the RGB beneath it — (0,0,0)
+    # in almost every exporter. The canvas went fully black (luminance 0.0), the
+    # motif vanished into it, and the conversion returned a blank BMP while
+    # reporting a mere 'warn'. Transparent means no ink means bare cloth.
+    check(f'a transparent png is not flattened to black ({lum:.0f})', lum > 120, lum)
+    conv = ag.run_tool('convert', {'pins': 400}, st)
+    ink = float((np.asarray(ag._working(st)) > 0).mean()) * 100
+    check(f'and the design survives conversion ({ink:.0f}% ink)', 10 < ink < 60, ink)
+    check('with a sane verdict', conv.get('verdict') in ('ok', 'warn'), conv.get('verdict'))
+
+    print('\nDownloads')
+    import zipfile
+    llm.set_provider(Scripted())
+    tokd = c.post('/api/agent/blank').get_json()['token']
+    sd = ag.get_session(tokd)
+    ag.run_tool('auto_design', {'pins': 300, 'reed': 80, 'effort': 1}, sd)
+    check('downloading before generating is refused',
+          c.get(f'/api/agent/download?token={tokd}').status_code == 400)
+
+    ag.run_tool('generate_files', {'shuttle_count': 3}, sd)
+    r = c.get(f'/api/agent/download?token={tokd}')
+    check('the zip downloads', r.status_code == 200, r.status_code)
+    check('as a zip', r.headers['Content-Type'] == 'application/zip')
+    z = zipfile.ZipFile(_io.BytesIO(r.data))
+    check('the archive is not corrupt', z.testzip() is None)
+    check('it holds one file per shuttle', len(z.namelist()) == 3, z.namelist())
+    for n in z.namelist():
+        im = Image.open(_io.BytesIO(z.read(n)))
+        check(f'{n} is a 1-bit bmp', im.mode == '1', im.mode)
+
+    check('a bad token is refused',
+          c.get('/api/agent/download?token=gone').status_code == 400)
+    check('a missing token is refused',
+          c.get('/api/agent/download').status_code == 400)
+
+    # 'saree.png_bmps.zip' looks like a mistake, and on Windows an archive named
+    # for a PNG is one a weaver hesitates to open.
+    sd['filename'] = 'saree.png'
+    ag.run_tool('generate_files', {'shuttle_count': 3}, sd)
+    check('the zip name drops the source extension',
+          ag.files_zip(sd)[1] == 'saree_bmps.zip', ag.files_zip(sd)[1])
+    sd['filename'] = 'a/b:c*.jpg'
+    ag.run_tool('generate_files', {'shuttle_count': 3}, sd)
+    check('and strips characters a filesystem would reject',
+          ag.files_zip(sd)[1] == 'abc_bmps.zip', ag.files_zip(sd)[1])
+
+    print('\nThe page handles upload and download failures itself')
+    html = c.get('/agent').get_data(as_text=True)
+    # accept="image/*" only filters the picker; drag-and-drop bypasses it, so a
+    # 40 MB PDF would upload in full before the server said no.
+    check('a dropped non-image is caught before uploading',
+          'not an image file' in html)
+    check('an oversized file is caught before uploading', '50 * 1024 * 1024' in html)
+    # Navigating straight to the endpoint shows a raw JSON error blob when the
+    # files have been cleared by an edit — which happens routinely.
+    check('a failed download is reported in the conversation, not as raw JSON',
+          'no longer available' in html)
+    check('the zip is fetched rather than navigated to',
+          'Content-Disposition' in html)
+
     llm.reset()
     print(f'\n{PASS} passed, {FAIL} failed\n')
     return 1 if FAIL else 0

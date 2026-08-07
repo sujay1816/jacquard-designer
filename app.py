@@ -271,7 +271,7 @@ def api_detect_colors():
         # ── Open image ───────────────────────────────────────────────────────
         try:
             img = Image.open(file.stream)
-            img = ImageOps.exif_transpose(img).convert('RGB')
+            img = _open_upload(img)
         except UnidentifiedImageError:
             return _json_error(
                 'Could not read the uploaded file as an image. '
@@ -441,6 +441,38 @@ def agent_page():
     return resp
 
 
+
+def _open_upload(src):
+    """
+    Open an uploaded image as RGB, flattening transparency onto white.
+
+    Accepts raw bytes, a Werkzeug upload, or an already-open Image, because the
+    upload routes differ in what they have to hand and two separate loaders is
+    how one of them ends up without the fixes the other got.
+
+    Transparent PNGs are the normal export of every design tool, and PIL's
+    convert('RGB') on one DISCARDS the alpha and keeps whatever RGB sat beneath
+    it — (0, 0, 0) in almost every exporter. The whole canvas then goes black,
+    the motif disappears into it, and the conversion returns a blank BMP while
+    reporting a mere 'warn'. Transparent means no ink, which means bare cloth,
+    which means white.
+
+    EXIF rotation is applied too, so a design photographed in portrait is not
+    converted sideways.
+    """
+    if isinstance(src, Image.Image):
+        img = src
+    elif isinstance(src, (bytes, bytearray)):
+        img = Image.open(io.BytesIO(src))
+    else:
+        img = Image.open(src.stream)
+    img = ImageOps.exif_transpose(img)
+    if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
+        img = img.convert('RGBA')
+        img = Image.alpha_composite(Image.new('RGBA', img.size, (255, 255, 255, 255)), img)
+    return img.convert('RGB')
+
+
 @app.route('/api/agent/start', methods=['POST'])
 def api_agent_start():
     """Upload a design and open a conversation about converting it."""
@@ -457,7 +489,7 @@ def api_agent_start():
             return _json_error('Uploaded file is empty.')
         if len(raw) > 50 * 1024 * 1024:
             return _json_error('Image is too large (max 50 MB).')
-        img = ImageOps.exif_transpose(Image.open(io.BytesIO(raw))).convert('RGB')
+        img = _open_upload(raw)
 
         import agent_engine
         token = agent_engine.new_session(img, f.filename or 'design')
@@ -792,7 +824,7 @@ def api_auto_convert():
         raw = request.files['image'].read()
         if not raw:
             return _json_error('Uploaded file is empty.')
-        img = ImageOps.exif_transpose(Image.open(io.BytesIO(raw))).convert('RGB')
+        img = _open_upload(raw)
 
         pins = request.form.get('pins')
         pins = int(pins) if pins and str(pins).strip().isdigit() else None
@@ -1132,7 +1164,7 @@ def assess_quality():
             return jsonify({'success': False, 'error': 'Invalid image file'})
 
         img = Image.open(file.stream)
-        img = ImageOps.exif_transpose(img).convert('RGB')
+        img = _open_upload(img)
         quality = assess_image_quality(img)
         try:
             from enhanced_engine import estimate_noise
@@ -1180,7 +1212,7 @@ def api_trace_guide():
             return _json_error('File too large (max 50 MB)')
 
         img = Image.open(io.BytesIO(raw))
-        img = ImageOps.exif_transpose(img).convert('RGB')
+        img = _open_upload(img)
 
         # Work at a sensible processing resolution
         MAX_PROC = 1200
@@ -1607,7 +1639,7 @@ def api_border_detect():
 
         try:
             img = Image.open(file.stream)
-            img = ImageOps.exif_transpose(img).convert('RGB')
+            img = _open_upload(img)
         except UnidentifiedImageError:
             return _json_error('Could not read the uploaded file as an image.')
 
@@ -2007,7 +2039,7 @@ def api_border_suggest():
 
         try:
             img = Image.open(file.stream)
-            img = ImageOps.exif_transpose(img).convert('RGB')
+            img = _open_upload(img)
         except Exception:
             return _json_error('Could not read the uploaded image.')
 
@@ -2029,9 +2061,7 @@ def butta_page():
     return resp
 
 
-def _open_upload(file):
-    img = Image.open(file.stream)
-    return ImageOps.exif_transpose(img).convert('RGB')
+
 
 
 _SHUTTLE_NAMES = ('rani', 'meena4', 'meena3', 'meena2', 'meena1', 'zari')
@@ -2506,7 +2536,7 @@ def api_generate_preview():
             return _json_error('No image provided.')
         try:
             img = Image.open(io.BytesIO(base64.b64decode(b64)))
-            img = ImageOps.exif_transpose(img).convert('RGB')
+            img = _open_upload(img)
         except Exception:
             return _json_error('Could not read the image.')
         try:

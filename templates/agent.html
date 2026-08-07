@@ -588,6 +588,21 @@ async function startBlank() {
 
 async function start(file) {
   if (!file || BUSY) return;
+  // accept="image/*" is only a filter on the picker — a drag-and-drop bypasses
+  // it entirely, and a 40 MB PDF dropped on the panel would otherwise be
+  // uploaded in full before the server said no.
+  if (!/^image\//.test(file.type || '')) {
+    document.getElementById('chat').style.display = 'flex';
+    document.getElementById('ready').style.display = 'none';
+    add('That is not an image file. Drop a PNG, JPG, BMP or TIFF of your design.', 'err');
+    return;
+  }
+  if (file.size > 50 * 1024 * 1024) {
+    document.getElementById('chat').style.display = 'flex';
+    document.getElementById('ready').style.display = 'none';
+    add('That image is over 50 MB. Save it smaller and try again.', 'err');
+    return;
+  }
   document.getElementById('ready').style.display = 'none';
   document.getElementById('chat').style.display = 'flex';
   document.getElementById('srcThumb').style.display = 'flex';
@@ -714,8 +729,34 @@ function finish(d) {
   chips(FOLLOWUPS);
 }
 
-function download() {
-  if (TOKEN) window.location.href = '/api/agent/download?token=' + encodeURIComponent(TOKEN);
+async function download() {
+  if (!TOKEN) return;
+  // Navigating straight to the endpoint shows the weaver a raw JSON error blob
+  // when the files have been cleared by an edit — which happens routinely.
+  // Fetch first, and put any problem in the conversation where it belongs.
+  const url = '/api/agent/download?token=' + encodeURIComponent(TOKEN);
+  try {
+    const r = await fetch(url);
+    if (!r.ok) {
+      let msg = 'Those files are no longer available.';
+      try { msg = (await r.json()).error || msg; } catch (e) {}
+      add(msg + ' Ask me to generate them again.', 'err');
+      refreshState();
+      return;
+    }
+    const blob = await r.blob();
+    const name = (r.headers.get('Content-Disposition') || '')
+      .match(/filename="?([^";]+)"?/);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name ? name[1] : 'loom-files.zip';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  } catch (e) {
+    add('Could not download the files.', 'err');
+  }
 }
 
 function openEditor() {
