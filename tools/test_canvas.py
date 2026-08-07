@@ -334,6 +334,88 @@ def main():
     check('the number kept is capped',
           len(ag.run_tool('checkpoint', {'action': 'list'}, s)['checkpoints']) <= 8)
 
+    print('\nFidelity refuses to compare unlike things')
+    s = session_with_design()
+    ag.run_tool('generate_files', {'shuttle_count': 3}, s)
+    r = ag.run_tool('canvas', {'operation': 'extend', 'left': 200, 'right': 200}, s)
+    # Extending with BLANK cloth scored -54.8% drift and a warn, because a
+    # 720-thread map was being compared against a 320-thread source. Every
+    # canvas resize told the weaver their design had been damaged.
+    check('extending blank cloth is not reported as damage',
+          'warning' not in r, r.get('warning'))
+    check('and the change is still measured', r.get('verdict') in ('ok', 'warn', 'fail'), r)
+    check('the weaver is told the comparison has moved',
+          'against the design as it stands' in (r.get('note') or ''), r.get('note'))
+    later = ag.run_tool('edit_design', {'operation': 'thicken', 'amount': 1}, s)
+    check('later edits are scored against the new reference',
+          later.get('thread_drift_pct') is not None, later)
+
+    print('\nWeave names mean the same thing in every tool')
+    s = session_with_design()
+    # 'twill' worked in region/weave_fill and was refused by set_weave, for the
+    # same word in the same conversation. The engine key is 'twill22'.
+    check('set_weave accepts a weaving word',
+          ag.run_tool('set_weave', {'shuttle': 'zari', 'pattern': 'twill'},
+                      s).get('pattern') == 'twill22')
+    check('weave_fill accepts it too',
+          'error' not in ag.run_tool('region', {'operation': 'weave_fill',
+                                                'pattern': 'twill',
+                                                'region': 'all'}, s))
+    check("'plain' maps to plain_weave",
+          ag.run_tool('set_weave', {'shuttle': 'zari', 'pattern': 'plain'},
+                      s).get('pattern') == 'plain_weave')
+    check('a made-up weave is still refused',
+          'error' in ag.run_tool('set_weave', {'shuttle': 'zari',
+                                               'pattern': 'tartan'}, s))
+
+    print('\nRefusals name what went wrong')
+    s = session_with_design()
+    # Both colours exist and both are assigned, but neither is the ground —
+    # so this reaches the background rule rather than the earlier check that a
+    # colour was detected at all.
+    err = ag.run_tool('set_shuttles',
+                      {'assignments': {'0': 'meena1', '1': 'zari'}}, s).get('error', '')
+    # "Exactly one colour must be the background" did not say which colours
+    # existed or which were left out, so the model had to guess the correction.
+    check('a shuttle error lists the colours in the design',
+          'Colours in this design' in err, err)
+    check('and says what was actually set', 'you set 0' in err, err)
+    check('and points at the fix', 'largest area' in err, err)
+    # The omissions line only appears when something WAS omitted — a message
+    # that always lists them would be noise on the common case.
+    partial = ag.run_tool('set_shuttles', {'assignments': {'1': 'zari'}},
+                          session_with_design()).get('error', '')
+    check('an omitted colour is named when there is one',
+          'Nothing was said about' in partial or 'background' in partial, partial)
+
+    print('\nA long session does not grow without bound')
+    import pickle
+    s = session_with_design()
+    ag.run_tool('explore_designs', {'count': 4}, s)
+    for _ in range(10):
+        ag.run_tool('edit_design', {'operation': 'thicken', 'amount': 1}, s)
+    for i in range(8):
+        ag.run_tool('checkpoint', {'action': 'save', 'name': f'v{i}'}, s)
+    ag.run_tool('generate_files', {'shuttle_count': 3}, s)
+    size_mb = len(pickle.dumps({k: v for k, v in s.items() if k != 'history'})) / 1e6
+    # Holding a full image and conversion per explored variant, plus raw label
+    # maps in undo and every checkpoint, reached 35 MB for one session — 1.4 GB
+    # across the 40 a server keeps.
+    check(f'a heavily worked session stays small ({size_mb:.1f} MB)',
+          size_mb < 12, size_mb)
+
+    print('\nAnd everything still works after all that')
+    check('undo works', 'error' not in ag.run_tool('undo_edit', {}, s))
+    r = ag.run_tool('checkpoint', {'action': 'restore', 'name': 'v0'}, s)
+    check('a checkpoint restores', r.get('restored') == 'v0', r)
+    check('files generate from it',
+          'error' not in ag.run_tool('generate_files', {'shuttle_count': 3}, s))
+    check('and download', len(ag.files_zip(s)[0] or b'') > 200)
+    # Variants no longer keep their rendered image; the winner is rebuilt from
+    # its spec, which is safe only because rendering is deterministic.
+    chosen = ag.run_tool('choose_design', {'index': 0}, s)
+    check('a variant is rebuilt exactly when chosen', 'error' not in chosen, chosen)
+
     llm.reset()
     print(f'\n{PASS} passed, {FAIL} failed\n')
     return 1 if FAIL else 0

@@ -881,12 +881,50 @@ def _working(session):
 
 
 def _rescore(session):
-    """Fidelity of the working design against the uploaded image."""
+    """
+    Fidelity of the working design against the reference image.
+
+    No size check here, deliberately. fidelity_report is built to compare a
+    full-resolution source against a mask reduced to loom resolution — for a
+    converted upload the two NEVER have the same dimensions, and refusing to
+    score them broke ordinary conversion entirely.
+
+    The problem a size mismatch causes is different: after a canvas resize the
+    reference no longer depicts the same cloth, so the comparison is
+    meaningless rather than merely rescaled. That is handled where it belongs,
+    by rebasing the reference at the point of the resize, not by declining to
+    measure here.
+    """
     from fidelity import fidelity_report
     lm = _working(session)
-    if lm is None:
+    img = session.get('image')
+    if lm is None or img is None:
         return None
-    return fidelity_report(session['image'], lm > 0)
+    return fidelity_report(img, lm > 0)
+
+
+def _rebase_reference(session):
+    """
+    Make the current design its own reference after the canvas changes shape.
+
+    Fidelity answers "how much of the reference survived". Once the cloth has
+    been deliberately resized, cropped or scaled, the original no longer
+    describes what is being woven, and there is no honest way to score against
+    it — the difference the weaver asked for is indistinguishable from damage.
+
+    So the reference is rebased to the design as it now stands. Subsequent
+    edits are measured against THAT, which is the useful question after a
+    canvas change. What is lost is the comparison back to the original scan,
+    and the model is told so rather than left to imply the numbers still mean
+    what they meant before.
+    """
+    lm = session.get('working')
+    if lm is None:
+        return
+    arr = np.asarray(lm)
+    session['image'] = Image.fromarray(
+        np.where(arr > 0, 0, 255).astype(np.uint8), 'L').convert('RGB')
+    session['reference_rebased'] = True
 
 
 def _tool_edit(session, args):
@@ -964,8 +1002,7 @@ def _tool_edit(session, args):
     else:
         return {'error': f'No such operation: {op}'}
 
-    session['undo'].append(prev)
-    session['undo'] = session['undo'][-10:]
+    _push_undo(session, prev)
     session['working'] = lm
     session['files'] = None            # generated files are now stale
     after = _rescore(session)
@@ -993,8 +1030,18 @@ def _tool_edit(session, args):
 def _tool_undo(session, args):
     if not session.get('undo'):
         return {'error': 'Nothing to undo.'}
-    session['working'] = session['undo'].pop()
+    restored = _unpack(session['undo'].pop())
+    changed_shape = (session.get('working') is not None
+                     and np.asarray(session['working']).shape != restored.shape)
+    session['working'] = restored
     session['files'] = None
+    _sync_conversion_size(session)
+    # Rebase ONLY when undo changes the canvas size — that is the case where
+    # the reference stops depicting the cloth. Rebasing on every undo makes the
+    # design its own reference, so drift reads ~0 whatever was undone, and undo
+    # silently destroys the comparison back to the original scan.
+    if changed_shape:
+        _rebase_reference(session)
     rep = _rescore(session)
     return {'undone': True, 'verdict': rep['verdict'],
             'thread_drift_pct': rep['ink_drift_pct'],
@@ -1029,8 +1076,19 @@ def _tool_set_shuttles(session, args):
         return {'error': ' '.join(checked['rejected']) or 'Invalid assignment.'}
 
     assigned = checked['patch']['color_assignments']
-    if sum(1 for v in assigned.values() if v == 'background') != 1:
-        return {'error': 'Exactly one colour must be the background.'}
+    present = sorted(int(c) for c in np.unique(np.asarray(lm)))
+    missing = [c for c in present if str(c) not in assigned and c not in assigned]
+    n_bg = sum(1 for v in assigned.values() if v == 'background')
+    if n_bg != 1:
+        # Naming the colours and the omissions turns a refusal the model has to
+        # guess at into one it can act on in a single step.
+        detail = (f'Colours in this design: {present}. '
+                  f'You assigned {sorted(str(k) for k in assigned)}.')
+        if missing:
+            detail += f' Nothing was said about {missing}.'
+        return {'error': (f'Exactly one colour must be the background — you set '
+                          f'{n_bg}. {detail} The largest area is usually the '
+                          f'ground.')}
 
     session['shuttles'] = {int(k): v for k, v in assigned.items()}
     session['shuttle_count'] = count
@@ -1041,6 +1099,7 @@ def _tool_set_shuttles(session, args):
 
 def _tool_set_weave(session, args):
     from bmp_engine import FILL_PATTERNS
+    from canvas_ops import WEAVE_ALIASES
 
     shuttle = str(args.get('shuttle', '')).strip()
     if shuttle not in ('zari', 'meena1', 'meena2'):
@@ -1048,9 +1107,15 @@ def _tool_set_weave(session, args):
 
     entry = dict(session['weave'].get(shuttle, {'pattern': 'satin', 'n': 8, 'flip': False}))
     if 'pattern' in args:
-        pat = str(args['pattern']).strip()
+        # Same aliases the region weave_fill accepts. They disagreed before:
+        # 'twill' worked in one tool and was refused by the other, for the same
+        # word, in the same conversation. The engine's key is 'twill22', which
+        # is not what anyone at a loom calls it.
+        pat = str(args['pattern']).strip().lower().replace(' ', '_')
+        pat = WEAVE_ALIASES.get(pat, pat)
         if pat not in FILL_PATTERNS:
-            return {'error': f"Unknown weave '{pat}'. Available: {', '.join(sorted(FILL_PATTERNS))}"}
+            return {'error': f"Unknown weave '{args['pattern']}'. Available: "
+                             f"{', '.join(sorted(FILL_PATTERNS))}"}
         entry['pattern'] = pat
     if 'n' in args:
         try:
@@ -1094,6 +1159,37 @@ def _tool_describe(session, args):
         'files_ready': bool(session.get('files')),
         'notes': rep['messages'],
     }
+
+
+def _pack(arr):
+    """Compress a label map for storage. Lossless."""
+    import zlib
+    a = np.ascontiguousarray(np.asarray(arr, dtype=np.uint8))
+    return {'shape': a.shape, 'data': zlib.compress(a.tobytes(), 6)}
+
+
+def _unpack(blob):
+    """Restore a packed label map."""
+    import zlib
+    if blob is None:
+        return None
+    if isinstance(blob, np.ndarray):
+        return blob                      # tolerate anything stored before
+    return np.frombuffer(zlib.decompress(blob['data']),
+                         dtype=np.uint8).reshape(blob['shape']).copy()
+
+
+def _push_undo(session, arr):
+    """
+    Record a state we can go back to.
+
+    Packed rather than stored raw: a label map holds a handful of distinct
+    values over large flat runs, so it compresses to a few percent, and a
+    ten-deep history of raw arrays was a significant part of a session's
+    memory for no benefit.
+    """
+    session['undo'].append(_pack(arr))
+    session['undo'] = session['undo'][-10:]
 
 
 def _sync_conversion_size(session):
@@ -1254,6 +1350,25 @@ def _tool_explore(session, args):
     except Exception as e:
         return {'error': f'Could not explore alternatives: {e}'}
 
+    # Hold only what is needed to describe and compare the candidates. Keeping
+    # a full PIL image and a full conversion record per candidate cost ~14 MB
+    # per explore, and with 40 concurrent sessions that reached 1.4 GB.
+    #
+    # Rendering is deterministic — the same spec always produces the same
+    # pixels, which test_studio asserts — so a candidate can be rebuilt exactly
+    # when it is actually chosen. A small thumbnail is retained because
+    # compare_designs needs to show them and re-rendering three panels to draw
+    # one contact sheet is the wrong trade.
+    import design_studio as _ds
+    for r in ranked:
+        img = r.pop('_image', None)
+        r.pop('_conversion', None)
+        if img is not None:
+            try:
+                r['_thumb'] = img.convert('L').resize(
+                    (300, max(1, int(300 * img.size[1] / max(img.size[0], 1)))))
+            except Exception:
+                pass
     session['variants'] = ranked
     return {
         'candidates': [
@@ -1285,8 +1400,13 @@ def _tool_choose(session, args):
     if 'error' in r:
         return {'error': f"That candidate did not build: {r['error']}"}
     spec = ds.LayoutSpec(**r['spec'])
-    summary = _adopt(session, spec, r['_conversion'], r['_image'])
-    return {'chosen': summary, 'verdict': r['verdict']}
+    # Rebuilt rather than retrieved. Deterministic rendering means this is the
+    # same design that was scored, not an approximation of it.
+    rec = ds.score_spec(spec, full=True)
+    if rec is None:
+        return {'error': 'That candidate no longer builds. Try another.'}
+    summary = _adopt(session, spec, rec['conversion'], rec['image'])
+    return {'chosen': summary, 'verdict': rec['verdict']}
 
 
 def _tool_refine(session, args):
@@ -1417,33 +1537,45 @@ def _apply_canvas(session, fn, label):
     if new_lm is None or new_lm.size == 0:
         return {'error': 'That would leave nothing on the canvas.'}
 
-    session['undo'].append(prev)
-    session['undo'] = session['undo'][-10:]
+    _push_undo(session, prev)
     session['working'] = new_lm.astype(np.uint8)
     session['files'] = None            # generated files are now stale
 
     # Canvas size changes invalidate the spec: the design on screen is no
     # longer what the spec would render, so refinement must not silently go
     # back to the old geometry.
-    if new_lm.shape != prev.shape:
+    resized = new_lm.shape != prev.shape
+    if resized:
         session['spec'] = None
         _sync_conversion_size(session)
+        # The source image no longer describes this cloth, so it cannot serve
+        # as a fidelity reference any more.
+        _rebase_reference(session)
 
     out = {'applied': label, 'canvas': co.stats(session['working'])}
     after = _rescore(session)
     if after:
-        out.update({'verdict': after['verdict'],
+        out.update({'verdict': str(after['verdict']).lower(),
                     'thread_drift_pct': after['ink_drift_pct'],
                     'design_gaps': after['output_white_regions']})
-        if before and (abs(after['ink_drift_pct']) > abs(before['ink_drift_pct']) + 8
-                       or (after['verdict'] == 'fail' and before['verdict'] != 'fail')):
-            out['warning'] = (
-                f"This made things worse (thread drift "
-                f"{before['ink_drift_pct']:+.0f}% -> {after['ink_drift_pct']:+.0f}%). "
-                f"Say so and offer undo_edit.")
-    if new_lm.shape != prev.shape:
+        # Only compare when both scores measured the same thing. After a
+        # resize the reference has been rebased, so a before/after difference
+        # is an artefact of the rebase, not a change in the design.
+        if before and not resized:
+            worse = (abs(after['ink_drift_pct']) > abs(before['ink_drift_pct']) + 8
+                     or (str(after['verdict']).lower() == 'fail'
+                         and str(before['verdict']).lower() != 'fail'))
+            if worse:
+                out['warning'] = (
+                    f"This made things worse (thread drift "
+                    f"{before['ink_drift_pct']:+.0f}% -> "
+                    f"{after['ink_drift_pct']:+.0f}%). Say so and offer undo_edit.")
+    if resized:
         out['note'] = (f'Canvas went from {prev.shape[1]}x{prev.shape[0]} to '
-                       f'{new_lm.shape[1]}x{new_lm.shape[0]} threads x cards.')
+                       f'{new_lm.shape[1]}x{new_lm.shape[0]} threads x cards. '
+                       f'Fidelity is now measured against the design as it '
+                       f'stands, not against the original — the comparison '
+                       f'back to the source ends here.')
     return out
 
 
@@ -1612,14 +1744,23 @@ def _tool_checkpoint(session, args):
         if len(saves) >= 8 and name not in saves:
             oldest = next(iter(saves))
             saves.pop(oldest)
+        # The label map IS the design. The reference image and the conversion's
+        # own copy of the label map are both derivable from it, and storing all
+        # three tripled what a checkpoint cost — eight of them held ~7 MB of
+        # duplicate arrays.
+        conv = session.get('conversion')
+        slim = None
+        if conv and conv.get('best'):
+            slim = dict(conv)
+            slim['best'] = {k: v for k, v in conv['best'].items() if k != 'label_map'}
+            slim.pop('alternatives', None)
         saves[name] = {
-            'lm': lm.copy(),
+            'lm': _pack(lm),
             'spec': dict(session['spec']) if session.get('spec') else None,
             'reed': session.get('reed'),
-            'image': session.get('image'),
-            'conversion': session.get('conversion'),
+            'conversion': slim,
             'summary': ds.describe(spec) if spec else 'edited design',
-            'verdict': str((session.get('conversion') or {}).get('verdict', '')).lower(),
+            'verdict': str((conv or {}).get('verdict', '')).lower(),
             'pins': int(lm.shape[1]), 'cards': int(lm.shape[0]),
         }
         return {'saved': name, 'design': saves[name]['summary'],
@@ -1631,13 +1772,11 @@ def _tool_checkpoint(session, args):
             return {'error': f"No checkpoint called '{name}'. Saved: "
                              f"{', '.join(saves) or 'none'}."}
         cp = saves[name]
-        session['undo'].append(_working(session).copy() if _working(session) is not None
-                               else cp['lm'].copy())
-        session['undo'] = session['undo'][-10:]
-        session['working'] = cp['lm'].copy()
+        current = _working(session)
+        _push_undo(session, current if current is not None else _unpack(cp['lm']))
+        session['working'] = _unpack(cp['lm'])
         session['spec'] = dict(cp['spec']) if cp['spec'] else None
         session['reed'] = cp['reed']
-        session['image'] = cp['image']
         # A shallow copy of the record, then re-sync: the checkpoint holds a
         # reference to the same nested dicts, and a later canvas edit mutates
         # them in place.
@@ -1645,9 +1784,14 @@ def _tool_checkpoint(session, args):
         if conv and conv.get('best'):
             conv = dict(conv)
             conv['best'] = dict(conv['best'])
+            conv['best']['label_map'] = _unpack(cp['lm'])
         session['conversion'] = conv
         session['files'] = None
         _sync_conversion_size(session)
+        # The reference has to describe the restored cloth, not whatever was on
+        # screen a moment ago, or the next edit is scored against the wrong
+        # thing — or, if the sizes differ, not scored at all.
+        _rebase_reference(session)
         after = _rescore(session)
         return {'restored': name, 'design': cp['summary'],
                 'canvas': co.stats(session['working']),
@@ -1853,7 +1997,8 @@ def _tool_compare(session, args):
     import design_studio as ds
     from PIL import Image
 
-    ranked = [r for r in (session.get('variants') or []) if 'error' not in r]
+    ranked = [r for r in (session.get('variants') or [])
+              if 'error' not in r and r.get('_thumb') is not None]
     if len(ranked) < 2:
         return {'error': 'Run explore_designs first — I need at least two to compare.'}
     if not llm.provider().supports_vision:
@@ -1861,12 +2006,7 @@ def _tool_compare(session, args):
                 'measurements_only': True}
 
     ranked = ranked[:3]
-    thumbs = []
-    for r in ranked:
-        im = r['_image'].convert('L')
-        scale = 300 / max(im.size)
-        thumbs.append(im.resize((max(1, int(im.size[0] * scale)),
-                                 max(1, int(im.size[1] * scale)))))
+    thumbs = [r['_thumb'] for r in ranked]
     h = max(t.size[1] for t in thumbs)
     sheet = Image.new('L', (sum(t.size[0] for t in thumbs) + 20 * len(thumbs), h), 255)
     x = 0
