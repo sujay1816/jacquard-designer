@@ -73,6 +73,7 @@ def new_session(image=None, filename='design'):
         'working': None,        # label map currently being edited
         'undo': [],             # previous working states, most recent last
         'plan': None,           # visible step list for the current job
+        'clipboard': None,      # region lifted by region/copy
         'shuttles': None,       # colour index -> shuttle name
         'shuttle_count': 2,
         'weave': {},            # shuttle -> {'pattern', 'n'}
@@ -201,6 +202,105 @@ TOOLS = [
                 "pallu": {"type": "boolean",
                           "description": "Cross border across the width at the foot."}
             },
+        },
+    },
+    {
+        "name": "canvas_info",
+        "description": (
+            "Report the cloth: size in threads and cards, how much carries "
+            "thread, where the design actually sits, and how much blank cloth "
+            "is around it. Call this before any canvas or region work so you "
+            "are moving real coordinates rather than guessing. It also lists "
+            "the region names you can use."),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "canvas",
+        "description": (
+            "Change the cloth itself — its size, or where the design sits on "
+            "it. `extend` adds bare cloth on any side. `crop` keeps a region "
+            "and discards the rest. `trim` cuts away blank cloth around the "
+            "design. `resize` re-mounts the design on a canvas of an exact "
+            "size WITHOUT resampling it. `scale` resamples the design to a "
+            "different thread count — that one loses detail going down and "
+            "blocks it going up, so say so. `move` shifts the design, with "
+            "wrap for an all-over repeat. `centre` centres it. `mirror` folds "
+            "one half onto the other to make the panel symmetric, which is how "
+            "a matched border pair is built."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "operation": {"type": "string",
+                              "enum": ["extend", "crop", "trim", "resize", "scale",
+                                       "move", "centre", "mirror"]},
+                "left": {"type": "integer", "description": "extend: threads to add."},
+                "right": {"type": "integer"},
+                "top": {"type": "integer", "description": "extend: cards to add."},
+                "bottom": {"type": "integer"},
+                "margin": {"type": "integer", "description": "trim: cloth to leave."},
+                "pins": {"type": "integer", "description": "resize/scale: target width."},
+                "cards": {"type": "integer", "description": "resize/scale: target height."},
+                "anchor": {"type": "string",
+                           "description": "resize: left, center, right, top, bottom."},
+                "dx": {"type": "integer", "description": "move: threads right, negative for left."},
+                "dy": {"type": "integer", "description": "move: cards down, negative for up."},
+                "wrap": {"type": "boolean",
+                         "description": "move: roll round the edges. Use for all-over repeats."},
+                "axis": {"type": "string", "description": "mirror: vertical or horizontal."},
+                "region": {"type": "string", "description": "crop: a named region."},
+                "box": {"type": "array", "items": {"type": "integer"},
+                        "description": "crop: [x0, y0, x1, y1] in threads and cards."},
+            },
+            "required": ["operation"],
+        },
+    },
+    {
+        "name": "region",
+        "description": (
+            "Work on one part of the cloth and leave the rest alone. `clear` "
+            "erases back to bare cloth. `copy` and `paste` move a piece "
+            "elsewhere. `mirror`, `flip_vertical`, `rotate_180` and `invert` "
+            "transform just that part. `tile` repeats a region across the "
+            "whole cloth, which is how one drawn butta becomes a field. "
+            "`weave_fill` textures a region with satin, twill, basket and the "
+            "rest. `stamp` draws a motif from the library straight onto the "
+            "canvas at a position and size you choose. Name a region or give a "
+            "box; call canvas_info first if you are unsure of the coordinates."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "operation": {"type": "string",
+                              "enum": ["clear", "copy", "paste", "mirror",
+                                       "flip_vertical", "rotate_180", "invert",
+                                       "tile", "weave_fill", "stamp"]},
+                "region": {"type": "string",
+                           "description": "A named region — top, bottom, left_border, body, pallu, centre and so on."},
+                "box": {"type": "array", "items": {"type": "integer"},
+                        "description": "[x0, y0, x1, y1] in threads and cards from the top-left."},
+                "x": {"type": "integer", "description": "paste/stamp: position across."},
+                "y": {"type": "integer", "description": "paste/stamp: position down."},
+                "mode": {"type": "string",
+                         "description": ("'blend' lays the piece over what is there, showing "
+                                         "the ground through its gaps. 'over' replaces the "
+                                         "rectangle entirely. Default blend.")},
+                "cols": {"type": "integer", "description": "tile: repeats across."},
+                "rows": {"type": "integer", "description": "tile: repeats down."},
+                "pattern": {"type": "string",
+                            "description": ("weave_fill: satin, satin_inv, plain_weave, "
+                                            "twill22, twill31, basket, honeycomb, diamond, "
+                                            "crepe, rib, herringbone, dots, diagonal, "
+                                            "crosshatch. 'twill', 'plain' and 'matt' are "
+                                            "understood too.")},
+                "n": {"type": "integer", "description": "weave_fill: float length, 4-16."},
+                "design_only": {"type": "boolean",
+                                "description": ("weave_fill: true textures only the thread that "
+                                                "is there (a motif); false fills the whole "
+                                                "rectangle (a patterned ground). Default true.")},
+                "motif": {"type": "string", "description": "stamp: motif name."},
+                "width_threads": {"type": "integer",
+                                  "description": "stamp: how many threads wide to draw it."},
+            },
+            "required": ["operation"],
         },
     },
     {
@@ -475,6 +575,32 @@ Ask at most one or two questions before building something. "I need a saree
 body, 800 pins, reed 80" is enough — build it. If they are vague, pick sensible
 defaults, build it, say what you chose, and offer to change it. A design on the
 table beats a questionnaire.
+
+WORKING ON THE CLOTH ITSELF
+
+You can change the cloth, not just the linework. `canvas_info` first — it tells
+you the size, where the design sits and how much blank cloth surrounds it, so
+you are moving real coordinates instead of guessing.
+
+  * `canvas` changes the cloth: extend it for a wider loom, crop or trim it,
+    re-mount it at an exact size, move the design off a fold, mirror one half
+    onto the other to build a matched border pair.
+  * `region` works on part of it: clear a panel and put something else there,
+    copy a butta and paste it, tile one motif into a field, texture an area
+    with satin or twill, stamp a motif from the library at a size and place
+    you choose.
+
+Two distinctions worth keeping straight, because getting them wrong quietly
+ruins cloth:
+  * `resize` re-mounts the design on a different canvas. `scale` resamples the
+    design itself, which loses detail going down and blocks it going up. If a
+    weaver asks to fit a design to a different loom, ask which they meant.
+  * `blend` lays a piece over what is there and lets the ground show through
+    its gaps. `over` replaces the whole rectangle. Stamping a butta with `over`
+    punches a bare rectangle through a lattice.
+
+Canvas work is undoable like any edit. Say what changed and by how much, and
+check the result with look_at_design rather than assuming.
 
 REFINING
 
@@ -1167,6 +1293,184 @@ def ml_motifs():
 
 
 
+
+def _apply_canvas(session, fn, label):
+    """
+    Run a canvas operation, keeping undo and re-scoring afterwards.
+
+    Every path through the canvas tools goes through here so that none of them
+    can forget to push undo or to re-measure. An edit that silently skipped the
+    re-score would let the model report a design as fine when the change had
+    just broken it.
+    """
+    lm = _working(session)
+    if lm is None:
+        return {'error': 'There is no converted design yet. Design or convert one first.'}
+
+    before = _rescore(session)
+    prev = lm.copy()
+    try:
+        new_lm = fn(lm)
+    except ValueError as e:
+        return {'error': str(e)}
+    except Exception as e:
+        return {'error': f'That did not work: {e}'}
+
+    import canvas_ops as co
+    if new_lm is None or new_lm.size == 0:
+        return {'error': 'That would leave nothing on the canvas.'}
+
+    session['undo'].append(prev)
+    session['undo'] = session['undo'][-10:]
+    session['working'] = new_lm.astype(np.uint8)
+    session['files'] = None            # generated files are now stale
+
+    # Canvas size changes invalidate the spec: the design on screen is no
+    # longer what the spec would render, so refinement must not silently go
+    # back to the old geometry.
+    if new_lm.shape != prev.shape:
+        session['spec'] = None
+
+    out = {'applied': label, 'canvas': co.stats(session['working'])}
+    after = _rescore(session)
+    if after:
+        out.update({'verdict': after['verdict'],
+                    'thread_drift_pct': after['ink_drift_pct'],
+                    'design_gaps': after['output_white_regions']})
+        if before and (abs(after['ink_drift_pct']) > abs(before['ink_drift_pct']) + 8
+                       or (after['verdict'] == 'fail' and before['verdict'] != 'fail')):
+            out['warning'] = (
+                f"This made things worse (thread drift "
+                f"{before['ink_drift_pct']:+.0f}% -> {after['ink_drift_pct']:+.0f}%). "
+                f"Say so and offer undo_edit.")
+    if new_lm.shape != prev.shape:
+        out['note'] = (f'Canvas went from {prev.shape[1]}x{prev.shape[0]} to '
+                       f'{new_lm.shape[1]}x{new_lm.shape[0]} threads x cards.')
+    return out
+
+
+def _tool_canvas(session, args):
+    """Change the size or position of the cloth itself."""
+    import canvas_ops as co
+
+    op = str(args.get('operation', '')).strip()
+    region, box = args.get('region'), args.get('box')
+
+    def num(k, d=0):
+        try:
+            return int(args.get(k, d) or d)
+        except (TypeError, ValueError):
+            return d
+
+    if op == 'extend':
+        return _apply_canvas(session, lambda lm: co.extend(
+            lm, left=num('left'), right=num('right'),
+            top=num('top'), bottom=num('bottom')), 'extend canvas')
+    if op == 'crop':
+        return _apply_canvas(session, lambda lm: co.crop(lm, region, box), 'crop canvas')
+    if op == 'trim':
+        return _apply_canvas(session, lambda lm: co.trim(lm, margin=num('margin')),
+                             'trim blank cloth')
+    if op == 'resize':
+        return _apply_canvas(session, lambda lm: co.resize_canvas(
+            lm, pins=args.get('pins'), cards=args.get('cards'),
+            anchor=str(args.get('anchor', 'center'))), 'resize canvas')
+    if op == 'scale':
+        # Distinct from resize on purpose: resize re-mounts the design on a
+        # different canvas, scale resamples the design itself. Conflating them
+        # would resample a design when the weaver asked to re-mount it.
+        return _apply_canvas(session, lambda lm: co.scale(
+            lm, pins=args.get('pins'), cards=args.get('cards')),
+            'scale the design')
+    if op == 'move':
+        return _apply_canvas(session, lambda lm: co.move(
+            lm, dx=num('dx'), dy=num('dy'), wrap=bool(args.get('wrap'))),
+            'move the design')
+    if op == 'centre' or op == 'center':
+        return _apply_canvas(session, co.centre, 'centre the design')
+    if op == 'mirror':
+        return _apply_canvas(session, lambda lm: co.mirror_across(
+            lm, axis=str(args.get('axis', 'vertical'))), 'mirror the panel')
+    return {'error': (f"No such canvas operation: '{op}'. Available: extend, "
+                      f"crop, trim, resize, scale, move, centre, mirror.")}
+
+
+def _tool_region(session, args):
+    """Work on one part of the cloth, leaving the rest alone."""
+    import canvas_ops as co
+
+    op = str(args.get('operation', '')).strip()
+    region, box = args.get('region'), args.get('box')
+
+    if op == 'clear':
+        return _apply_canvas(session, lambda lm: co.clear(lm, region, box),
+                             f'clear {region or "region"}')
+    if op == 'copy':
+        lm = _working(session)
+        if lm is None:
+            return {'error': 'There is no converted design yet.'}
+        try:
+            patch = co.copy_region(lm, region, box)
+        except ValueError as e:
+            return {'error': str(e)}
+        session['clipboard'] = patch
+        return {'copied': f'{patch.shape[1]}x{patch.shape[0]} threads x cards',
+                'note': 'Held on the clipboard. Paste it with operation=paste.'}
+    if op == 'paste':
+        patch = session.get('clipboard')
+        if patch is None:
+            return {'error': 'Nothing on the clipboard — copy a region first.'}
+        try:
+            x, y = int(args.get('x', 0) or 0), int(args.get('y', 0) or 0)
+        except (TypeError, ValueError):
+            return {'error': 'x and y must be whole numbers.'}
+        mode = 'over' if str(args.get('mode', 'blend')) == 'over' else 'blend'
+        return _apply_canvas(session, lambda lm: co.paste(lm, patch, x, y, mode),
+                             f'paste at {x},{y}')
+    if op in ('mirror', 'flip_vertical', 'rotate_180', 'invert'):
+        return _apply_canvas(session, lambda lm: co.transform_region(
+            lm, op, region, box), f'{op} on {region or "region"}')
+    if op == 'tile':
+        return _apply_canvas(session, lambda lm: co.tile_region(
+            lm, cols=int(args.get('cols', 2) or 2),
+            rows=int(args.get('rows', 2) or 2), region=region, box=box),
+            'repeat across the cloth')
+    if op == 'weave_fill':
+        return _apply_canvas(session, lambda lm: co.fill_region_weave(
+            lm, pattern=str(args.get('pattern', 'satin')),
+            n=int(args.get('n', 8) or 8), region=region, box=box,
+            design_only=args.get('design_only', True) is not False),
+            f"{args.get('pattern', 'satin')} fill")
+    if op == 'stamp':
+        motif = str(args.get('motif', '')).strip()
+        try:
+            width = int(args.get('width_threads', 0) or 0)
+            x, y = int(args.get('x', 0) or 0), int(args.get('y', 0) or 0)
+        except (TypeError, ValueError):
+            return {'error': 'width_threads, x and y must be whole numbers.'}
+        if width < 16:
+            return {'error': 'A motif needs at least 16 threads to be drawn.'}
+        return _apply_canvas(session, lambda lm: co.stamp_motif(
+            lm, motif, width, x, y, mode=str(args.get('mode', 'blend'))),
+            f'stamp {motif}')
+    return {'error': (f"No such region operation: '{op}'. Available: clear, "
+                      f"copy, paste, mirror, flip_vertical, rotate_180, invert, "
+                      f"tile, weave_fill, stamp.")}
+
+
+def _tool_canvas_info(session, args):
+    """Report the canvas: size, coverage, where the design sits, blank margins."""
+    import canvas_ops as co
+    lm = _working(session)
+    if lm is None:
+        return {'error': 'There is no converted design yet.'}
+    out = co.stats(lm)
+    out['named_regions'] = sorted(co.NAMED_REGIONS)
+    out['note'] = ('Coordinates are threads across and cards down from the '
+                   'top-left. You can name a region or give a box.')
+    return out
+
+
 def _tool_plan(session, args):
     """
     Write down the job as steps, and tick them off as they are done.
@@ -1546,6 +1850,9 @@ _DISPATCH = {
     'look_at_design': _tool_look,
     'compare_designs': _tool_compare,
     'plan_work': _tool_plan,
+    'canvas': _tool_canvas,
+    'region': _tool_region,
+    'canvas_info': _tool_canvas_info,
 }
 
 
