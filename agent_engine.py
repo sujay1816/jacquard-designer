@@ -74,6 +74,8 @@ def new_session(image=None, filename='design'):
         'undo': [],             # previous working states, most recent last
         'plan': None,           # visible step list for the current job
         'clipboard': None,      # region lifted by region/copy
+        'reed': None,           # ends per inch — a loom property, not a design one
+        'checkpoints': {},      # named saved states
         'shuttles': None,       # colour index -> shuttle name
         'shuttle_count': 2,
         'weave': {},            # shuttle -> {'pattern', 'n'}
@@ -203,6 +205,35 @@ TOOLS = [
                           "description": "Cross border across the width at the foot."}
             },
         },
+    },
+    {
+        "name": "checkpoint",
+        "description": (
+            "Save the design under a name, list what is saved, or go back to "
+            "one. Save BEFORE anything risky — a big canvas change, a "
+            "different direction the weaver wants to try — so you can offer to "
+            "return to it. Undo only goes back ten steps and cannot be aimed; "
+            "this can. Name them the way a weaver would: 'before the wider "
+            "border', 'the open version'."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "action": {"type": "string",
+                           "enum": ["save", "restore", "list", "delete"]},
+                "name": {"type": "string", "description": "What to call it."},
+            },
+            "required": ["action"],
+        },
+    },
+    {
+        "name": "files",
+        "description": (
+            "Check on the loom files: whether they exist, whether they still "
+            "match the design, how big they are, and whether they verify as "
+            "1-bit BMPs. Any edit clears them, so call this before telling a "
+            "weaver their download is ready — otherwise you may be promising "
+            "a file that is not there."),
+        "input_schema": {"type": "object", "properties": {}},
     },
     {
         "name": "canvas_info",
@@ -576,6 +607,16 @@ body, 800 pins, reed 80" is enough — build it. If they are vague, pick sensibl
 defaults, build it, say what you chose, and offer to change it. A design on the
 table beats a questionnaire.
 
+KEEPING TRACK OF YOUR OWN WORK
+
+  * `checkpoint` before anything risky — a big canvas change, a direction the
+    weaver wants to try. Name it the way they would: "before the wider border",
+    "the open version". Undo goes back ten steps and cannot be aimed; a
+    checkpoint can. Offer to go back to one when a change did not land.
+  * `files` before you tell anyone their download is ready. Any edit clears the
+    generated files, so a confident "the files are ready" after a refinement is
+    often a promise of something that is not there. Check, then say.
+
 WORKING ON THE CLOTH ITSELF
 
 You can change the cloth, not just the linework. `canvas_info` first — it tells
@@ -805,12 +846,14 @@ def _tool_generate(session, args):
                         'longest_float': longest})
 
     session['files'] = files
-    size = physical_size(conv['pins'], conv['cards'], 60)
+    session['ever_generated'] = True
+    size = physical_size(conv['pins'], conv['cards'], _reed_of(session))
     rep = _rescore(session)
     return {
         'ready': True, 'files': summary,
         'pins': conv['pins'], 'cards': conv['cards'],
-        'physical_size_in': f"{size['width_in']} x {size['height_in']} at 60 reed",
+        'physical_size_in': (f"{size['width_in']} x {size['height_in']} in "
+                             f"at reed {int(size['reed_epi'])}"),
         'edits_applied': len(session['undo']),
         'fidelity_verdict': rep['verdict'],
         'longest_float': worst,
@@ -1034,10 +1077,11 @@ def _tool_describe(session, args):
         return {'error': 'Nothing converted yet.'}
     rep = _rescore(session)
     conv = session['conversion']['best']
-    size = physical_size(conv['pins'], conv['cards'], 60)
+    size = physical_size(conv['pins'], conv['cards'], _reed_of(session))
     return {
         'pins': conv['pins'], 'cards': conv['cards'],
-        'physical_size_in': f"{size['width_in']} x {size['height_in']} at 60 reed",
+        'physical_size_in': (f"{size['width_in']} x {size['height_in']} in "
+                             f"at reed {int(size['reed_epi'])}"),
         'verdict': rep['verdict'],
         'thread_drift_pct': rep['ink_drift_pct'],
         'design_gaps': rep['output_white_regions'],
@@ -1052,6 +1096,52 @@ def _tool_describe(session, args):
     }
 
 
+def _sync_conversion_size(session):
+    """
+    Keep the conversion record's pin and card count equal to the working
+    label map's actual shape.
+
+    One invariant, enforced from every path that can change the canvas, because
+    generate_files reads those numbers and refuses when they disagree. Two
+    separate bugs came from letting them drift: a canvas resize left the
+    session permanently unable to produce files, and a checkpoint that stored a
+    reference to the same conversion dict had its saved pin count mutated
+    underneath it by a later edit — so restoring a good version produced a
+    record describing a canvas that no longer existed.
+
+    Setting it from the array, rather than trusting whoever last touched it, is
+    what makes the aliasing harmless.
+    """
+    lm = session.get('working')
+    best = (session.get('conversion') or {}).get('best')
+    if lm is None or not best:
+        return
+    arr = np.asarray(lm)
+    best['cards'], best['pins'] = int(arr.shape[0]), int(arr.shape[1])
+
+
+def _reed_of(session, default=60.0):
+    """
+    The reed this design is to be woven at.
+
+    Held on the SESSION, not only on the spec. A canvas resize drops the spec —
+    it no longer describes the cloth — and the reed was being dropped with it,
+    so every measurement after the first edit came back at the wrong sett. The
+    reed is a property of the loom, not of one design, and it outlives any
+    particular spec.
+
+    Reporting a hardcoded 60 told a weaver who designed at reed 80 that their
+    4-inch panel measured 5.3 inches.
+    """
+    for source in (session.get('reed'), (session.get('spec') or {}).get('reed')):
+        try:
+            if source:
+                return float(source)
+        except (TypeError, ValueError):
+            continue
+    return float(default)
+
+
 def _spec_of(session):
     import design_studio as ds
     d = session.get('spec')
@@ -1062,6 +1152,8 @@ def _adopt(session, spec, conv, img, name=None):
     """Make a spec the working design and clear everything derived from it."""
     import design_studio as ds
     session['spec'] = spec.dict()
+    if spec.reed:
+        session['reed'] = float(spec.reed)
     session['image'] = img
     session['conversion'] = conv
     session['filename'] = name or f'{spec.body_motif}_{spec.pins}'
@@ -1260,6 +1352,11 @@ def _tool_refine(session, args):
 def _tool_loom_geometry(session, args):
     """Threads to inches and back, at a given reed."""
     import design_studio as ds
+    if args.get('reed'):
+        try:
+            session['reed'] = float(args['reed'])
+        except (TypeError, ValueError):
+            pass
     try:
         g = ds.geometry(pins=args.get('pins'), cards=args.get('cards'),
                         reed=args.get('reed'), picks=args.get('picks'),
@@ -1330,6 +1427,7 @@ def _apply_canvas(session, fn, label):
     # back to the old geometry.
     if new_lm.shape != prev.shape:
         session['spec'] = None
+        _sync_conversion_size(session)
 
     out = {'applied': label, 'canvas': co.stats(session['working'])}
     after = _rescore(session)
@@ -1468,6 +1566,139 @@ def _tool_canvas_info(session, args):
     out['named_regions'] = sorted(co.NAMED_REGIONS)
     out['note'] = ('Coordinates are threads across and cards down from the '
                    'top-left. You can name a region or give a box.')
+    return out
+
+
+
+def _tool_checkpoint(session, args):
+    """
+    Save the design under a name, list what has been saved, or go back to one.
+
+    Undo is a stack ten deep — good for "that was wrong", useless for "go back
+    to the version before I added the border", which is what a designer
+    actually asks after twenty minutes of work. An agent that cannot return to
+    a known-good state has to redo everything from the brief, and will not
+    reproduce it exactly.
+
+    Checkpoints hold the label map, the canvas size, the spec and the reed, so
+    restoring one puts the whole session back rather than leaving a design that
+    no longer matches its own measurements.
+    """
+    import canvas_ops as co
+
+    action = str(args.get('action', 'save')).strip().lower()
+    saves = session.setdefault('checkpoints', {})
+
+    if action == 'list':
+        if not saves:
+            return {'checkpoints': [], 'note': 'Nothing saved yet.'}
+        return {'checkpoints': [
+            {'name': k, 'design': v['summary'], 'pins': v['pins'],
+             'cards': v['cards'], 'verdict': v.get('verdict')}
+            for k, v in saves.items()]}
+
+    name = str(args.get('name', '')).strip()[:40]
+    if not name:
+        return {'error': 'Give the checkpoint a name the weaver would recognise.'}
+
+    if action == 'save':
+        lm = _working(session)
+        if lm is None:
+            return {'error': 'There is no converted design to save yet.'}
+        spec = _spec_of(session)
+        import design_studio as ds
+        # Cap the count: checkpoints hold full label maps, and an agent that
+        # saved on every step would grow a session without bound.
+        if len(saves) >= 8 and name not in saves:
+            oldest = next(iter(saves))
+            saves.pop(oldest)
+        saves[name] = {
+            'lm': lm.copy(),
+            'spec': dict(session['spec']) if session.get('spec') else None,
+            'reed': session.get('reed'),
+            'image': session.get('image'),
+            'conversion': session.get('conversion'),
+            'summary': ds.describe(spec) if spec else 'edited design',
+            'verdict': str((session.get('conversion') or {}).get('verdict', '')).lower(),
+            'pins': int(lm.shape[1]), 'cards': int(lm.shape[0]),
+        }
+        return {'saved': name, 'design': saves[name]['summary'],
+                'total_saved': len(saves),
+                'note': 'You can come back to this with action=restore.'}
+
+    if action == 'restore':
+        if name not in saves:
+            return {'error': f"No checkpoint called '{name}'. Saved: "
+                             f"{', '.join(saves) or 'none'}."}
+        cp = saves[name]
+        session['undo'].append(_working(session).copy() if _working(session) is not None
+                               else cp['lm'].copy())
+        session['undo'] = session['undo'][-10:]
+        session['working'] = cp['lm'].copy()
+        session['spec'] = dict(cp['spec']) if cp['spec'] else None
+        session['reed'] = cp['reed']
+        session['image'] = cp['image']
+        # A shallow copy of the record, then re-sync: the checkpoint holds a
+        # reference to the same nested dicts, and a later canvas edit mutates
+        # them in place.
+        conv = cp['conversion']
+        if conv and conv.get('best'):
+            conv = dict(conv)
+            conv['best'] = dict(conv['best'])
+        session['conversion'] = conv
+        session['files'] = None
+        _sync_conversion_size(session)
+        after = _rescore(session)
+        return {'restored': name, 'design': cp['summary'],
+                'canvas': co.stats(session['working']),
+                'verdict': after['verdict'] if after else cp.get('verdict'),
+                'note': 'Files were cleared — regenerate when ready.'}
+
+    if action == 'delete':
+        return ({'deleted': name} if saves.pop(name, None)
+                else {'error': f"No checkpoint called '{name}'."})
+
+    return {'error': "action must be save, restore, list or delete."}
+
+
+def _tool_files(session, args):
+    """
+    Report the loom files: whether they exist, whether they match the design.
+
+    The agent could produce files and then had no way to check on them. After
+    an edit they are silently cleared, so it could tell a weaver the download
+    was ready when there was nothing behind the button. Now it can look.
+    """
+    import canvas_ops as co
+
+    files = session.get('files')
+    lm = _working(session)
+    if not files:
+        return {'ready': False,
+                'reason': ('The design changed since the last generate, so the '
+                           'files were cleared.' if session.get('ever_generated')
+                           else 'No files have been generated yet.'),
+                'next': 'Call generate_files when the weaver is happy.'}
+
+    total = sum(len(v) for v in files.values())
+    out = {'ready': True,
+           'files': [{'name': n, 'bytes': len(d)} for n, d in files.items()],
+           'total_bytes': total,
+           'download': 'The weaver can download them from the button on screen.'}
+    if lm is not None:
+        out['canvas'] = co.stats(lm)
+    # A BMP whose header is wrong is a file the loom rejects at the machine,
+    # which is the most expensive place to find out.
+    try:
+        import bmp_engine as be
+        checks = {n: be.verify_bmp(d) for n, d in files.items()}
+        bad = [n for n, c in checks.items() if not c.get('valid', True)]
+        out['verified'] = not bad
+        if bad:
+            out['warning'] = (f"These did not verify as 1-bit BMPs: "
+                              f"{', '.join(bad)}. Do not hand them over.")
+    except Exception:
+        out['verified'] = None
     return out
 
 
@@ -1853,6 +2084,8 @@ _DISPATCH = {
     'canvas': _tool_canvas,
     'region': _tool_region,
     'canvas_info': _tool_canvas_info,
+    'checkpoint': _tool_checkpoint,
+    'files': _tool_files,
 }
 
 

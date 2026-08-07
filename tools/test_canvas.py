@@ -266,6 +266,74 @@ def main():
                                                 'width_threads': 100,
                                                 'x': 50, 'y': 50}, s))
 
+    print('\nFiles survive the whole workflow')
+    s = session_with_design()
+    check('nothing generated yet is said plainly',
+          'No files have been generated' in ag.run_tool('files', {}, s)['reason'],
+          ag.run_tool('files', {}, s))
+
+    ag.run_tool('generate_files', {'shuttle_count': 3}, s)
+    f = ag.run_tool('files', {}, s)
+    check('files are reported ready', f['ready'], f)
+    check('they are listed with sizes', all(x['bytes'] > 0 for x in f['files']), f)
+    # A BMP with a wrong header is rejected at the loom, the most expensive
+    # place to find out.
+    check('they verify as real 1-bit BMPs', f['verified'] is True, f)
+    check('the zip is downloadable', len(ag.files_zip(s)[0] or b'') > 200)
+
+    ag.run_tool('checkpoint', {'action': 'save', 'name': 'plain'}, s)
+    ag.run_tool('canvas', {'operation': 'extend', 'left': 60, 'right': 60}, s)
+    check('an edit clears the files and says why',
+          'changed since' in ag.run_tool('files', {}, s)['reason'])
+
+    # The bug: the conversion record kept the OLD pin count, and generate_files
+    # reads it. Any canvas resize left the session permanently unable to
+    # produce files, advising a re-run of Detect Colours — which cannot be done
+    # from a conversation.
+    r = ag.run_tool('generate_files', {'shuttle_count': 3}, s)
+    check('files can still be made after a canvas resize', 'error' not in r, r)
+    check('and they describe the NEW width',
+          r['pins'] == 320 + 120, r.get('pins'))
+    check('the zip regenerates', len(ag.files_zip(s)[0] or b'') > 200)
+
+    print('\nThe reed follows the cloth')
+    # Reporting at a hardcoded reed 60 told a weaver who designed at reed 80
+    # that their 4-inch panel measured 5.3 inches.
+    check('physical size is reported at the real reed',
+          'reed 80' in r['physical_size_in'], r['physical_size_in'])
+
+    print('\nCheckpoints')
+    lst = ag.run_tool('checkpoint', {'action': 'list'}, s)
+    check('saved versions are listed', len(lst['checkpoints']) == 1, lst)
+    check('they are described, not just named',
+          bool(lst['checkpoints'][0]['design']), lst)
+
+    back = ag.run_tool('checkpoint', {'action': 'restore', 'name': 'plain'}, s)
+    check('restoring goes back to the saved canvas',
+          back['canvas']['pins'] == 320, back)
+    # The checkpoint held a reference to the same conversion dict, so a later
+    # canvas edit mutated its saved pin count underneath it — restoring a good
+    # version produced a record describing a canvas that no longer existed.
+    r2 = ag.run_tool('generate_files', {'shuttle_count': 3}, s)
+    check('files can be made from a restored checkpoint', 'error' not in r2, r2)
+    check('and they describe the restored width', r2['pins'] == 320, r2.get('pins'))
+
+    check('restoring an unknown name is refused',
+          'error' in ag.run_tool('checkpoint', {'action': 'restore', 'name': 'nope'}, s))
+    check('a checkpoint needs a name',
+          'error' in ag.run_tool('checkpoint', {'action': 'save'}, s))
+    check('an unknown action is refused',
+          'error' in ag.run_tool('checkpoint', {'action': 'yeet', 'name': 'x'}, s))
+    check('deleting works',
+          'deleted' in ag.run_tool('checkpoint', {'action': 'delete', 'name': 'plain'}, s))
+
+    # Checkpoints hold full label maps; an agent saving on every step would
+    # grow the session without bound.
+    for i in range(12):
+        ag.run_tool('checkpoint', {'action': 'save', 'name': f'v{i}'}, s)
+    check('the number kept is capped',
+          len(ag.run_tool('checkpoint', {'action': 'list'}, s)['checkpoints']) <= 8)
+
     llm.reset()
     print(f'\n{PASS} passed, {FAIL} failed\n')
     return 1 if FAIL else 0
