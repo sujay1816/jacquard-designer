@@ -479,8 +479,8 @@ def api_agent_start():
     try:
         if not agent_engine_available():
             return _json_error(
-                'The assistant needs an API key. Set ANTHROPIC_API_KEY or add '
-                '"anthropic_api_key" to config.json.')
+                'No model backend configured. Set ANTHROPIC_API_KEY, or set '
+                '"llm_provider" in config.json to use a local model.')
         if 'image' not in request.files:
             return _json_error('No image uploaded.')
         f = request.files['image']

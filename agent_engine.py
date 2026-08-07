@@ -2385,6 +2385,18 @@ def converse(session, user_message, on_event=None):
             results.append(entry)
         history.append(llm.tool_results_msg(results))
 
+        # Only the last MAX_HISTORY messages are ever sent, so retaining every
+        # message of a long session keeps memory that can never be used. Kept
+        # at four windows so a `restore` or a scroll-back has room, then
+        # trimmed at a clean boundary — cutting mid-exchange would leave a
+        # tool_results whose assistant turn is gone, which both wire formats
+        # reject.
+        if len(history) > MAX_HISTORY * 4:
+            cut = len(history) - MAX_HISTORY * 4
+            while cut < len(history) and history[cut].get('role') == 'tool_results':
+                cut += 1
+            del history[:cut]
+
     return {'ok': True,
             'reply': 'That took more steps than expected — could you rephrase?',
             'tools_used': tools_used, 'has_files': bool(session.get('files'))}
