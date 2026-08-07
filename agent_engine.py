@@ -138,75 +138,6 @@ TOOLS = [
         },
     },
     {
-        "name": "generate_design",
-        "description": (
-            "Create a design from scratch instead of converting an upload. "
-            "Renders as vector at the exact pin count, so stroke weight is "
-            "chosen to be weavable and no detail is ever lost to resolution. "
-            "Good for grounds, borders, fills and simple buttas. These are "
-            "original geometric and stylised constructions, NOT traditional "
-            "motifs — say so if the weaver asks for a named regional style, "
-            "and offer the closest geometric equivalent."),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "motif": {
-                    "type": "string",
-                    "enum": ["paisley", "lotus", "vine_border", "diamond_jaal",
-                             "check_ground", "chevron_border", "dotted_field"],
-                },
-                "pins": {"type": "integer", "description": "Loom pin count."},
-                "cards": {"type": "integer", "description": "Optional height; defaults to the motif ratio."},
-                "complexity": {"type": "integer", "description": "paisley: nested outlines, 1-4."},
-                "petals": {"type": "integer", "description": "lotus: 5-16."},
-                "rings": {"type": "integer", "description": "lotus: 1-3."},
-                "repeats": {"type": "integer", "description": "borders: repeats across the width."},
-                "cells": {"type": "integer", "description": "grounds: lattice or check divisions."},
-                "cols": {"type": "integer", "description": "dotted_field columns."},
-                "rows": {"type": "integer", "description": "dotted_field rows."},
-                "height": {"type": "integer", "description": "borders: band height in design units."},
-            },
-            "colours": {"type": "integer", "description": "Threads in the design: 2 for a single thread on the ground, 3 for two threads (zari plus meena). Default 2."},
-                "required": ["motif", "pins"],
-        },
-    },
-    {
-        "name": "design",
-        "description": (
-            "Design a whole panel from a brief and score it against the loom. "
-            "This is the main design tool — use it whenever the weaver wants "
-            "something made rather than converted. Give it INTENT, not "
-            "geometry: the width (pins, or width_in with a reed), how the "
-            "cloth should feel, how many threads. It works out the motif, the "
-            "repeat, the border widths and the row count itself, builds the "
-            "side borders and body together, converts it and reports the "
-            "verdict. Do not ask the weaver for cols, rows, spacing or layout "
-            "— those are yours to decide and theirs to overrule."),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "pins": {"type": "integer", "description": "Loom width in threads."},
-                "width_in": {"type": "number",
-                             "description": "Finished width in inches. Needs reed. Use instead of pins."},
-                "reed": {"type": "number",
-                         "description": "Reed count, ends per inch — typically 60, 80 or 100. Ask if unknown; it decides what the pin count physically measures."},
-                "picks": {"type": "number", "description": "Picks per inch. Defaults to the reed."},
-                "cards": {"type": "integer", "description": "Panel height in cards."},
-                "length_in": {"type": "number", "description": "Finished length in inches."},
-                "feel": {"type": "string",
-                         "description": "How the cloth should read: rich, dense, traditional, open, light, minimal, geometric, formal."},
-                "threads": {"type": "integer",
-                            "description": "Ink threads excluding the ground, 1-3."},
-                "motif": {"type": "string",
-                          "description": "Force a specific motif. Omit to let the design choose what fits."},
-                "borders": {"type": "boolean",
-                            "description": "Side borders up both selvedges. Default true."},
-                "pallu": {"type": "boolean",
-                          "description": "Cross border across the width at the foot."}
-            },
-        },
-    },
-    {
         "name": "checkpoint",
         "description": (
             "Save the design under a name, list what is saved, or go back to "
@@ -582,8 +513,7 @@ The loop you should be running, most of the time:
      matters. A pin count means nothing physical without the reed — 480 pins
      is 8 inches at reed 60 and 4.8 at reed 100.
   2. `auto_design` with the brief. It builds a candidate, measures it against
-     the loom, tries improvements, keeps what worked, and repeats. Prefer it
-     over `design` whenever the weaver has left the design to you.
+     the loom, tries improvements, keeps what worked, and repeats.
   3. `look_at_design`. The score tells you the linework survived; it cannot
      tell you the borders overpower the body or the repeat reads as wallpaper.
      Look, and fix what you see with `refine_design`.
@@ -2285,7 +2215,7 @@ def run_tool(name, args, session):
 
 # ── Conversation loop ───────────────────────────────────────────────────────
 
-def _call_api(messages):
+def _call_api(messages, tools=None):
     """
     One model turn through whichever provider is configured.
 
@@ -2294,15 +2224,82 @@ def _call_api(messages):
     nothing above it. Returns (Reply, None) or (None, message).
     """
     try:
+        tools = TOOLS if tools is None else tools
         p = llm.provider()
         if not p.is_available():
             return None, ('No model backend configured. Set ANTHROPIC_API_KEY, '
                           'or set "llm_provider" in config.json to use a local model.')
-        return p.complete(SYSTEM_PROMPT, messages, TOOLS, max_tokens=1400), None
+        return p.complete(SYSTEM_PROMPT, messages, tools, max_tokens=1400), None
     except llm.ProviderError as e:
         return None, e.message
     except Exception as e:
         return None, f'Assistant unavailable: {e}'
+
+
+# Tools that only make sense at a given point in a job. Offering all 24 on
+# every request costs 4,433 tokens of schema per round — 73% of the fixed
+# prefix — and it is also what degrades tool-selection accuracy: a model
+# choosing between 24 options makes more mistakes than one choosing between 12,
+# and most of the 24 are inapplicable at any given moment.
+#
+# The gating is real, not arbitrary. Canvas and shuttle work genuinely cannot
+# run before there is a converted design; inspect and convert genuinely cannot
+# run without an upload. So this removes options that would have been refused
+# anyway, and the refusal message told the model as much one round later.
+ALWAYS = ('plan_work', 'loom_geometry', 'list_motifs', 'auto_design',
+          'explore_designs', 'files')
+
+NEEDS_UPLOAD = ('inspect_design', 'convert')
+NEEDS_DESIGN = ('look_at_design', 'refine_design', 'choose_design',
+                'compare_designs', 'canvas', 'canvas_info', 'region',
+                'edit_design', 'undo_edit', 'set_shuttles', 'set_weave',
+                'describe_result', 'generate_files', 'checkpoint')
+
+
+def tools_for(session):
+    """
+    The tools that can actually do something right now.
+
+    Falls open, not closed: anything not explicitly gated is always offered, so
+    a new tool added without touching this list still reaches the model.
+    """
+    have_upload = session.get('image') is not None
+    have_design = have_upload or session.get('working') is not None
+
+    def usable(name):
+        if name in NEEDS_UPLOAD:
+            return have_upload
+        if name in NEEDS_DESIGN:
+            return have_design
+        return True
+
+    return [t for t in TOOLS if usable(t['name'])]
+
+
+def _strip_old_images(history):
+    """
+    Keep only the most recent image in history.
+
+    A design thumbnail is ~390 tokens and stays in the transcript for every
+    round after it, so looking at a design twice in one turn means paying for
+    the first view repeatedly while the model reasons about the second. Only
+    the latest view describes the current design; the earlier ones show cloth
+    that has since been changed, so they are misleading as well as expensive.
+    """
+    seen_latest = False
+    for msg in reversed(history):
+        if msg.get('role') != 'tool_results':
+            continue
+        for r in msg.get('results') or []:
+            if not r.get('images'):
+                continue
+            if seen_latest:
+                r.pop('images', None)
+                r['content'] = (r.get('content', '') +
+                                ' [earlier view dropped — the design has changed since]')
+            else:
+                seen_latest = True
+    return history
 
 
 def _trim(history):
@@ -2346,7 +2343,7 @@ def converse(session, user_message, on_event=None):
 
     tools_used = []
     for _ in range(MAX_TOOL_ROUNDS):
-        reply, err = _call_api(_trim(history))
+        reply, err = _call_api(_trim(_strip_old_images(history)), tools_for(session))
         if err:
             # Roll the whole turn back, not just the user message: a failure
             # part-way through a tool loop would otherwise leave assistant

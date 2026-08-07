@@ -199,7 +199,7 @@ def main():
            Reply(tool_calls=[ToolCall('d', 'generate_files',
                                       {'shuttle_count': 3})]),
            Reply(text='Files are ready.')]
-    ag._call_api = lambda m: (seq.pop(0), None)
+    ag._call_api = lambda m, tools=None: (seq.pop(0), None)
     out = ag.converse(s, 'I need a traditional saree body about 9 inches at reed 80')
     check('the conversation ran to completion', out['ok'], out)
     check('it used the intent tools, not the parameter ones',

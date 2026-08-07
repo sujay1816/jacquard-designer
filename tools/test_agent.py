@@ -49,7 +49,7 @@ def script(*turns):
     """Replace the model with a fixed sequence of replies."""
     seq = list(turns)
 
-    def fake(messages):
+    def fake(messages, tools=None):
         return (seq.pop(0) if seq else say('done')), None
     ag._call_api = fake
 
@@ -337,7 +337,7 @@ def main():
           out['ok'] and len(out['tools_used']) <= ag.MAX_TOOL_ROUNDS,
           len(out['tools_used']))
 
-    ag._call_api = lambda m: (None, 'Assistant unreachable.')
+    ag._call_api = lambda m, tools=None: (None, 'Assistant unreachable.')
     t4 = ag.new_session(design(), 'z.png')
     out = ag.converse(ag.get_session(t4), 'hello')
     check('API failure returns a message, not a crash',

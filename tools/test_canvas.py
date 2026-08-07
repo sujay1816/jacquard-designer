@@ -17,7 +17,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import agent_engine as ag                                   # noqa: E402
 import canvas_ops as co                                     # noqa: E402
 import llm                                                  # noqa: E402
-from llm import Reply                                       # noqa: E402
+from llm import Reply, ToolCall                             # noqa: E402
+from PIL import Image                                       # noqa: E402
 
 PASS = FAIL = 0
 
@@ -415,6 +416,59 @@ def main():
     # its spec, which is safe only because rendering is deterministic.
     chosen = ag.run_tool('choose_design', {'index': 0}, s)
     check('a variant is rebuilt exactly when chosen', 'error' not in chosen, chosen)
+
+    print('\nThe model is only offered tools that can do something')
+    blank_s = ag.get_session(ag.new_session(None, 'scratch'))
+    offered = [t['name'] for t in ag.tools_for(blank_s)]
+    # 24 schemas cost 4,433 tokens on EVERY round — 73% of the fixed prefix —
+    # and most were inapplicable, which is also what degrades tool selection.
+    check('a fresh design session gets a small set', len(offered) <= 10, offered)
+    check('conversion tools are hidden with nothing uploaded',
+          'convert' not in offered and 'inspect_design' not in offered, offered)
+    check('canvas tools are hidden with nothing designed',
+          'canvas' not in offered and 'region' not in offered, offered)
+    check('but designing is offered', 'auto_design' in offered, offered)
+
+    ag.run_tool('auto_design', {'pins': 320, 'reed': 80, 'effort': 1}, blank_s)
+    after = [t['name'] for t in ag.tools_for(blank_s)]
+    check('canvas work appears once there is a design', 'canvas' in after, after)
+    # A generated design IS an image, so convert and inspect legitimately apply
+    # to it — re-converting at a different pin count is a real request. The
+    # gating therefore saves most in the opening rounds, before anything
+    # exists, and less once a design is on the table. That is the honest
+    # shape of the win: 7 tools instead of 22 at the start, not throughout.
+    check('the full set returns once there is something to work on',
+          len(after) >= 20, len(after))
+
+    up = ag.get_session(ag.new_session(Image.new('RGB', (600, 400), 'white'), 'x.png'))
+    check('an upload gets the conversion tools',
+          'inspect_design' in [t['name'] for t in ag.tools_for(up)])
+
+    # Gating must fall open: a tool added later without touching the lists
+    # should still reach the model.
+    check('an ungated tool is always offered',
+          'plan_work' in offered and 'loom_geometry' in offered, offered)
+    check('every offered tool can actually be dispatched',
+          all(t['name'] in ag._DISPATCH for t in ag.TOOLS),
+          [t['name'] for t in ag.TOOLS if t['name'] not in ag._DISPATCH])
+
+    print('\nStale views are not paid for twice')
+    llm.set_provider(Fake())
+    s = session_with_design()
+    seq = [Reply(tool_calls=[ToolCall('a', 'look_at_design', {})]),
+           Reply(tool_calls=[ToolCall('b', 'look_at_design', {})]),
+           Reply(text='Looks right.')]
+    ag._call_api = lambda m, tools=None: (seq.pop(0), None)
+    ag.converse(s, 'how does it look?')
+    with_images = [r for m in s['history'] if m.get('role') == 'tool_results'
+                   for r in m['results'] if r.get('images')]
+    # A thumbnail is ~390 tokens and stays in the transcript for every later
+    # round. Only the newest one describes the current cloth; older ones show
+    # cloth that has since changed, so they are misleading as well as costly.
+    check('only the most recent view is kept', len(with_images) == 1, len(with_images))
+    dropped = [r for m in s['history'] if m.get('role') == 'tool_results'
+               for r in m['results'] if 'earlier view dropped' in r.get('content', '')]
+    check('and the model is told one was dropped', len(dropped) >= 1, len(dropped))
 
     llm.reset()
     print(f'\n{PASS} passed, {FAIL} failed\n')

@@ -136,7 +136,7 @@ def main():
     ag.run_tool('auto_design', {'pins': 320, 'reed': 60, 'effort': 1}, s)
     seq = [Reply(tool_calls=[ToolCall('v1', 'look_at_design', {})]),
            Reply(text='Looks balanced.')]
-    ag._call_api = lambda m: (seq.pop(0), None)
+    ag._call_api = lambda m, tools=None: (seq.pop(0), None)
     ag.converse(s, 'how does it look?')
     results = [m for m in s['history'] if m.get('role') == 'tool_results']
     entry = results[-1]['results'][0]
@@ -152,7 +152,7 @@ def main():
     ag.run_tool('auto_design', {'pins': 320, 'reed': 60, 'effort': 1}, s2)
     seq = [Reply(tool_calls=[ToolCall('v2', 'look_at_design', {})]),
            Reply(text='Going by the numbers.')]
-    ag._call_api = lambda m: (seq.pop(0), None)
+    ag._call_api = lambda m, tools=None: (seq.pop(0), None)
     ag.converse(s2, 'how does it look?')
     entry = [m for m in s2['history'] if m.get('role') == 'tool_results'][-1]['results'][0]
     check('no image is attached when the backend cannot read one',
@@ -205,7 +205,7 @@ def main():
            Reply(tool_calls=[ToolCall('r', 'refine_design', {'change': 'denser'})]),
            Reply(tool_calls=[ToolCall('f', 'generate_files', {'shuttle_count': 3})]),
            Reply(text='Here they are.')]
-    ag._call_api = lambda m: (seq.pop(0), None)
+    ag._call_api = lambda m, tools=None: (seq.pop(0), None)
     out = ag.converse(s, 'traditional saree body, about 9 inches at reed 80')
     check('the turn completed', out['ok'], out)
     check('it sized, designed, looked, refined and delivered',
@@ -219,7 +219,7 @@ def main():
     print('\nThe agent has room to work')
     check('the loop allows a full job', ag.MAX_TOOL_ROUNDS >= 12, ag.MAX_TOOL_ROUNDS)
     s = blank()
-    ag._call_api = lambda m: (Reply(tool_calls=[ToolCall('x', 'list_motifs', {})]), None)
+    ag._call_api = lambda m, tools=None: (Reply(tool_calls=[ToolCall('x', 'list_motifs', {})]), None)
     out = ag.converse(s, 'loop')
     check('but a runaway loop is still stopped',
           len(out['tools_used']) <= ag.MAX_TOOL_ROUNDS, len(out['tools_used']))
