@@ -141,6 +141,59 @@
   }
   .chip:hover { border-color:var(--gold); color:var(--gold); }
   .backend { font-size:10px; color:var(--muted); opacity:.65; letter-spacing:.03em; }
+
+  /* Verdict and measurements, visible at a glance instead of buried in prose.
+     A weaver cannot re-read a sentence from four turns ago to check whether
+     the drift went up. */
+  .metrics { display:flex; flex-wrap:wrap; gap:6px; margin-top:9px; }
+  .metric {
+    padding:4px 8px; border-radius:4px; font-size:10.5px;
+    background:var(--surface2); border:1px solid var(--border); color:var(--muted);
+  }
+  .metric b { color:var(--text); font-weight:500; }
+  .metric.ok    { border-color:#4a7a52; }
+  .metric.warn  { border-color:var(--gold); }
+  .metric.fail  { border-color:var(--danger); color:var(--danger); }
+
+  .viewtabs { display:flex; gap:4px; margin-bottom:8px; }
+  .viewtab {
+    flex:1; padding:5px; text-align:center; font-size:10.5px; cursor:pointer;
+    border:1px solid var(--border); border-radius:4px; color:var(--muted);
+    background:var(--surface2);
+  }
+  .viewtab.on { border-color:var(--gold); color:var(--gold); }
+  .viewtab.hide { display:none; }
+
+  #preview { cursor:zoom-in; }
+
+  /* Full-screen inspection. A jacquard design is meaningful thread by thread,
+     and a 290px panel cannot show whether a two-thread vine survived. */
+  #zoom {
+    display:none; position:fixed; inset:0; z-index:50; background:rgba(10,8,7,.94);
+    padding:20px; overflow:auto; cursor:zoom-out;
+  }
+  #zoom img {
+    display:block; margin:0 auto; background:#fff; image-rendering:pixelated;
+    max-width:none;
+  }
+  #zoomBar {
+    position:fixed; top:14px; left:50%; transform:translateX(-50%);
+    display:flex; gap:6px; align-items:center; z-index:51;
+    background:var(--surface); border:1px solid var(--border2);
+    border-radius:6px; padding:6px 10px; font-size:11px; color:var(--muted);
+  }
+  #zoomBar button { padding:4px 9px; font-size:11px; }
+
+  .filerow {
+    display:flex; justify-content:space-between; align-items:center;
+    padding:4px 0; font-size:11px; color:var(--muted); gap:8px;
+  }
+  .filerow a { color:var(--gold); text-decoration:none; white-space:nowrap; }
+  .filerow span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .cp {
+    display:block; width:100%; text-align:left; margin-bottom:4px;
+    font-size:11px; padding:6px 9px;
+  }
 </style>
 </head>
 <body>
@@ -204,23 +257,53 @@
         <div class="col-view">
           <div class="panel">
             <h3>The design</h3>
-            <img id="preview" alt="Current design" style="display:none">
+            <div class="viewtabs" id="viewTabs" style="display:none">
+              <div class="viewtab on"   data-w="design"   onclick="setView('design')">Now</div>
+              <div class="viewtab hide" data-w="previous" onclick="setView('previous')">Before</div>
+              <div class="viewtab hide" data-w="source"   onclick="setView('source')">Source</div>
+            </div>
+            <img id="preview" alt="Current design" style="display:none" onclick="openZoom()">
             <p id="previewEmpty">Nothing designed yet. Describe what you need —
               a width and a reed is enough to start.</p>
+            <div class="metrics" id="metrics"></div>
             <div id="previewMeta"></div>
             <div class="chips" style="margin-top:10px">
+              <span class="chip" onclick="openZoom()" id="zoomChip" style="display:none">Inspect thread by thread</span>
               <span class="chip" onclick="openEditor()" id="editChip" style="display:none">Open in BMP editor</span>
             </div>
           </div>
+
           <div class="panel" id="planBox" style="display:none">
             <h3>Plan</h3>
             <div id="planSteps"></div>
+          </div>
+
+          <div class="panel" id="filesBox" style="display:none">
+            <h3>Loom files</h3>
+            <div id="fileList"></div>
+          </div>
+
+          <div class="panel" id="cpBox" style="display:none">
+            <h3>Saved versions</h3>
+            <div id="cpList"></div>
           </div>
         </div>
       </div>
     </div>
   </div>
 </main>
+
+<div id="zoom" onclick="closeZoom(event)">
+  <div id="zoomBar" onclick="event.stopPropagation()">
+    <span id="zoomLabel"></span>
+    <button onclick="zoomBy(-1)">−</button>
+    <button onclick="zoomBy(1)">+</button>
+    <button onclick="zoomFit()">Fit</button>
+    <button onclick="zoomOne()">1 thread = 1 pixel</button>
+    <button onclick="closeZoom()">Close</button>
+  </div>
+  <img id="zoomImg" alt="Design, enlarged">
+</div>
 
 <script>
 let TOKEN = null, BUSY = false, STREAM = null, VISION = false;
@@ -283,22 +366,165 @@ function busy(on) {
 
 // ── The design view ─────────────────────────────────────────────────────────
 
+let VIEW = 'design', STATE = {};
+
+function previewUrl(which) {
+  // Cache-bust: the design changes every turn, and a cached preview would show
+  // the previous one and make a refinement look like it did nothing.
+  return '/api/agent/preview?token=' + encodeURIComponent(TOKEN)
+       + '&which=' + which + '&t=' + Date.now();
+}
+
+function setView(which) {
+  VIEW = which;
+  document.querySelectorAll('.viewtab').forEach(t =>
+    t.classList.toggle('on', t.dataset.w === which));
+  refreshPreview();
+}
+
 function refreshPreview() {
   if (!TOKEN) return;
   const img = document.getElementById('preview');
-  // Cache-bust: the design changes every turn, and a cached preview would show
-  // the previous one and make a refinement look like it did nothing.
-  const url = '/api/agent/preview?token=' + encodeURIComponent(TOKEN) + '&t=' + Date.now();
-  fetch(url).then(r => {
+  fetch(previewUrl(VIEW)).then(r => {
     if (!r.ok) throw 0;
     return r.blob();
   }).then(b => {
     img.src = URL.createObjectURL(b);
     img.style.display = 'block';
     document.getElementById('previewEmpty').style.display = 'none';
+    document.getElementById('viewTabs').style.display = 'flex';
     document.getElementById('editChip').style.display = 'inline-block';
+    document.getElementById('zoomChip').style.display = 'inline-block';
   }).catch(() => { /* nothing designed yet — leave the placeholder */ });
+  refreshState();
 }
+
+function refreshState() {
+  if (!TOKEN) return;
+  fetch('/api/agent/state?token=' + encodeURIComponent(TOKEN))
+    .then(r => r.json()).then(d => {
+      if (!d.success) return;
+      STATE = d;
+      renderMetrics(d);
+      renderFiles(d);
+      renderCheckpoints(d);
+      renderPlan(d.plan);
+      // Only offer a comparison that means something: there is no "before"
+      // until something has been changed, and a generated design has no
+      // source to compare against — it would be comparing it with itself.
+      document.querySelector('[data-w="previous"]').classList.toggle('hide', !d.can_undo);
+      document.querySelector('[data-w="source"]').classList.toggle('hide', !d.has_source);
+    }).catch(() => {});
+}
+
+function renderMetrics(d) {
+  const box = document.getElementById('metrics');
+  box.innerHTML = '';
+  const add = (label, value, cls) => {
+    if (value === null || value === undefined) return;
+    const m = document.createElement('div');
+    m.className = 'metric' + (cls ? ' ' + cls : '');
+    m.innerHTML = label + ' <b>' + value + '</b>';
+    box.appendChild(m);
+  };
+  if (d.verdict) add('Verdict', d.verdict, d.verdict);
+  if (d.canvas) add('Size', d.canvas.pins + ' × ' + d.canvas.cards);
+  if (d.width_in) add('Cloth', d.width_in + ' × ' + d.length_in + ' in @ reed ' + Math.round(d.reed));
+  if (d.thread_drift_pct !== null && d.thread_drift_pct !== undefined)
+    add('Thread drift', d.thread_drift_pct + '%');
+  if (d.canvas) add('Coverage', d.canvas.thread_coverage_pct + '%');
+  if (d.reference_rebased) {
+    const n = document.createElement('div');
+    n.className = 'metric';
+    // Otherwise the numbers look continuous across a canvas change when they
+    // are not — they are measured against a different reference from here on.
+    n.textContent = 'measured against the design, not the original';
+    box.appendChild(n);
+  }
+}
+
+function renderFiles(d) {
+  const box = document.getElementById('filesBox');
+  const list = document.getElementById('fileList');
+  if (!d.files || !d.files.length) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  list.innerHTML = '';
+  d.files.forEach(f => {
+    const row = document.createElement('div');
+    row.className = 'filerow';
+    const name = document.createElement('span');
+    name.textContent = f.name;
+    const a = document.createElement('a');
+    a.href = '/api/agent/file?token=' + encodeURIComponent(TOKEN)
+           + '&name=' + encodeURIComponent(f.name);
+    a.textContent = Math.round(f.bytes / 1024) + ' kB ↓';
+    row.appendChild(name); row.appendChild(a);
+    list.appendChild(row);
+  });
+}
+
+function renderCheckpoints(d) {
+  const box = document.getElementById('cpBox');
+  const list = document.getElementById('cpList');
+  if (!d.checkpoints || !d.checkpoints.length) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  list.innerHTML = '';
+  d.checkpoints.forEach(c => {
+    const b = document.createElement('button');
+    b.className = 'chip cp';
+    b.textContent = '↩ ' + c.name + '  ·  ' + c.pins + '×' + c.cards;
+    b.title = c.design;
+    // Asks the agent rather than calling restore directly, so it stays in the
+    // loop: it can say what changed, and the move is part of the conversation
+    // instead of a silent state change the transcript never mentions.
+    b.onclick = () => {
+      document.getElementById('msg').value = 'Go back to "' + c.name + '"';
+      send();
+    };
+    list.appendChild(b);
+  });
+}
+
+// ── Thread-level inspection ────────────────────────────────────────────────
+
+let ZOOM = 1;
+
+function openZoom() {
+  if (!TOKEN || !STATE.canvas) return;
+  document.getElementById('zoomImg').src = previewUrl(VIEW);
+  document.getElementById('zoom').style.display = 'block';
+  document.body.style.overflow = 'hidden';
+  zoomFit();
+}
+
+function closeZoom(ev) {
+  if (ev && ev.target.closest('#zoomBar')) return;
+  document.getElementById('zoom').style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+function applyZoom() {
+  const img = document.getElementById('zoomImg');
+  const pins = (STATE.canvas && STATE.canvas.pins) || 0;
+  img.style.width = pins ? (pins * ZOOM) + 'px' : 'auto';
+  document.getElementById('zoomLabel').textContent =
+    (pins ? pins + ' threads · ' : '') + Math.round(ZOOM * 100) + '%';
+}
+
+function zoomBy(dir) { ZOOM = Math.max(0.1, Math.min(16, ZOOM * (dir > 0 ? 1.5 : 1 / 1.5))); applyZoom(); }
+function zoomFit() {
+  const pins = (STATE.canvas && STATE.canvas.pins) || 1;
+  ZOOM = Math.min(1, (window.innerWidth - 60) / pins);
+  applyZoom();
+}
+// The one that matters: one screen pixel per thread, with pixelated
+// rendering, so a two-thread vine is visibly two threads rather than a
+// smoothed grey smear that looks fine at any smaller scale.
+function zoomOne() { ZOOM = 1; applyZoom(); }
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeZoom();
+});
 
 function renderPlan(plan) {
   const box = document.getElementById('planBox');

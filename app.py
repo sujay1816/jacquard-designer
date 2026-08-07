@@ -521,6 +521,93 @@ def api_agent_blank():
         return _json_error(f'Could not start: {e}')
 
 
+@app.route('/api/agent/state', methods=['GET'])
+def api_agent_state():
+    """
+    Everything the design panel needs, in one call.
+
+    The page could show the design but nothing about it — the verdict, the
+    drift, the finished size, what was saved, which files exist all lived only
+    inside the agent's prose. A weaver reading "it is a warn" in a sentence
+    cannot glance at it later, and cannot see it change as they work.
+    """
+    try:
+        import agent_engine
+        import canvas_ops as co
+
+        session = agent_engine.get_session(request.args.get('token', ''))
+        if not session:
+            return _json_error('That conversation has expired.')
+
+        # Use the same accessor the tools use, not the raw key: `working` is
+        # materialised lazily from the conversion, so reading the key directly
+        # showed no canvas at all until some tool happened to touch it first.
+        lm = agent_engine._working(session)
+        conv = session.get('conversion') or {}
+        rep = ((conv.get('best') or {}).get('report')) or {}
+        spec = session.get('spec') or {}
+        reed = agent_engine._reed_of(session)
+
+        out = {'success': True,
+               'has_design': lm is not None or session.get('image') is not None,
+               'has_source': bool(session.get('source_is_upload')),
+               'verdict': str(conv.get('verdict', '')).lower() or None,
+               'thread_drift_pct': rep.get('ink_drift_pct'),
+               'design_gaps': rep.get('output_white_regions'),
+               'reed': reed,
+               'can_undo': bool(session.get('undo')),
+               'checkpoints': [{'name': k, 'design': v['summary'],
+                                'pins': v['pins'], 'cards': v['cards']}
+                               for k, v in (session.get('checkpoints') or {}).items()],
+               'files': [{'name': n, 'bytes': len(d)}
+                         for n, d in (session.get('files') or {}).items()],
+               'plan': session.get('plan'),
+               'reference_rebased': bool(session.get('reference_rebased')),
+               }
+
+        if lm is not None:
+            import numpy as np
+            arr = np.asarray(lm)
+            out['canvas'] = co.stats(arr)
+            out['width_in'] = round(arr.shape[1] / reed, 2)
+            out['length_in'] = round(arr.shape[0] / reed, 2)
+        if spec:
+            out['description'] = spec.get('body_motif')
+        return jsonify(out)
+    except Exception as e:
+        return _json_error(f'Could not read the session: {e}')
+
+
+@app.route('/api/agent/file', methods=['GET'])
+def api_agent_file():
+    """
+    One generated BMP on its own.
+
+    A zip is the right thing to hand a loom operator, but it is the wrong thing
+    for checking a single shuttle before committing — and looking at one file
+    should not mean downloading and unpacking all of them.
+    """
+    try:
+        import agent_engine
+        session = agent_engine.get_session(request.args.get('token', ''))
+        if not session:
+            return _json_error('That conversation has expired.')
+        name = request.args.get('name', '')
+        data = (session.get('files') or {}).get(name)
+        if not data:
+            return _json_error('No such file in this conversation.')
+        return send_file(io.BytesIO(data), mimetype='image/bmp',
+                         as_attachment=True, download_name=name)
+    except Exception as e:
+        return _json_error(f'Download failed: {e}')
+
+
+def agent_engine_unpack(blob):
+    """Undo entries are stored packed; the preview needs them as arrays."""
+    import agent_engine
+    return agent_engine._unpack(blob)
+
+
 @app.route('/api/agent/preview', methods=['GET'])
 def api_agent_preview():
     """
@@ -535,22 +622,35 @@ def api_agent_preview():
         session = agent_engine.get_session(request.args.get('token', ''))
         if not session:
             return _json_error('That conversation has expired.')
+        import numpy as np
+        which = request.args.get('which', 'design')
         img = session.get('image')
-        if img is None:
-            return _json_error('Nothing has been designed yet.')
-
-        # Prefer the converted view when there is one: that is what will
-        # actually be woven, not the artwork it came from.
         working = session.get('working')
-        if working is not None:
-            import numpy as np
-            arr = np.asarray(working)
+
+        if which == 'source':
+            # The artwork as uploaded, for comparing against the conversion.
+            if img is None:
+                return _json_error('There is no source image in this conversation.')
+        elif which == 'previous':
+            # The state before the last edit, so a change can be seen rather
+            # than only described. Rendered from the undo stack, which holds
+            # packed label maps.
+            undo = session.get('undo') or []
+            if not undo:
+                return _json_error('There is no earlier version to show.')
+            arr = agent_engine_unpack(undo[-1])
             img = Image.fromarray(((arr == 0) * 255).astype('uint8'), 'L')
+        else:
+            if working is not None:
+                arr = np.asarray(working)
+                img = Image.fromarray(((arr == 0) * 255).astype('uint8'), 'L')
+            elif img is None:
+                return _json_error('Nothing has been designed yet.')
 
         buf = io.BytesIO()
         preview = img.convert('L')
-        if max(preview.size) > 1400:
-            scale = 1400 / max(preview.size)
+        if max(preview.size) > 2400:
+            scale = 2400 / max(preview.size)
             preview = preview.resize((max(1, int(preview.size[0] * scale)),
                                       max(1, int(preview.size[1] * scale))))
         preview.save(buf, format='PNG')

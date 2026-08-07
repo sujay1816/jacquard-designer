@@ -67,6 +67,10 @@ def new_session(image=None, filename='design'):
     _sessions[token] = {
         'created': time.time(),
         'image': image,
+        # Whether the image came from the weaver or from us. The page uses it
+        # to decide if a source/design toggle is meaningful — comparing a
+        # generated design against itself is not a comparison.
+        'source_is_upload': image is not None,
         'filename': os.path.splitext(os.path.basename(filename))[0] or 'design',
         'history': [],
         'conversion': None,

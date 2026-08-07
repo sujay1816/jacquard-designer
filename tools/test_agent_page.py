@@ -167,6 +167,76 @@ def main():
     check('the preview is cache-busted',
           'Date.now()' in html)
 
+    print('\nThe panel can show what the design IS, not just what it looks like')
+    llm.set_provider(Scripted())
+    tok5 = c.post('/api/agent/blank').get_json()['token']
+    s5 = ag.get_session(tok5)
+    check('state before anything says there is no design',
+          c.get(f'/api/agent/state?token={tok5}').get_json()['has_design'] is False)
+
+    ag.run_tool('auto_design', {'pins': 400, 'reed': 80, 'effort': 1}, s5)
+    st = c.get(f'/api/agent/state?token={tok5}').get_json()
+    # These lived only inside the agent's prose. A weaver cannot re-read a
+    # sentence from four turns ago to check whether the drift went up.
+    check('the verdict is exposed', st['verdict'] in ('ok', 'warn', 'fail'), st)
+    check('the canvas size is exposed', st['canvas']['pins'] == 400, st)
+    check('the finished cloth size is exposed', st['width_in'] == 5.0, st)
+    check('at the real reed, not a default', st['reed'] == 80.0, st)
+    check('nothing saved yet', st['checkpoints'] == [], st)
+    check('no files yet', st['files'] == [], st)
+
+    ag.run_tool('checkpoint', {'action': 'save', 'name': 'plain'}, s5)
+    ag.run_tool('edit_design', {'operation': 'thicken', 'amount': 1}, s5)
+    ag.run_tool('generate_files', {'shuttle_count': 3}, s5)
+    st = c.get(f'/api/agent/state?token={tok5}').get_json()
+    check('saved versions are listed', st['checkpoints'][0]['name'] == 'plain', st)
+    check('files are listed with sizes',
+          st['files'] and all(f['bytes'] > 0 for f in st['files']), st)
+    check('an earlier version is now offerable', st['can_undo'] is True, st)
+    # Comparing a generated design against its own source is comparing it with
+    # itself, so the tab should not be offered.
+    check('a generated design offers no source comparison',
+          st['has_source'] is False, st)
+
+    print('\nComparing versions')
+    for which, want in (('design', 200), ('previous', 200)):
+        r = c.get(f'/api/agent/preview?token={tok5}&which={which}')
+        check(f"the '{which}' view renders", r.status_code == want, r.status_code)
+    check('a generated session has no source view',
+          c.get(f'/api/agent/preview?token={tok5}&which=source').status_code in (200, 400))
+
+    fresh = c.post('/api/agent/blank').get_json()['token']
+    ag.run_tool('auto_design', {'pins': 200, 'reed': 60, 'effort': 1},
+                ag.get_session(fresh))
+    check('with nothing edited there is no earlier version',
+          c.get(f'/api/agent/preview?token={fresh}&which=previous').status_code == 400)
+
+    print('\nSingle files, not only the zip')
+    name = st['files'][0]['name']
+    r = c.get(f'/api/agent/file?token={tok5}&name={name}')
+    # A zip is right for a loom operator and wrong for checking one shuttle
+    # before committing.
+    check('one file downloads on its own', r.status_code == 200, r.status_code)
+    check('as a bmp', r.headers['Content-Type'] == 'image/bmp', r.headers.get('Content-Type'))
+    check('it is a real BMP', r.data[:2] == b'BM', r.data[:2])
+    check('an unknown filename is refused',
+          c.get(f'/api/agent/file?token={tok5}&name=../secret').status_code == 400)
+    check('an expired token is refused',
+          c.get('/api/agent/state?token=gone').status_code == 400)
+
+    print('\nThread-level inspection is in the page')
+    html = c.get('/agent').get_data(as_text=True)
+    # A 290px panel cannot show whether a two-thread vine survived; at one
+    # screen pixel per thread with pixelated rendering, it visibly either did
+    # or did not.
+    check('there is a 1:1 thread view', 'zoomOne' in html)
+    check('and it does not smooth the threads',
+          'image-rendering:pixelated' in html)
+    check('measurements are rendered', 'renderMetrics' in html)
+    check('saved versions are clickable', 'renderCheckpoints' in html)
+    check('files are listed individually', 'renderFiles' in html)
+    check('views can be switched', 'setView' in html)
+
     llm.reset()
     print(f'\n{PASS} passed, {FAIL} failed\n')
     return 1 if FAIL else 0
