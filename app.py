@@ -504,10 +504,16 @@ def api_agent_download():
 
 
 def agent_engine_available():
-    """True when an API key is configured, so the UI can hide the panel."""
+    """
+    True when a model backend is configured, so the UI can hide the panel.
+
+    Asks the provider layer rather than checking for an Anthropic key: a mill
+    running a local Llama has no key at all, and gating on one would hide a
+    working assistant.
+    """
     try:
-        import assistant_engine
-        return assistant_engine.is_available()
+        import llm
+        return llm.is_available()
     except Exception:
         return False
 

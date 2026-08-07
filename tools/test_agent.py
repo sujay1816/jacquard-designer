@@ -16,6 +16,7 @@ from PIL import Image, ImageDraw
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import agent_engine as ag                                   # noqa: E402
+from llm import Reply, ToolCall                             # noqa: E402
 
 PASS = FAIL = 0
 
@@ -45,20 +46,20 @@ def design(w=600, h=400):
 
 
 def script(*turns):
-    """Replace the API with a fixed sequence of responses."""
+    """Replace the model with a fixed sequence of replies."""
     seq = list(turns)
 
     def fake(messages):
-        return (seq.pop(0) if seq else {'content': [{'type': 'text', 'text': 'done'}]}), None
+        return (seq.pop(0) if seq else say('done')), None
     ag._call_api = fake
 
 
 def tool_call(name, args, cid='t1'):
-    return {'content': [{'type': 'tool_use', 'id': cid, 'name': name, 'input': args}]}
+    return Reply(tool_calls=[ToolCall(id=cid, name=name, args=args)])
 
 
 def say(text):
-    return {'content': [{'type': 'text', 'text': text}]}
+    return Reply(text=text)
 
 
 def main():

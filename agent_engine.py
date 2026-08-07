@@ -25,14 +25,12 @@ import io
 import json
 import os
 import time
-import urllib.error
-import urllib.request
 import zipfile
 
 import numpy as np
 from PIL import Image
 
-from assistant_engine import API_URL, API_VERSION, API_TIMEOUT, _key, model_id
+import llm
 
 MAX_TOOL_ROUNDS = 8          # tool calls per user turn before we stop
 MAX_HISTORY = 24             # messages retained per session
@@ -162,62 +160,109 @@ TOOLS = [
         },
     },
     {
-        "name": "generate_allover",
+        "name": "design",
         "description": (
-            "Build an ALL-OVER brocade field — a full body of repeating motifs, "
-            "not a single motif. This is what most saree and brocade work "
-            "actually is. Layouts: half_drop (the usual body), straight, brick, "
-            "banded (motif rows separated by border rules, as on a real "
-            "brocade), jaal (diamond lattice with a motif in each cell), and "
-            "stripe. Motifs are rebuilt at tile size so the linework stays "
-            "weavable however many repeats are asked for."),
+            "Design a whole panel from a brief and score it against the loom. "
+            "This is the main design tool — use it whenever the weaver wants "
+            "something made rather than converted. Give it INTENT, not "
+            "geometry: the width (pins, or width_in with a reed), how the "
+            "cloth should feel, how many threads. It works out the motif, the "
+            "repeat, the border widths and the row count itself, builds the "
+            "side borders and body together, converts it and reports the "
+            "verdict. Do not ask the weaver for cols, rows, spacing or layout "
+            "— those are yours to decide and theirs to overrule."),
         "input_schema": {
             "type": "object",
             "properties": {
-                "pins": {"type": "integer", "description": "Loom pin count."},
-                "cards": {"type": "integer", "description": "Optional height in cards."},
-                "layout": {
-                    "type": "string",
-                    "enum": ["half_drop", "straight", "brick", "banded", "jaal", "stripe"],
-                },
-                "motif": {
-                    "type": "string",
-                    "enum": ["paisley", "lotus", "vine_border", "diamond_jaal",
-                             "check_ground", "chevron_border", "dotted_field"],
-                    "description": "The repeating unit. paisley or lotus for a butta field.",
-                },
-                "cols": {"type": "integer", "description": "Motifs across the width, 1-24."},
-                "rows": {"type": "integer", "description": "Motif rows down the length, 1-40."},
-                "spacing": {"type": "number", "description": "Gap between motifs as a fraction, 0-1.5. Default 0.25."},
-                "band_motif": {
-                    "type": "string",
-                    "enum": ["vine_border", "chevron_border"],
-                    "description": "banded layout: which rule separates the motif rows.",
-                },
-                "band_every": {"type": "integer", "description": "banded layout: rule after every N motif rows."},
-                "mirror": {"type": "boolean", "description": "Alternate motifs mirrored."},
+                "pins": {"type": "integer", "description": "Loom width in threads."},
+                "width_in": {"type": "number",
+                             "description": "Finished width in inches. Needs reed. Use instead of pins."},
+                "reed": {"type": "number",
+                         "description": "Reed count, ends per inch — typically 60, 80 or 100. Ask if unknown; it decides what the pin count physically measures."},
+                "picks": {"type": "number", "description": "Picks per inch. Defaults to the reed."},
+                "cards": {"type": "integer", "description": "Panel height in cards."},
+                "length_in": {"type": "number", "description": "Finished length in inches."},
+                "feel": {"type": "string",
+                         "description": "How the cloth should read: rich, dense, traditional, open, light, minimal, geometric, formal."},
+                "threads": {"type": "integer",
+                            "description": "Ink threads excluding the ground, 1-3."},
+                "motif": {"type": "string",
+                          "description": "Force a specific motif. Omit to let the design choose what fits."},
+                "borders": {"type": "boolean",
+                            "description": "Side borders up both selvedges. Default true."},
+                "pallu": {"type": "boolean",
+                          "description": "Cross border across the width at the foot."}
             },
-            "colours": {"type": "integer", "description": "Threads in the design: 2 for a single thread on the ground, 3 for two threads (zari plus meena). Default 2."},
-                "required": ["pins", "layout"],
         },
     },
     {
-        "name": "design_options",
+        "name": "explore_designs",
         "description": (
-            "Given a pin count, report what can actually be designed at that "
-            "width: how many of each motif fit across before the internal "
-            "detail stops reading, a comfortable count with room to breathe, "
-            "and which layouts suit. Call this BEFORE generating when the "
-            "weaver has given a pin count but not said what they want — it is "
-            "how you design within the loom's real limits instead of guessing "
-            "and being corrected."),
+            "Build several alternative designs from the current one and score "
+            "each, ranked. Use when the weaver is undecided, asks to see "
+            "options, or the first attempt was not quite right. Describe the "
+            "candidates in craft terms and let them pick — then call "
+            "choose_design."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "count": {"type": "integer", "description": "How many, 2-4."},
+                "pins": {"type": "integer",
+                         "description": "Only if no design exists yet."},
+                "reed": {"type": "number"},
+                "feel": {"type": "string"},
+            },
+        },
+    },
+    {
+        "name": "choose_design",
+        "description": "Adopt one of the explored candidates by its index.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"index": {"type": "integer"}},
+            "required": ["index"],
+        },
+    },
+    {
+        "name": "refine_design",
+        "description": (
+            "Adjust a generated design and rebuild it from vector at full "
+            "quality. Use this rather than edit_design for anything you "
+            "generated — edit_design pushes pixels around, this changes the "
+            "design itself. Map what the weaver says onto a change: 'too busy' "
+            "is more_open, 'looks empty' is denser, 'motifs too small' is "
+            "fewer_motifs."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "change": {"type": "string",
+                           "description": ("One of: more_open, denser, fewer_motifs, "
+                                           "more_motifs, taller, shorter, wider_border, "
+                                           "narrower_border.")},
+            },
+            "required": ["change"],
+        },
+    },
+    {
+        "name": "loom_geometry",
+        "description": (
+            "Convert between threads and finished cloth size at a given reed, "
+            "in either direction. Call this before proposing a pin count when "
+            "the weaver mentions a width in inches or centimetres, or when "
+            "they ask how big something will come out. A pin count means "
+            "nothing physical without the reed: 480 pins is 8 inches at reed "
+            "60 and 4.8 at reed 100."),
         "input_schema": {
             "type": "object",
             "properties": {
                 "pins": {"type": "integer"},
                 "cards": {"type": "integer"},
+                "reed": {"type": "number"},
+                "picks": {"type": "number"},
+                "width_in": {"type": "number",
+                             "description": "Give this to get the pin count back."},
+                "length_in": {"type": "number"},
             },
-            "required": ["pins"],
         },
     },
     {
@@ -309,80 +354,87 @@ TOOLS = [
     },
 ]
 
-SYSTEM_PROMPT = """You convert saree and brocade designs into loom-ready BMP \
-files, one per shuttle. You are talking to a weaver or a mill operator, and you \
-can carry out the work they ask for — not just describe it.
+SYSTEM_PROMPT = """You are the designer and converter for a jacquard weaving \
+mill. You are talking to a weaver or a mill operator, and you do the work — you \
+do not hand them a form to fill in.
 
-You can either CONVERT a design the weaver uploads, or GENERATE one from the
-motif library. If they ask for a design without uploading anything, use generate_design for a
-single motif or generate_allover for a full body — an all-over field of
-repeating motifs, which is what most saree and brocade work actually is. Reach
-for generate_allover whenever they describe a body, a field, a jaal, an
-all-over, or a repeat; use generate_design only when they clearly want one
-motif on its own. list_motifs shows both.
+TWO JOBS: design cloth from scratch, or convert a design they upload.
 
-When they give a pin count but leave the design to you, call design_options
-first. It reports how many of each motif fit across before the detail stops
-reading at that width, so you can propose something that works instead of
-guessing and being corrected. Then say what you are proposing and why the width
-led you there — "480 pins gives room for six paisleys across with space to
-breathe; ten would fit but each motif would only get 48 threads and the
-interiors would close" — and build it. Design decisions belong to you; just
-show your reasoning so the weaver can overrule it.
+DESIGNING — this is the main one.
+Use the `design` tool. Give it INTENT and let it work out the geometry. You
+decide the motif, the repeat, how many across, the border widths, the row
+count. Never ask a weaver for cols, rows, spacing or layout — those are design
+decisions, and asking for them makes the weaver do your job with less
+information than you have.
 
-About generated designs: they are original geometric and stylised
-constructions, built as vector at the loom's own pin count so the stroke weight
-is weavable by construction. They are NOT traditional regional motifs. If
-someone asks for a named tradition — Chola, Banarasi, Kanjivaram — say plainly
-that you can build a geometric butta or border in that spirit but not an
-authentic period motif, and that a designer is the right answer for anything a
-customer will recognise. Do not quietly pass off a generic paisley as Chola
-work.
+What you DO need, and should ask for if it is missing:
+  * how wide — pins, or inches plus the reed
+  * the reed count, if they gave inches or if the finished size matters
+  * how many threads the loom has
+  * how the cloth should feel, in their words
 
-The usual path when converting an upload:
-1. Call inspect_design first. Never ask something you could have found out by \
-looking.
-2. Say what you found in one or two short sentences, then ask how many pins the \
-job needs. Suggest the count the image can actually support.
-3. Call convert with their pin count.
-4. Report the verdict honestly. If detail is lost, say WHAT is lost in craft \
-terms — "the fine scrollwork inside the small motifs" beats "12% ink drift". \
-Mention a better pin count only if one genuinely exists.
-5. Do whatever they ask next: edit_design to change the linework, set_shuttles \
-to assign colours to threads, set_weave to change the weave.
-6. Call generate_files when they are happy, then tell them the files are ready.
+The reed is not optional detail. A pin count means nothing physical without
+it — 480 pins is 8 inches at reed 60 and 4.8 at reed 100 — so if a weaver
+mentions a size in inches, call `loom_geometry` before you propose anything.
 
-Working with edits:
-- edit_design reports fidelity after every change. If it comes back with a \
-warning that the change made things worse, SAY SO and offer undo_edit. Never \
-report an edit as a success when the tool told you it damaged the design.
-- Weavers describe things in their own words. "Lines are too thin" means \
-thicken. "Too many specks" means clean_specks. "The motif is breaking up" \
-means close_gaps. Map what they say onto the operations rather than asking \
-them to learn tool names.
-- Prefer amount 1 first and check the result. Small steps are recoverable.
-- Use describe_result when they ask how it looks or what has changed.
-- Edits invalidate generated files, so regenerate after editing.
+Ask AT MOST one or two questions before building something. A weaver who says
+"I need a saree body, 800 pins, reed 80" has told you enough; build it and show
+them. If they are vague — "something traditional" — pick sensible defaults,
+build it, say what you chose and why, and offer to change it. A design on the
+table beats a questionnaire.
 
-What matters:
-- Black lifts the thread, white leaves it down. A BMP is an instruction sheet.
-- Shuttle count includes the rani ground: 1 is zari alone, 2 is zari plus \
-rani, 3 adds meena1, 4 adds meena2. So a design with two colours needs \
-shuttle_count 3. If generate_files warns that threads were dropped, tell the \
-weaver — do not hand over a file with a colour silently missing.
-- Shuttles are hardware. The loom weaves exactly shuttle_count threads. If \
-someone asks for a colour there is no thread for, say so and offer the real \
-options: replace one, or raise the count if the loom has a spare shuttle.
-- Colours that are tonal shades of one thread — cream, mid pink, deep pink of \
-the same yarn — belong on ONE shuttle, not three.
-- Never claim a conversion is good when the tools reported WARN or FAIL. If \
-the source is too small to carry the design, say so plainly; a rescan is the \
-only fix and the weaver needs to hear it before the cloth is woven.
-- If they ask for something you have no tool for, say what you cannot do \
-rather than pretending. Pixel-level drawing belongs in the BMP Editor.
+State your reasoning in craft terms, briefly: "800 pins at reed 80 is 10
+inches; two 72-thread borders leave 656 for the body, so ten paisleys across
+gives each one 65 threads — enough for the interior detail to read." Then let
+them overrule you.
 
-Be brief and concrete. Talk like a colleague on the mill floor. Do not explain \
-your tools or narrate what you are about to do — just do it and report."""
+When they are undecided or the first attempt missed, `explore_designs` builds
+alternatives and scores them. Describe what makes each one different in words a
+weaver uses — heavier, more open, a lattice ground instead of scattered
+buttas — not by their numbers. Then `choose_design`.
+
+REFINING.
+`refine_design` for anything you generated: it rebuilds from the vector at full
+quality. `edit_design` is for uploaded images and pushes pixels around — do not
+reach for it on a generated design. Translate what they say: "too busy" is
+more_open, "looks empty" is denser, "motifs are too small" is fewer_motifs.
+Make one change, show the result, ask if that is the direction.
+
+CONVERTING AN UPLOAD.
+`inspect_design` first — never ask something you could have looked at. Say what
+you found in a sentence or two, suggest the pin count the image can support,
+`convert`, then report honestly. If detail is lost say WHAT is lost — "the fine
+scrollwork inside the small motifs" beats "12% ink drift". Then `set_shuttles`,
+`set_weave`, `generate_files`.
+
+HONESTY — this is the part that matters most.
+  * Never call a conversion good when a tool reported warn or fail. If the
+    source is too small to carry the design, say so plainly: a rescan is the
+    only fix, and the weaver needs to hear it before the cloth is on the loom.
+  * If a tool returns a warning, lead with it. A refinement that made the
+    design worse gets said out loud and an offer to go back — not buried under
+    a description of the new version.
+  * Generated motifs are original geometric constructions, not traditional
+    regional work. Asked for Chola, Banarasi or Kanjivaram: say you can build
+    something in that spirit but not an authentic period motif, and that a
+    designer is the right answer for anything a customer will recognise. Never
+    pass off a generic paisley as Chola work.
+  * If you have no tool for what they want, say what you cannot do and what
+    you can. Do not improvise around it.
+
+THE LOOM.
+Black lifts the thread, white leaves it down; a BMP is an instruction sheet.
+Shuttle count includes the rani ground: 1 is zari alone, 2 adds rani, 3 adds
+meena1, 4 adds meena2 — so a two-colour design needs shuttle_count 3. Shuttles
+are hardware: if they ask for a colour there is no thread for, say so and give
+the real options rather than silently dropping it. Tonal shades of one yarn —
+cream, mid pink, deep pink — belong on ONE shuttle.
+
+TONE.
+Talk like a colleague who knows looms. Short sentences. No parameter dumps, no
+bulleted settings lists, no restating the tool arguments back at them. One or
+two sentences about what you made and why, then the next question or the files.
+"""
 
 
 def _tool_inspect(session, args):
@@ -781,6 +833,245 @@ def _tool_describe(session, args):
     }
 
 
+def _spec_of(session):
+    import design_studio as ds
+    d = session.get('spec')
+    return ds.LayoutSpec(**d) if d else None
+
+
+def _adopt(session, spec, conv, img, name=None):
+    """Make a spec the working design and clear everything derived from it."""
+    import design_studio as ds
+    session['spec'] = spec.dict()
+    session['image'] = img
+    session['conversion'] = conv
+    session['filename'] = name or f'{spec.body_motif}_{spec.pins}'
+    session['working'] = None
+    session['undo'] = []
+    session['shuttles'] = None
+    session['weave'] = {}
+    session['files'] = None
+    session['variants'] = None
+    return ds.describe(spec)
+
+
+def _tool_design(session, args):
+    """
+    Design a panel from a brief — plan, compose, convert and score in one call.
+
+    This exists because the old path made the weaver supply layout, motif,
+    cols, rows and spacing before anything could be built. Those are the
+    designer's decisions, and the numbers needed to make them well (how many
+    threads a motif needs, what the reed makes the cloth measure) live in this
+    codebase, not in the weaver's head. So the brief carries intent — width,
+    reed, how the cloth should feel — and the geometry is worked out here.
+    """
+    import design_studio as ds
+    from auto_convert import auto_convert
+
+    pins, reed = args.get('pins'), args.get('reed')
+    if not pins and not args.get('width_in'):
+        return {'error': 'I need either a pin count or a finished width in inches.'}
+    if args.get('width_in') and not pins:
+        pins = ds.geometry(None, reed=reed, width_in=args['width_in'])['pins']
+
+    motif = args.get('motif')
+    if motif and motif not in ml_motifs():
+        return {'error': f"Unknown motif '{motif}'. Available: "
+                         f"{', '.join(sorted(ml_motifs()))}"}
+
+    try:
+        p = ds.plan(pins=pins, reed=reed, picks=args.get('picks'),
+                    cards=args.get('cards'), feel=args.get('feel'),
+                    threads=int(args.get('threads', 2) or 2),
+                    motif=motif,
+                    borders=args.get('borders', True) is not False,
+                    pallu=bool(args.get('pallu')),
+                    length_in=args.get('length_in'))
+        spec = ds.LayoutSpec(**p['spec'])
+        img = ds.render(spec)
+    except Exception as e:
+        return {'error': f'Could not build that: {e}'}
+
+    if img.size[1] > 6000:
+        return {'error': f'That comes to {img.size[1]} cards, over the 6000 limit.'}
+
+    conv = auto_convert(img, pins=spec.pins,
+                        n_colors=max(2, min(4, spec.threads + 1)))
+    if not conv.get('best'):
+        return {'error': conv.get('summary', 'That design would not convert.')}
+
+    summary = _adopt(session, spec, conv, img)
+    rep = conv['best']['report']
+    return {
+        'design': summary,
+        'why_this': p['why'],
+        'geometry': {k: v for k, v in p['geometry'].items() if k != 'raw'},
+        'threads': spec.threads,
+        'verdict': conv['verdict'],
+        'thread_drift_pct': rep['ink_drift_pct'],
+        'design_gaps': rep['output_white_regions'],
+        'other_motifs_that_fit': [
+            f"{o['cols']} {o['motif']} ({o['threads_per_motif']} threads each)"
+            for o in p['options'][1:4]],
+        'note': ('A whole panel: two side borders and the body between them. '
+                 'Every region was built at its own width, so the border '
+                 'linework is weavable and not just the body scaled down.'),
+    }
+
+
+def _tool_explore(session, args):
+    """
+    Build several designs and score each against the loom, ranked best first.
+
+    The search belongs in code: whether a field weaves is a measurement, and
+    measuring three candidates takes seconds. Reading the scores and saying
+    which suits the cloth is the judgement, and that is the model's part.
+    """
+    import design_studio as ds
+
+    spec = _spec_of(session)
+    if spec is None:
+        base = _tool_design(session, args)
+        if 'error' in base:
+            return base
+        spec = _spec_of(session)
+
+    n = max(2, min(4, int(args.get('count', 3) or 3)))
+    try:
+        ranked = ds.explore(spec, n=n)
+    except Exception as e:
+        return {'error': f'Could not explore alternatives: {e}'}
+
+    session['variants'] = ranked
+    return {
+        'candidates': [
+            {'index': i,
+             'design': r.get('summary') or r.get('error'),
+             'verdict': r.get('verdict'),
+             'thread_drift_pct': r.get('thread_drift_pct'),
+             'design_gaps': r.get('design_gaps')}
+            for i, r in enumerate(ranked)],
+        'note': ('Ranked by how cleanly each converts, not by how it looks. '
+                 'Describe them to the weaver and let them choose; call '
+                 'choose_design with the index once they have.'),
+    }
+
+
+def _tool_choose(session, args):
+    """Adopt one of the explored candidates as the working design."""
+    import design_studio as ds
+    ranked = session.get('variants')
+    if not ranked:
+        return {'error': 'Nothing to choose from — run explore_designs first.'}
+    try:
+        i = int(args.get('index', 0))
+    except (TypeError, ValueError):
+        return {'error': 'Index must be a whole number.'}
+    if not (0 <= i < len(ranked)):
+        return {'error': f'Pick an index between 0 and {len(ranked) - 1}.'}
+    r = ranked[i]
+    if 'error' in r:
+        return {'error': f"That candidate did not build: {r['error']}"}
+    spec = ds.LayoutSpec(**r['spec'])
+    summary = _adopt(session, spec, r['_conversion'], r['_image'])
+    return {'chosen': summary, 'verdict': r['verdict']}
+
+
+def _tool_refine(session, args):
+    """
+    Adjust the design in the weaver's own terms and rebuild it from vector.
+
+    The change is applied to the SPEC, not to the raster. That matters: a spec
+    re-renders at the exact pin count with stroke weights recomputed for the
+    new geometry, whereas editing pixels degrades what came before, so ten
+    small tweaks leave a design that no single step broke and none can undo.
+    """
+    import design_studio as ds
+    from auto_convert import auto_convert
+
+    spec = _spec_of(session)
+    if spec is None:
+        return {'error': 'There is no generated design to refine yet. '
+                         'Use edit_design for an uploaded image.'}
+
+    new_spec, desc, err = ds.refine(spec, args.get('change', ''))
+    if err:
+        return {'error': err}
+
+    try:
+        img = ds.render(new_spec)
+    except Exception as e:
+        return {'error': f'That change would not render: {e}'}
+
+    conv = auto_convert(img, pins=new_spec.pins,
+                        n_colors=max(2, min(4, new_spec.threads + 1)))
+    if not conv.get('best'):
+        return {'error': 'That change made a design that will not convert. '
+                         'The previous one is still in place.'}
+
+    # Verdicts are 'ok' / 'warn' / 'fail' — lower case, from fidelity.py. A
+    # comparison against 'PASS' silently never fires, which is the worst
+    # possible failure for a guard whose entire job is to speak up.
+    rank = {'ok': 0, 'warn': 1, 'fail': 2}
+    prev = session.get('conversion') or {}
+    before_v = str(prev.get('verdict', 'ok')).lower()
+    before_drift = ((prev.get('best') or {}).get('report') or {}).get('ink_drift_pct')
+
+    summary = _adopt(session, new_spec, conv, img)
+    rep = conv['best']['report']
+    after_v = str(conv['verdict']).lower()
+    out = {'changed': desc, 'design': summary, 'verdict': after_v,
+           'thread_drift_pct': rep['ink_drift_pct'],
+           'design_gaps': rep['output_white_regions']}
+
+    if rank.get(after_v, 2) > rank.get(before_v, 0):
+        out['warning'] = (f'This change dropped the verdict from {before_v} to '
+                          f'{after_v}. Say so and offer to go back.')
+    elif before_drift is not None and rep['ink_drift_pct'] > before_drift * 1.5 + 5:
+        # A change can hold its verdict and still make the cloth materially
+        # worse. Drift going from 26% to 55% inside the same 'warn' band is a
+        # real degradation, and reporting only the verdict would hide it.
+        out['warning'] = (f'Thread coverage drifted further, from '
+                          f'{before_drift}% to {rep["ink_drift_pct"]}%, even '
+                          f'though the verdict held. Mention it.')
+    return out
+
+
+def _tool_loom_geometry(session, args):
+    """Threads to inches and back, at a given reed."""
+    import design_studio as ds
+    try:
+        g = ds.geometry(pins=args.get('pins'), cards=args.get('cards'),
+                        reed=args.get('reed'), picks=args.get('picks'),
+                        width_in=args.get('width_in'),
+                        length_in=args.get('length_in'))
+    except Exception as e:
+        return {'error': f'Could not work that out: {e}'}
+
+    # Report clamping instead of hiding it. Asking for 45 inches at reed 80
+    # needs 3600 threads; returning a quiet 2640 and calling it 33 inches
+    # answers a question nobody asked, and the weaver finds out at the loom.
+    asked_w = args.get('width_in')
+    if asked_w and abs(float(asked_w) - g['width_in']) > 0.05:
+        need = int(round(float(asked_w) * g['reed_epi']))
+        g['warning'] = (f"{asked_w}in at reed {int(g['reed_epi'])} needs {need} "
+                        f"threads, past the 2640 limit. The widest this loom "
+                        f"weaves at that reed is {g['width_in']}in. A coarser "
+                        f"reed or a narrower panel is the real choice.")
+    asked_l = args.get('length_in')
+    if asked_l and abs(float(asked_l) - g['length_in']) > 0.05:
+        g['length_warning'] = (f"{asked_l}in of length needs "
+                               f"{int(round(float(asked_l) * g['picks_ppi']))} cards, "
+                               f"past the 6000 limit. Capped at {g['length_in']}in.")
+    return g
+
+
+def ml_motifs():
+    import motif_library as ml
+    return ml.MOTIFS
+
+
 def _tool_generate_allover(session, args):
     """
     Build a full all-over brocade field and make it the working design.
@@ -966,6 +1257,14 @@ _DISPATCH = {
     'list_motifs': _tool_list_motifs,
     'generate_allover': _tool_generate_allover,
     'design_options': _tool_design_options,
+    # Intent-level tools. The parameter-level ones above stay callable so
+    # nothing that already depends on them breaks, but the model is only
+    # offered these.
+    'design': _tool_design,
+    'explore_designs': _tool_explore,
+    'choose_design': _tool_choose,
+    'refine_design': _tool_refine,
+    'loom_geometry': _tool_loom_geometry,
 }
 
 
@@ -985,49 +1284,39 @@ def run_tool(name, args, session):
 # ── Conversation loop ───────────────────────────────────────────────────────
 
 def _call_api(messages):
-    key = _key()
-    if not key:
-        return None, 'No API key configured. Set ANTHROPIC_API_KEY or add it to config.json.'
-    # Thinking is disabled explicitly. Sonnet 5 turns adaptive thinking on by
-    # default, which has two costs here: thinking tokens count against
-    # max_tokens (so a cap tuned without it can truncate the visible answer),
-    # and thinking blocks enter the assistant turns that this loop feeds back
-    # as history, which is extra state to preserve correctly for no benefit.
-    # The work in this agent is tool dispatch and short explanations, not
-    # reasoning the model needs scratch space for.
-    body = json.dumps({
-        "model": model_id(),
-        "thinking": {"type": "disabled"},
-        "max_tokens": 1400,
-        "system": SYSTEM_PROMPT,
-        "tools": TOOLS,
-        "messages": messages,
-    }).encode()
-    req = urllib.request.Request(API_URL, data=body, headers={
-        "content-type": "application/json",
-        "x-api-key": key,
-        "anthropic-version": API_VERSION,
-    })
+    """
+    One model turn through whichever provider is configured.
+
+    Kept as a single seam: this is the only function in the agent that touches
+    a backend, so tests replace it wholesale and a provider swap changes
+    nothing above it. Returns (Reply, None) or (None, message).
+    """
     try:
-        with urllib.request.urlopen(req, timeout=API_TIMEOUT) as resp:
-            return json.loads(resp.read().decode()), None
-    except urllib.error.HTTPError as e:
-        # Read the body. The API explains exactly what it rejected — an unknown
-        # model, a malformed tool schema, a bad message shape — and discarding
-        # that in favour of a bare status code makes the failure undiagnosable.
-        detail = f'HTTP {e.code}'
-        try:
-            payload = json.loads(e.read().decode())
-            msg = (payload.get('error') or {}).get('message')
-            if msg:
-                detail = msg
-        except Exception:
-            pass
-        if e.code in (401, 403):
-            detail = f'{detail} — check the API key'
-        return None, f'Assistant unavailable: {detail}'
-    except Exception:
-        return None, 'Assistant unreachable. Check the network connection.'
+        p = llm.provider()
+        if not p.is_available():
+            return None, ('No model backend configured. Set ANTHROPIC_API_KEY, '
+                          'or set "llm_provider" in config.json to use a local model.')
+        return p.complete(SYSTEM_PROMPT, messages, TOOLS, max_tokens=1400), None
+    except llm.ProviderError as e:
+        return None, e.message
+    except Exception as e:
+        return None, f'Assistant unavailable: {e}'
+
+
+def _trim(history):
+    """
+    Take the last MAX_HISTORY messages without orphaning a tool exchange.
+
+    A tool_results message whose matching assistant tool_calls turn has been
+    trimmed away is rejected by both wire formats — Anthropic requires every
+    tool_result to reference a tool_use in the preceding assistant turn, and
+    OpenAI requires every role="tool" message to follow its tool_calls. So the
+    window is advanced to the next clean boundary rather than cut mid-exchange.
+    """
+    window = history[-MAX_HISTORY:]
+    while window and window[0].get('role') == 'tool_results':
+        window = window[1:]
+    return window
 
 
 def converse(session, user_message):
@@ -1037,38 +1326,47 @@ def converse(session, user_message):
     Returns {'ok', 'reply', 'tools_used', 'has_files'}.
     """
     history = session['history']
-    history.append({'role': 'user', 'content': user_message})
+    mark = len(history)
+    history.append(llm.user_msg(user_message))
 
     tools_used = []
     for _ in range(MAX_TOOL_ROUNDS):
-        data, err = _call_api(history[-MAX_HISTORY:])
+        reply, err = _call_api(_trim(history))
         if err:
-            history.pop()
+            # Roll the whole turn back, not just the user message: a failure
+            # part-way through a tool loop would otherwise leave assistant
+            # turns with unanswered tool calls, which the next request rejects.
+            del history[mark:]
             return {'ok': False, 'reply': err, 'tools_used': tools_used,
                     'has_files': bool(session.get('files'))}
 
-        blocks = data.get('content') or []
-        history.append({'role': 'assistant', 'content': blocks})
+        history.append(llm.assistant_msg(reply))
+        session['usage'] = _add_usage(session.get('usage'), reply.usage)
 
-        calls = [b for b in blocks if b.get('type') == 'tool_use']
-        if not calls:
-            text = ' '.join(b['text'].strip() for b in blocks
-                            if b.get('type') == 'text' and b.get('text'))
-            return {'ok': True, 'reply': text or 'Done.',
+        if not reply.wants_tools:
+            return {'ok': True, 'reply': reply.text or 'Done.',
                     'tools_used': tools_used,
                     'has_files': bool(session.get('files'))}
 
         results = []
-        for call in calls:
-            tools_used.append(call.get('name'))
-            out = run_tool(call.get('name'), call.get('input'), session)
-            results.append({'type': 'tool_result', 'tool_use_id': call.get('id'),
+        for call in reply.tool_calls:
+            tools_used.append(call.name)
+            out = run_tool(call.name, call.args, session)
+            results.append({'id': call.id, 'name': call.name,
                             'content': json.dumps(out, default=str)})
-        history.append({'role': 'user', 'content': results})
+        history.append(llm.tool_results_msg(results))
 
     return {'ok': True,
             'reply': 'That took more steps than expected — could you rephrase?',
             'tools_used': tools_used, 'has_files': bool(session.get('files'))}
+
+
+def _add_usage(total, delta):
+    """Accumulate token counts per session, for cost reporting and budgets."""
+    total = total or {'input': 0, 'output': 0, 'cache_read': 0, 'cache_write': 0}
+    for k, v in (delta or {}).items():
+        total[k] = total.get(k, 0) + int(v or 0)
+    return total
 
 
 def files_zip(session):
